@@ -259,17 +259,7 @@ export function MonitorReportPanel() {
             <div className="failBox">
               <div className="failTitle">고쳐야 할 항목</div>
               <ul className="failList">
-                {[
-                  ...state.report.failures,
-                  ...((state.report.diagnostics?.consoleMessages ?? []).some((m) => m.type === 'warning') &&
-                  !state.report.failures.some((f) => f.startsWith('Console warnings:'))
-                    ? [
-                        `Console warnings: ${
-                          (state.report.diagnostics?.consoleMessages ?? []).filter((m) => m.type === 'warning').length
-                        }`,
-                      ]
-                    : []),
-                ].map((f, idx) => (
+                {state.report.failures.map((f, idx) => (
                   <li key={`${idx}-${f}`}>
                     <div>{f}</div>
                     {renderCurrentFailureDetails(state.report, f)}
@@ -298,9 +288,6 @@ export function MonitorReportPanel() {
                   <span className="chip">
                     콘솔 <b>{state.report.diagnostics.consoleMessages?.length ?? 0}</b>
                   </span>
-                  <span className="chip">
-                    요청 <b>{state.report.diagnostics.requestFailures?.length ?? 0}</b>
-                  </span>
                 </div>
 
                 <div className="diagSections">
@@ -327,25 +314,6 @@ export function MonitorReportPanel() {
                         {state.report.diagnostics.consoleMessages.map((m, idx) => (
                           <li key={`${idx}-${m.type}-${m.text}`}>
                             <span className={`pill ${m.type}`}>{m.type}</span> {m.text}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="muted">없음</p>
-                    )}
-                  </div>
-
-                  <div className="diagSection">
-                    <div className="diagSectionTitle">요청</div>
-                    {state.report.diagnostics.requestFailures?.length ? (
-                      <ul className="diagList">
-                        {state.report.diagnostics.requestFailures.map((r, idx) => (
-                          <li key={`${idx}-${r.url}-${r.errorText}`}>
-                            <div className="diagMain">
-                              <span className="pill info">{r.method}</span>{' '}
-                              <span className="pill info">{r.resourceType}</span> {r.errorText}
-                            </div>
-                            <div className="diagUrl">{r.url}</div>
                           </li>
                         ))}
                       </ul>

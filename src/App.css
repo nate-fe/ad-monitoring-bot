@@ -42,18 +42,16 @@
 
 .mascotImg,
 .mascotFallback {
-  width: 148px;
-  height: 148px;
-  border-radius: 4px;
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
 }
 
 .mascotImg {
   display: block;
   object-fit: cover;
-  border: 1px solid var(--border);
   box-shadow:
-    0 10px 30px rgba(0, 0, 0, 0.35),
-    0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+    0 5px 7px rgba(0, 0, 0, 0.1);
   background: var(--panel);
 }
 

@@ -4,7 +4,7 @@ import { useState } from 'react'
 
 function App() {
   const [mascotOk, setMascotOk] = useState(true)
-  const darongUrl = `${import.meta.env.BASE_URL}darong.jpg`
+  const darongUrl = `${import.meta.env.BASE_URL}darong.png`
 
   return (
     <div className="app">
@@ -28,10 +28,9 @@ function App() {
               className="mascotFallback"
               aria-hidden="true"
               style={{
-                backgroundImage: `linear-gradient(rgba(0,0,0,0.15), rgba(0,0,0,0.35)), url(${darongUrl})`,
+                backgroundImage: `url(${darongUrl})`,
               }}
             >
-              DARONG
             </div>
           )}
           <figcaption className="mascotCaption">네이트 모바일 뉴스<br/>광고 스크립트 모니터링 봇, <br/><strong>다롱이</strong></figcaption>
