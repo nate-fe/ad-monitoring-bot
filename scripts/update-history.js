@@ -32,9 +32,15 @@ function summarize(report) {
   const consoleMessages = report?.diagnostics?.consoleMessages ?? []
   const pageErrors = report?.diagnostics?.pageErrors ?? []
   const requestFailures = report?.diagnostics?.requestFailures ?? []
-  const consoleErrors = consoleMessages.filter((m) => m?.type === 'error').length
-  const consoleWarnings = consoleMessages.filter((m) => m?.type === 'warning').length
-  const consoleSample = consoleMessages.slice(0, 5).map((m) => ({
+  const errorMessages = consoleMessages.filter((m) => m?.type === 'error')
+  const warningMessages = consoleMessages.filter((m) => m?.type === 'warning')
+  const consoleErrors = errorMessages.length
+  const consoleWarnings = warningMessages.length
+  const consoleErrorSample = errorMessages.slice(0, 5).map((m) => ({
+    type: m?.type ?? 'error',
+    text: String(m?.text ?? ''),
+  }))
+  const consoleWarningSample = warningMessages.slice(0, 5).map((m) => ({
     type: m?.type ?? 'log',
     text: String(m?.text ?? ''),
   }))
@@ -52,7 +58,8 @@ function summarize(report) {
       consoleWarnings,
       requestFailures: requestFailures.length,
     },
-    consoleSample,
+    consoleErrorSample,
+    consoleWarningSample,
     meta: {
       runId: getEnv('GITHUB_RUN_ID', { defaultValue: '' }),
       runUrl: getEnv('GITHUB_RUN_URL', { defaultValue: '' }),

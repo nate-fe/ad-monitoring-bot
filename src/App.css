@@ -214,6 +214,16 @@
   font-size:13px;
   padding-left: 18px;
 }
+.failList > li:nth-child(2) {
+  margin-top:12px;
+}
+
+.failDetailList {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 6px;
+}
 
 .diag {
   margin-top: 14px;
@@ -425,8 +435,45 @@
   margin-top: 18px;
 }
 
+.historyDateGroup {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  overflow: hidden;
+}
+
+.historyDateSummary {
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 14px;
+  font-weight: 700;
+  background: color-mix(in srgb, var(--panel2) 78%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+}
+
+.historyDateSummary::-webkit-details-marker {
+  display: none;
+}
+
+.historyDateLabel {
+  min-width: 0;
+}
+
+.historyDateList {
+  margin: 0;
+  padding: 10px 10px 12px;
+  list-style: none;
+  display: grid;
+  gap: 10px;
+}
+
 .historyItem {
-  margin-top: 6px;
+  margin-top: 0;
 }
 
 .historySummaryRow {
@@ -495,6 +542,19 @@ details[open].historyItem .historyChevron {
 
 .historyBody {
   padding: 10px 6px 2px;
+}
+
+.miniSectionTitle {
+  margin-bottom: 6px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.miniConsoleList {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 6px;
 }
 
 @media (max-width: 560px) {

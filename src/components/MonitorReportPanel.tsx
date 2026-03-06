@@ -17,6 +17,36 @@ function formatDate(iso: string) {
   return d.toLocaleString()
 }
 
+function formatDateKey(iso: string) {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function formatDateLabel(dateKey: string) {
+  const d = new Date(`${dateKey}T00:00:00`)
+  if (Number.isNaN(d.getTime())) return dateKey
+  return d.toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    weekday: 'short',
+  })
+}
+
+function formatTimeOnly(iso: string) {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  return d.toLocaleTimeString(undefined, {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  })
+}
+
 export function MonitorReportPanel() {
   const [state, setState] = useState<LoadState>({ kind: 'idle' })
   const [history, setHistory] = useState<HistoryState>({ kind: 'idle' })
@@ -43,10 +73,70 @@ export function MonitorReportPanel() {
     }
 
     if (pageErrors) parts.push(`페이지 오류 ${pageErrors}개`)
-    if (requestFailures) parts.push(`요청 실패 ${requestFailures}개`)
     if (it.failures?.length) parts.push(`고쳐야 할 항목 ${it.failures.length}개`)
 
     return parts.join(' · ')
+  }
+
+  const renderCurrentFailureDetails = (report: MonitorReport, failure: string) => {
+    const consoleErrors = (report.diagnostics?.consoleMessages ?? []).filter((m) => m.type === 'error')
+    const consoleWarnings = (report.diagnostics?.consoleMessages ?? []).filter((m) => m.type === 'warning')
+    const pageErrors = report.diagnostics?.pageErrors ?? []
+    const requestFailures = report.diagnostics?.requestFailures ?? []
+
+    if (failure.startsWith('Console errors:')) {
+      if (!consoleErrors.length) return null
+      return (
+        <ul className="failDetailList">
+          {consoleErrors.map((item, idx) => (
+            <li key={`${idx}-${item.text}`}>
+              <span className="pill error">{item.type}</span> {item.text}
+            </li>
+          ))}
+        </ul>
+      )
+    }
+
+    if (failure.startsWith('Console warnings:')) {
+      if (!consoleWarnings.length) return null
+      return (
+        <ul className="failDetailList">
+          {consoleWarnings.map((item, idx) => (
+            <li key={`${idx}-${item.text}`}>
+              <span className="pill warning">{item.type}</span> {item.text}
+            </li>
+          ))}
+        </ul>
+      )
+    }
+
+    if (failure.startsWith('JS page errors:')) {
+      if (!pageErrors.length) return null
+      return (
+        <ul className="failDetailList">
+          {pageErrors.map((item, idx) => (
+            <li key={`${idx}-${item.message}`}>{item.message}</li>
+          ))}
+        </ul>
+      )
+    }
+
+    if (failure.startsWith('Request failures:')) {
+      if (!requestFailures.length) return null
+      return (
+        <ul className="failDetailList">
+          {requestFailures.map((item, idx) => (
+            <li key={`${idx}-${item.url}-${item.errorText}`}>
+              <span className="pill info">{item.method}</span>{' '}
+              <span className="pill info">{item.resourceType}</span> {item.errorText}
+              <div className="diagUrl">{item.url}</div>
+            </li>
+          ))}
+        </ul>
+      )
+    }
+
+    return null
   }
 
   const load = useCallback(async () => {
@@ -111,6 +201,27 @@ export function MonitorReportPanel() {
     return '불러오는 중…'
   }, [state])
 
+  const groupedHistory = useMemo(() => {
+    if (history.kind !== 'loaded') return []
+
+    const groups = new Map<string, MonitorHistoryEntry[]>()
+    for (const item of history.items) {
+      const key = formatDateKey(item.checkedAt)
+      const existing = groups.get(key)
+      if (existing) {
+        existing.push(item)
+      } else {
+        groups.set(key, [item])
+      }
+    }
+
+    return Array.from(groups.entries()).map(([dateKey, items]) => ({
+      dateKey,
+      label: formatDateLabel(dateKey),
+      items,
+    }))
+  }, [history])
+
   return (
     <section className="panel">
       <div className="panelHeader">
@@ -149,8 +260,21 @@ export function MonitorReportPanel() {
             <div className="failBox">
               <div className="failTitle">고쳐야 할 항목</div>
               <ul className="failList">
-                {state.report.failures.map((f, idx) => (
-                  <li key={`${idx}-${f}`}>{f}</li>
+                {[
+                  ...state.report.failures,
+                  ...((state.report.diagnostics?.consoleMessages ?? []).some((m) => m.type === 'warning') &&
+                  !state.report.failures.some((f) => f.startsWith('Console warnings:'))
+                    ? [
+                        `Console warnings: ${
+                          (state.report.diagnostics?.consoleMessages ?? []).filter((m) => m.type === 'warning').length
+                        }`,
+                      ]
+                    : []),
+                ].map((f, idx) => (
+                  <li key={`${idx}-${f}`}>
+                    <div>{f}</div>
+                    {renderCurrentFailureDetails(state.report, f)}
+                  </li>
                 ))}
               </ul>
             </div>
@@ -256,96 +380,99 @@ export function MonitorReportPanel() {
 
               {history.kind === 'loaded' ? (
                 <ul className="diagList">
-                  {history.items.slice(0, 30).map((it, idx) => (
-                    <li key={`${idx}-${it.checkedAt}`}>
-                      <details className="historyItem">
-                        <summary className="historySummaryRow">
-                          <div className="historySummaryText">
-                            <div className="historyWhen">{formatDate(it.checkedAt)} · {it.durationMs}ms</div>
-                            <div className="historyMeta">{summarizeHistoryLine(it)}</div>
-                          </div>
-                          <div className="historySummaryRight" aria-hidden="true">
-                            <span className="historyChevron">▾</span>
-                          </div>
+                  {groupedHistory.map((group) => (
+                    <li key={group.dateKey}>
+                      <details className="historyDateGroup">
+                        <summary className="historyDateSummary">
+                          <span className="historyDateLabel">{group.label}</span>
                         </summary>
 
-                        <div className="historyBody">
-                          {(() => {
-                            const consoleErrors = it.counts?.consoleErrors ?? 0
-                            const consoleWarnings = it.counts?.consoleWarnings ?? 0
-                            const pageErrors = it.counts?.pageErrors ?? 0
-                            const requestFailures = it.counts?.requestFailures ?? 0
-                            const s = summarizeFailures(it.failures, 5)
-                            const consoleSample = it.consoleSample ?? []
+                        <ul className="historyDateList">
+                          {group.items.map((it, idx) => (
+                            <li key={`${idx}-${it.checkedAt}`}>
+                              <details className="historyItem">
+                                <summary className="historySummaryRow">
+                                  <div className="historySummaryText">
+                                    <div className="historyWhen">{formatTimeOnly(it.checkedAt)} · {it.durationMs}ms</div>
+                                    <div className="historyMeta">{summarizeHistoryLine(it)}</div>
+                                  </div>
+                                  <div className="historySummaryRight" aria-hidden="true">
+                                    <span className="historyChevron">▾</span>
+                                  </div>
+                                </summary>
 
-                            const hasAnyDetail =
-                              consoleErrors ||
-                              consoleWarnings ||
-                              pageErrors ||
-                              requestFailures ||
-                              s ||
-                              consoleSample.length
+                                <div className="historyBody">
+                                  {(() => {
+                                    const consoleErrors = it.counts?.consoleErrors ?? 0
+                                    const consoleWarnings = it.counts?.consoleWarnings ?? 0
+                                    const pageErrors = it.counts?.pageErrors ?? 0
+                                    const requestFailures = it.counts?.requestFailures ?? 0
+                                    const s = summarizeFailures(it.failures, 5)
+                                    const consoleErrorSample = it.consoleErrorSample ?? []
+                                    const consoleWarningSample = it.consoleWarningSample ?? []
 
-                            if (!hasAnyDetail) {
-                              return <p className="muted">이 실행에서 특별한 이상은 기록되지 않았습니다.</p>
-                            }
+                                    const hasAnyDetail =
+                                      consoleErrors ||
+                                      consoleWarnings ||
+                                      pageErrors ||
+                                      requestFailures ||
+                                      s ||
+                                      consoleErrorSample.length ||
+                                      consoleWarningSample.length
 
-                            return (
-                              <>
-                                <div className="diagChips">
-                                  <span className="chip">
-                                    페이지 <b>{pageErrors}</b>
-                                  </span>
-                                  <span className="chip">
-                                    콘솔 오류 <b>{consoleErrors}</b>
-                                  </span>
-                                  <span className="chip">
-                                    콘솔 경고 <b>{consoleWarnings}</b>
-                                  </span>
-                                  <span className="chip">
-                                    요청 <b>{requestFailures}</b>
-                                  </span>
-                                  <span className="chip">
-                                    항목 <b>{it.failures?.length ?? 0}</b>
-                                  </span>
+                                    if (!hasAnyDetail) {
+                                      return <p className="muted">이 실행에서 특별한 이상은 기록되지 않았습니다.</p>
+                                    }
+
+                                    return (
+                                      <>
+                                        <div className="diagChips">
+                                          <span className="chip">
+                                            페이지 <b>{pageErrors}</b>
+                                          </span>
+                                          <span className="chip">
+                                            콘솔 오류 <b>{consoleErrors}</b>
+                                          </span>
+                                          <span className="chip">
+                                            콘솔 경고 <b>{consoleWarnings}</b>
+                                          </span>
+                                        </div>
+
+                                        <ul className="miniList">
+                                          <li>콘솔 로그: 오류 {consoleErrors}개, 경고 {consoleWarnings}개</li>
+                                          {consoleErrorSample.length ? (
+                                            <li>
+                                              <div className="miniSectionTitle">콘솔 오류 내용</div>
+                                              <ul className="miniConsoleList">
+                                                {consoleErrorSample.map((m, sampleIdx) => (
+                                                  <li key={`${sampleIdx}-${m.text}`}>
+                                                    <span className={`pill ${m.type}`}>{m.type}</span> {m.text}
+                                                  </li>
+                                                ))}
+                                              </ul>
+                                            </li>
+                                          ) : null}
+                                          {consoleWarningSample.length ? (
+                                            <li>
+                                              <div className="miniSectionTitle">콘솔 경고 내용</div>
+                                              <ul className="miniConsoleList">
+                                                {consoleWarningSample.map((m, sampleIdx) => (
+                                                  <li key={`${sampleIdx}-${m.text}`}>
+                                                    <span className={`pill ${m.type}`}>{m.type}</span> {m.text}
+                                                  </li>
+                                                ))}
+                                              </ul>
+                                            </li>
+                                          ) : null}
+                                        </ul>
+                                      </>
+                                    )
+                                  })()}
                                 </div>
-
-                                <ul className="miniList">
-                                  <li>
-                                    콘솔 로그: 오류 {consoleErrors}개, 경고 {consoleWarnings}개
-                                  </li>
-                                  <li>
-                                    페이지 오류: {pageErrors}개
-                                  </li>
-                                  <li>
-                                    네트워크 실패: {requestFailures}개
-                                  </li>
-                                  {consoleSample.length ? (
-                                    <li>
-                                      <ul className="miniConsoleList">
-                                        {consoleSample.map((m, idx) => (
-                                          <li key={`${idx}-${m.text}`}>
-                                            <span className={`pill ${m.type}`}>{m.type}</span> {m.text}
-                                          </li>
-                                        ))}
-                                      </ul>
-                                    </li>
-                                  ) : null}
-                                  {s ? (
-                                    <>
-                                      {s.shown.map((f) => (
-                                        <li key={f}>규칙 위반: {f}</li>
-                                      ))}
-                                      {s.remaining > 0 ? (
-                                        <li className="miniMore">규칙 위반 항목이 추가로 {s.remaining}개 더 있습니다.</li>
-                                      ) : null}
-                                    </>
-                                  ) : null}
-                                </ul>
-                              </>
-                            )
-                          })()}
-                        </div>
+                              </details>
+                            </li>
+                          ))}
+                        </ul>
                       </details>
                     </li>
                   ))}

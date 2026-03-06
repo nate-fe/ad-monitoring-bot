@@ -28,6 +28,12 @@ function parseBool(value, defaultValue) {
   return defaultValue
 }
 
+const DEFAULT_IGNORE_ERROR_PATTERNS = [
+  'GL Driver Message',
+  'GPU stall',
+  'ReadPixels',
+]
+
 function safeSnippet(s, maxLen = 120) {
   const oneLine = String(s).replaceAll(/\s+/g, ' ').trim()
   if (oneLine.length <= maxLen) return oneLine
@@ -85,7 +91,10 @@ async function main() {
   const failOnPageError = parseBool(getEnv('MONITOR_FAIL_ON_PAGEERROR', { defaultValue: 'true' }), true)
   const failOnConsoleError = parseBool(getEnv('MONITOR_FAIL_ON_CONSOLE_ERROR', { defaultValue: 'true' }), true)
   const failOnRequestFailed = parseBool(getEnv('MONITOR_FAIL_ON_REQUEST_FAILED', { defaultValue: 'false' }), false)
-  const ignoreErrorPatterns = parseList(getEnv('MONITOR_IGNORE_ERROR_PATTERNS', { defaultValue: '' }))
+  const ignoreErrorPatterns = [
+    ...DEFAULT_IGNORE_ERROR_PATTERNS,
+    ...parseList(getEnv('MONITOR_IGNORE_ERROR_PATTERNS', { defaultValue: '' })),
+  ]
 
   const startedAt = Date.now()
 
