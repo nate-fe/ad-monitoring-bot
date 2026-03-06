@@ -62,7 +62,6 @@ export function MonitorReportPanel() {
     const consoleErrors = it.counts?.consoleErrors ?? 0
     const consoleWarnings = it.counts?.consoleWarnings ?? 0
     const pageErrors = it.counts?.pageErrors ?? 0
-    const requestFailures = it.counts?.requestFailures ?? 0
 
     const parts: string[] = []
 
