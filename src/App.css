@@ -201,6 +201,17 @@
   background: color-mix(in srgb, var(--fail) 8%, transparent);
 }
 
+.issueSourceBlock {
+  margin: 10px 0 12px;
+}
+
+.issueSourceTitle {
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
 .failTitle {
   font-weight: 700;
   font-size:14px;

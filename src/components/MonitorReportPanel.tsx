@@ -11,6 +11,21 @@ type HistoryState =
   | { kind: 'error'; message: string }
   | { kind: 'loaded'; items: MonitorHistoryEntry[] }
 
+type ClassifiedIssue = {
+  key: string
+  label: string
+  count: number
+}
+
+const ISSUE_SOURCE_RULES = [
+  { key: 'adsense', label: 'Google AdSense', patterns: ['googlesyndication', 'pagead2', 'show_ads.js', 'adsbygoogle'] },
+  { key: 'gam', label: 'Google Ad Manager', patterns: ['googletag', 'doubleclick', 'pubads'] },
+  { key: 'dable', label: 'Dable', patterns: ['api.dable.io', 'dablewidget', 'dable'] },
+  { key: 'mobwith', label: 'Mobwith', patterns: ['mobwith', 'nateimp.mobwith.co.kr'] },
+  { key: 'criteo', label: 'Criteo', patterns: ['criteo'] },
+  { key: 'nate', label: 'Nate 내부', patterns: ['news.nate.com', 'm.news.nate.com', 'nate.com'] },
+]
+
 function formatDate(iso: string) {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return iso
@@ -45,6 +60,63 @@ function formatTimeOnly(iso: string) {
     minute: '2-digit',
     second: '2-digit',
   })
+}
+
+function classifyIssueText(text: string) {
+  const lower = text.toLowerCase()
+  for (const rule of ISSUE_SOURCE_RULES) {
+    if (rule.patterns.some((pattern) => lower.includes(pattern.toLowerCase()))) {
+      return { key: rule.key, label: rule.label }
+    }
+  }
+  return { key: 'other', label: '기타/미분류' }
+}
+
+function buildClassifiedIssues(items: string[]): ClassifiedIssue[] {
+  const bucket = new Map<string, ClassifiedIssue>()
+
+  for (const item of items) {
+    const matched = classifyIssueText(item)
+    const prev = bucket.get(matched.key)
+    if (prev) {
+      prev.count += 1
+    } else {
+      bucket.set(matched.key, { ...matched, count: 1 })
+    }
+  }
+
+  return Array.from(bucket.values()).sort((a, b) => b.count - a.count)
+}
+
+function classifyCurrentReportErrors(report: MonitorReport): ClassifiedIssue[] {
+  const items: string[] = []
+
+  if ((report.failures ?? []).some((f) => f.startsWith('Console errors:'))) {
+    items.push(...((report.diagnostics?.consoleMessages ?? []).filter((m) => m.type === 'error').map((m) => m.text) ?? []))
+  }
+  if ((report.failures ?? []).some((f) => f.startsWith('JS page errors:'))) {
+    items.push(...(report.diagnostics?.pageErrors?.map((e) => e.message) ?? []))
+  }
+  if ((report.failures ?? []).some((f) => f.startsWith('Request failures:'))) {
+    items.push(...(report.diagnostics?.requestFailures?.map((r) => r.url) ?? []))
+  }
+
+  return buildClassifiedIssues(items)
+}
+
+function classifyCurrentReportAll(report: MonitorReport): ClassifiedIssue[] {
+  const items = (report.diagnostics?.consoleMessages ?? [])
+    .filter((m) => m.type === 'warning')
+    .map((m) => m.text)
+  return buildClassifiedIssues(items)
+}
+
+function classifyHistoryEntry(entry: MonitorHistoryEntry): ClassifiedIssue[] {
+  const items = [
+    ...(entry.consoleErrorSample?.map((m) => m.text) ?? []),
+    ...(entry.consoleWarningSample?.map((m) => m.text) ?? []),
+  ]
+  return buildClassifiedIssues(items)
 }
 
 export function MonitorReportPanel() {
@@ -221,6 +293,21 @@ export function MonitorReportPanel() {
     }))
   }, [history])
 
+  const currentErrorIssueSources = useMemo(() => {
+    if (state.kind !== 'loaded') return []
+    return classifyCurrentReportErrors(state.report)
+  }, [state])
+
+  const currentAllIssueSources = useMemo(() => {
+    if (state.kind !== 'loaded') return []
+    return classifyCurrentReportAll(state.report)
+  }, [state])
+
+  const currentConsoleWarnings = useMemo(() => {
+    if (state.kind !== 'loaded') return []
+    return (state.report.diagnostics?.consoleMessages ?? []).filter((m) => m.type === 'warning')
+  }, [state])
+
   return (
     <section className="panel">
       <div className="panelHeader">
@@ -258,6 +345,18 @@ export function MonitorReportPanel() {
           ) : (
             <div className="failBox">
               <div className="failTitle">고쳐야 할 항목</div>
+              {currentErrorIssueSources.length ? (
+                <div className="issueSourceBlock">
+                  <div className="issueSourceTitle">문제가 발생한 광고/영역</div>
+                  <div className="diagChips">
+                    {currentErrorIssueSources.map((source) => (
+                      <span className="chip" key={source.key}>
+                        {source.label} <b>{source.count}</b>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
               <ul className="failList">
                 {state.report.failures.map((f, idx) => (
                   <li key={`${idx}-${f}`}>
@@ -274,44 +373,28 @@ export function MonitorReportPanel() {
               <details className="diagItem">
                 <summary>
                   추가 정보{' '}
-                  <span className="count">
-                    {(state.report.diagnostics.pageErrors?.length ?? 0) +
-                      (state.report.diagnostics.consoleMessages?.length ?? 0) +
-                      (state.report.diagnostics.requestFailures?.length ?? 0)}
-                  </span>
+                  <span className="count">{currentConsoleWarnings.length}</span>
                 </summary>
 
-                <div className="diagChips">
-                  <span className="chip">
-                    페이지 <b>{state.report.diagnostics.pageErrors?.length ?? 0}</b>
-                  </span>
-                  <span className="chip">
-                    콘솔 <b>{state.report.diagnostics.consoleMessages?.length ?? 0}</b>
-                  </span>
-                </div>
+                {currentAllIssueSources.length ? (
+                  <div className="issueSourceBlock">
+                    <div className="issueSourceTitle">콘솔 경고가 발생한 광고/영역</div>
+                    <div className="diagChips">
+                      {currentAllIssueSources.map((source) => (
+                        <span className="chip" key={source.key}>
+                          {source.label} <b>{source.count}</b>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
 
                 <div className="diagSections">
                   <div className="diagSection">
-                    <div className="diagSectionTitle">페이지</div>
-                    {state.report.diagnostics.pageErrors?.length ? (
+                    <div className="diagSectionTitle">콘솔 경고</div>
+                    {currentConsoleWarnings.length ? (
                       <ul className="diagList">
-                        {state.report.diagnostics.pageErrors.map((e, idx) => (
-                          <li key={`${idx}-${e.message}`}>
-                            <div className="diagMain">{e.message}</div>
-                            {e.stack ? <pre className="diagStack">{e.stack}</pre> : null}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="muted">없음</p>
-                    )}
-                  </div>
-
-                  <div className="diagSection">
-                    <div className="diagSectionTitle">콘솔</div>
-                    {state.report.diagnostics.consoleMessages?.length ? (
-                      <ul className="diagList">
-                        {state.report.diagnostics.consoleMessages.map((m, idx) => (
+                        {currentConsoleWarnings.map((m, idx) => (
                           <li key={`${idx}-${m.type}-${m.text}`}>
                             <span className={`pill ${m.type}`}>{m.type}</span> {m.text}
                           </li>
@@ -377,6 +460,7 @@ export function MonitorReportPanel() {
                                     const s = summarizeFailures(it.failures, 5)
                                     const consoleErrorSample = it.consoleErrorSample ?? []
                                     const consoleWarningSample = it.consoleWarningSample ?? []
+                                    const issueSources = classifyHistoryEntry(it)
 
                                     const hasAnyDetail =
                                       consoleErrors ||
@@ -393,6 +477,18 @@ export function MonitorReportPanel() {
 
                                     return (
                                       <>
+                                        {issueSources.length ? (
+                                          <div className="issueSourceBlock">
+                                            <div className="issueSourceTitle">문제가 발생한 광고/영역</div>
+                                            <div className="diagChips">
+                                              {issueSources.map((source) => (
+                                                <span className="chip" key={source.key}>
+                                                  {source.label} <b>{source.count}</b>
+                                                </span>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        ) : null}
                                         <div className="diagChips">
                                           <span className="chip">
                                             페이지 <b>{pageErrors}</b>
