@@ -104,7 +104,7 @@ async function main() {
   const failures = []
   /** @type {{ message: string, stack?: string }[]} */
   const pageErrors = []
-  /** @type {{ type: string, text: string }[]} */
+  /** @type {{ type: string, text: string, url?: string }[]} */
   const consoleMessages = []
   /** @type {{ url: string, method: string, resourceType: string, errorText: string }[]} */
   const requestFailures = []
@@ -136,7 +136,9 @@ async function main() {
         const text = msg.text()
         if (type === 'error' || type === 'warning') {
           if (shouldIgnore(text)) return
-          consoleMessages.push({ type, text })
+          const location = msg.location()
+          const url = typeof location?.url === 'string' && location.url ? location.url : undefined
+          consoleMessages.push({ type, text, url })
         }
       })
       page.on('requestfailed', (req) => {

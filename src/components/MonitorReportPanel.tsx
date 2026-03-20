@@ -11,16 +11,33 @@ type HistoryState =
   | { kind: 'error'; message: string }
   | { kind: 'loaded'; items: MonitorHistoryEntry[] }
 
+type MonitorReportPanelProps = {
+  reportPaths?: string[]
+  historyPaths?: string[]
+}
+
 type ClassifiedIssue = {
   key: string
   label: string
   count: number
 }
 
+type IssueUrlPreviewProps = {
+  url: string
+}
+
+type IssueSourceCandidate =
+  | string
+  | {
+      text?: string
+      url?: string
+    }
+
 const ISSUE_SOURCE_RULES = [
   { key: 'adsense', label: 'Google AdSense', patterns: ['googlesyndication', 'pagead2', 'show_ads.js', 'adsbygoogle'] },
   { key: 'gam', label: 'Google Ad Manager', patterns: ['googletag', 'doubleclick', 'pubads'] },
   { key: 'dable', label: 'Dable', patterns: ['api.dable.io', 'dablewidget', 'dable'] },
+  { key: 'widerplanet', label: 'WiderPlanet', patterns: ['widerplanet'] },
   { key: 'mobwith', label: 'Mobwith', patterns: ['mobwith', 'nateimp.mobwith.co.kr'] },
   { key: 'criteo', label: 'Criteo', patterns: ['criteo'] },
   { key: 'nate', label: 'Nate 내부', patterns: ['news.nate.com', 'm.news.nate.com', 'nate.com'] },
@@ -62,12 +79,36 @@ function formatTimeOnly(iso: string) {
   })
 }
 
+async function fetchJsonFromPaths<T>(paths: string[]) {
+  let lastError = '리포트를 불러오지 못했습니다.'
+
+  for (const path of paths) {
+    try {
+      const cacheBust = Date.now()
+      const url = `${import.meta.env.BASE_URL}${path}?ts=${cacheBust}`
+      const res = await fetch(url, { headers: { accept: 'application/json' } })
+      if (!res.ok) {
+        lastError = `${path} 불러오기 실패 (HTTP ${res.status})`
+        continue
+      }
+      return (await res.json()) as T
+    } catch (e) {
+      lastError = e instanceof Error ? e.message : String(e)
+    }
+  }
+
+  throw new Error(lastError)
+}
+
 function shouldHideConsoleWarning(text: string) {
   return text.includes('automatically upgraded to HTTPS')
 }
 
-function classifyIssueText(text: string) {
-  const lower = text.toLowerCase()
+function classifyIssueText(candidate: IssueSourceCandidate) {
+  const lower =
+    typeof candidate === 'string'
+      ? candidate.toLowerCase()
+      : `${candidate.url ?? ''} ${candidate.text ?? ''}`.toLowerCase()
   for (const rule of ISSUE_SOURCE_RULES) {
     if (rule.patterns.some((pattern) => lower.includes(pattern.toLowerCase()))) {
       return { key: rule.key, label: rule.label }
@@ -76,7 +117,7 @@ function classifyIssueText(text: string) {
   return { key: 'other', label: '기타/미분류' }
 }
 
-function buildClassifiedIssues(items: string[]): ClassifiedIssue[] {
+function buildClassifiedIssues(items: IssueSourceCandidate[]): ClassifiedIssue[] {
   const bucket = new Map<string, ClassifiedIssue>()
 
   for (const item of items) {
@@ -93,16 +134,20 @@ function buildClassifiedIssues(items: string[]): ClassifiedIssue[] {
 }
 
 function classifyCurrentReportErrors(report: MonitorReport): ClassifiedIssue[] {
-  const items: string[] = []
+  const items: IssueSourceCandidate[] = []
 
   if ((report.failures ?? []).some((f) => f.startsWith('Console errors:'))) {
-    items.push(...((report.diagnostics?.consoleMessages ?? []).filter((m) => m.type === 'error').map((m) => m.text) ?? []))
+    items.push(
+      ...((report.diagnostics?.consoleMessages ?? [])
+        .filter((m) => m.type === 'error')
+        .map((m) => ({ text: m.text, url: m.url })) ?? []),
+    )
   }
   if ((report.failures ?? []).some((f) => f.startsWith('JS page errors:'))) {
     items.push(...(report.diagnostics?.pageErrors?.map((e) => e.message) ?? []))
   }
   if ((report.failures ?? []).some((f) => f.startsWith('Request failures:'))) {
-    items.push(...(report.diagnostics?.requestFailures?.map((r) => r.url) ?? []))
+    items.push(...(report.diagnostics?.requestFailures?.map((r) => ({ url: r.url })) ?? []))
   }
 
   return buildClassifiedIssues(items)
@@ -111,19 +156,84 @@ function classifyCurrentReportErrors(report: MonitorReport): ClassifiedIssue[] {
 function classifyCurrentReportAll(report: MonitorReport): ClassifiedIssue[] {
   const items = (report.diagnostics?.consoleMessages ?? [])
     .filter((m) => m.type === 'warning')
-    .map((m) => m.text)
+    .map((m) => ({ text: m.text, url: m.url }))
   return buildClassifiedIssues(items)
 }
 
 function classifyHistoryEntry(entry: MonitorHistoryEntry): ClassifiedIssue[] {
   const items = [
-    ...(entry.consoleErrorSample?.map((m) => m.text) ?? []),
-    ...(entry.consoleWarningSample?.map((m) => m.text) ?? []),
+    ...(entry.consoleErrorSample?.map((m) => ({ text: m.text, url: m.url })) ?? []),
+    ...(entry.consoleWarningSample?.map((m) => ({ text: m.text, url: m.url })) ?? []),
   ]
   return buildClassifiedIssues(items)
 }
 
-export function MonitorReportPanel() {
+function RefreshIcon() {
+  return (
+    <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+      <path
+        d="M16.85 10a6.85 6.85 0 1 1-2.007-4.844"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
+      <path
+        d="M13.6 2.95h3.45V6.4"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
+    </svg>
+  )
+}
+
+function IssueUrlPreview({ url }: IssueUrlPreviewProps) {
+  const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    if (!copied) return undefined
+    const timeoutId = window.setTimeout(() => setCopied(false), 1600)
+    return () => window.clearTimeout(timeoutId)
+  }, [copied])
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopied(true)
+    } catch {
+      setCopied(false)
+    }
+  }
+
+  return (
+    <div className="diagUrlWrap">
+      <button type="button" className="diagUrlTrigger" aria-label={`원인 URL 보기: ${url}`}>
+        {url}
+      </button>
+      <div className="diagUrlTooltip" role="tooltip">
+        <div className="diagUrlTooltipText">{url}</div>
+        {copied ? (
+          <span className="diagUrlCopied" aria-live="polite">
+            복사됨
+          </span>
+        ) : (
+          <button type="button" className="diagUrlCopyButton" onClick={handleCopy}>
+            복사
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+export function MonitorReportPanel({
+  reportPaths = ['monitor-report.json'],
+  historyPaths = ['history.json'],
+}: MonitorReportPanelProps) {
   const [state, setState] = useState<LoadState>({ kind: 'idle' })
   const [history, setHistory] = useState<HistoryState>({ kind: 'idle' })
 
@@ -159,15 +269,18 @@ export function MonitorReportPanel() {
     const pageErrors = report.diagnostics?.pageErrors ?? []
     const requestFailures = report.diagnostics?.requestFailures ?? []
 
+    const renderConsoleMessage = (item: { type: string; text: string; url?: string }, idx: number) => (
+      <li key={`${idx}-${item.type}-${item.text}-${item.url ?? ''}`}>
+        <span className={`pill ${item.type}`}>{item.type}</span> {item.text}
+        {item.url ? <IssueUrlPreview url={item.url} /> : null}
+      </li>
+    )
+
     if (failure.startsWith('Console errors:')) {
       if (!consoleErrors.length) return null
       return (
         <ul className="failDetailList">
-          {consoleErrors.map((item, idx) => (
-            <li key={`${idx}-${item.text}`}>
-              <span className="pill error">{item.type}</span> {item.text}
-            </li>
-          ))}
+          {consoleErrors.map(renderConsoleMessage)}
         </ul>
       )
     }
@@ -176,11 +289,7 @@ export function MonitorReportPanel() {
       if (!consoleWarnings.length) return null
       return (
         <ul className="failDetailList">
-          {consoleWarnings.map((item, idx) => (
-            <li key={`${idx}-${item.text}`}>
-              <span className="pill warning">{item.type}</span> {item.text}
-            </li>
-          ))}
+          {consoleWarnings.map(renderConsoleMessage)}
         </ul>
       )
     }
@@ -204,7 +313,7 @@ export function MonitorReportPanel() {
             <li key={`${idx}-${item.url}-${item.errorText}`}>
               <span className="pill info">{item.method}</span>{' '}
               <span className="pill info">{item.resourceType}</span> {item.errorText}
-              <div className="diagUrl">{item.url}</div>
+              <IssueUrlPreview url={item.url} />
             </li>
           ))}
         </ul>
@@ -217,15 +326,7 @@ export function MonitorReportPanel() {
   const load = useCallback(async () => {
     setState({ kind: 'loading' })
     try {
-      const cacheBust = Date.now()
-      const reportUrl = `${import.meta.env.BASE_URL}monitor-report.json?ts=${cacheBust}`
-      const res = await fetch(reportUrl, {
-        headers: { accept: 'application/json' },
-      })
-      if (!res.ok) {
-        throw new Error(`리포트를 불러오지 못했습니다. (HTTP ${res.status})`)
-      }
-      const data = (await res.json()) as unknown
+      const data = (await fetchJsonFromPaths<unknown>(reportPaths)) as unknown
       const report = data as MonitorReport
       if (
         typeof report !== 'object' ||
@@ -246,22 +347,18 @@ export function MonitorReportPanel() {
         message: e instanceof Error ? e.message : String(e),
       })
     }
-  }, [])
+  }, [reportPaths])
 
   const loadHistory = useCallback(async () => {
     setHistory({ kind: 'loading' })
     try {
-      const cacheBust = Date.now()
-      const historyUrl = `${import.meta.env.BASE_URL}history.json?ts=${cacheBust}`
-      const res = await fetch(historyUrl, { headers: { accept: 'application/json' } })
-      if (!res.ok) throw new Error(`히스토리를 불러오지 못했습니다. (HTTP ${res.status})`)
-      const data = (await res.json()) as unknown
+      const data = (await fetchJsonFromPaths<unknown>(historyPaths)) as unknown
       if (!Array.isArray(data)) throw new Error('히스토리 형식이 예상과 다릅니다.')
       setHistory({ kind: 'loaded', items: data as MonitorHistoryEntry[] })
     } catch (e) {
       setHistory({ kind: 'error', message: e instanceof Error ? e.message : String(e) })
     }
-  }, [])
+  }, [historyPaths])
 
   useEffect(() => {
     void load()
@@ -319,8 +416,15 @@ export function MonitorReportPanel() {
       <div className="panelHeader">
         <div className="panelTitle">{header}</div>
         <div className="panelActions">
-          <button type="button" onClick={load} disabled={state.kind === 'loading'}>
-            새로고침
+          <button
+            type="button"
+            className="refreshIconButton"
+            onClick={load}
+            disabled={state.kind === 'loading'}
+            aria-label="새로고침"
+            title="새로고침"
+          >
+            <RefreshIcon />
           </button>
         </div>
       </div>
@@ -401,8 +505,9 @@ export function MonitorReportPanel() {
                     {currentConsoleWarnings.length ? (
                       <ul className="diagList">
                         {currentConsoleWarnings.map((m, idx) => (
-                          <li key={`${idx}-${m.type}-${m.text}`}>
+                          <li key={`${idx}-${m.type}-${m.text}-${m.url ?? ''}`}>
                             <span className={`pill ${m.type}`}>{m.type}</span> {m.text}
+                            {m.url ? <IssueUrlPreview url={m.url} /> : null}
                           </li>
                         ))}
                       </ul>
@@ -423,14 +528,13 @@ export function MonitorReportPanel() {
               <div className="btnGhostWrap">
                 <button
                   type="button"
-                  className="btnGhost"
+                  className="btnGhost refreshGhostButton"
                   onClick={loadHistory}
                   disabled={history.kind === 'loading'}
+                  aria-label="기록 새로고침"
+                  title="기록 새로고침"
                 >
-                  <span className="btnIcon" aria-hidden="true">
-                    ↻
-                  </span>
-                  기록 새로고침
+                  <RefreshIcon />
                 </button>
               </div>
 
@@ -516,8 +620,9 @@ export function MonitorReportPanel() {
                                               <div className="miniSectionTitle">콘솔 오류 내용</div>
                                               <ul className="miniConsoleList">
                                                 {consoleErrorSample.map((m, sampleIdx) => (
-                                                  <li key={`${sampleIdx}-${m.text}`}>
+                                                  <li key={`${sampleIdx}-${m.type}-${m.text}-${m.url ?? ''}`}>
                                                     <span className={`pill ${m.type}`}>{m.type}</span> {m.text}
+                                                    {m.url ? <IssueUrlPreview url={m.url} /> : null}
                                                   </li>
                                                 ))}
                                               </ul>
@@ -528,8 +633,9 @@ export function MonitorReportPanel() {
                                               <div className="miniSectionTitle">콘솔 경고 내용</div>
                                               <ul className="miniConsoleList">
                                                 {consoleWarningSample.map((m, sampleIdx) => (
-                                                  <li key={`${sampleIdx}-${m.text}`}>
+                                                  <li key={`${sampleIdx}-${m.type}-${m.text}-${m.url ?? ''}`}>
                                                     <span className={`pill ${m.type}`}>{m.type}</span> {m.text}
+                                                    {m.url ? <IssueUrlPreview url={m.url} /> : null}
                                                   </li>
                                                 ))}
                                               </ul>

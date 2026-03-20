@@ -39,10 +39,12 @@ function summarize(report) {
   const consoleErrorSample = errorMessages.slice(0, 5).map((m) => ({
     type: m?.type ?? 'error',
     text: String(m?.text ?? ''),
+    url: typeof m?.url === 'string' && m.url ? m.url : undefined,
   }))
   const consoleWarningSample = warningMessages.slice(0, 5).map((m) => ({
     type: m?.type ?? 'log',
     text: String(m?.text ?? ''),
+    url: typeof m?.url === 'string' && m.url ? m.url : undefined,
   }))
 
   return {

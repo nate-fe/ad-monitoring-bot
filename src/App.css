@@ -32,6 +32,11 @@
   font-family: 'A2z', sans-serif;
 }
 
+.heroCopy {
+  flex: 1 1 420px;
+  min-width: 0;
+}
+
 .mascot {
   margin: 0;
   display: grid;
@@ -83,11 +88,79 @@
   font-size: 14px;
 }
 
-.main {
-  display: grid;
-  gap: 16px;
+.heroActions {
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
+.main {
+  display: grid;
+  gap: 24px;
+}
+
+.targetPicker {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+}
+
+.targetCard {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background:
+    linear-gradient(135deg, rgba(124, 136, 255, 0.14), rgba(82, 209, 255, 0.08)),
+    var(--panel);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(10px);
+  animation: pop 240ms ease-out both;
+  min-width: 0;
+  width: 100%;
+  padding: 18px 20px;
+  text-align: left;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background 160ms ease;
+}
+.targetTitle {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.targetCardText {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.targetDescription {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.targetCard:hover {
+  border-color: color-mix(in srgb, var(--accent2) 42%, var(--border));
+  background:
+    linear-gradient(135deg, rgba(124, 136, 255, 0.2), rgba(82, 209, 255, 0.12)),
+    color-mix(in srgb, var(--panel) 92%, transparent);
+  box-shadow:
+    0 14px 28px rgba(6, 10, 25, 0.18);
+  transform: translateY(-2px);
+}
+
+.targetCard:active {
+  transform: translateY(0px);
+}
 .panel {
   border: 1px solid var(--border);
   border-radius: 4px;
@@ -116,6 +189,39 @@
 .panelActions button {
   padding: 8px 12px;
   border-radius: 4px;
+}
+
+.refreshIconButton,
+.refreshGhostButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  height: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--muted);
+}
+
+.refreshIconButton svg,
+.refreshGhostButton svg {
+  width: 20px;
+  height: 20px;
+}
+
+.refreshIconButton {
+  color: var(--muted);
+}
+
+.refreshIconButton:hover,
+.refreshGhostButton:hover {
+  color: var(--text);
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
 }
 
 .panelBody {
@@ -232,6 +338,7 @@
   padding-left: 18px;
   display: grid;
   gap: 6px;
+  overflow: visible;
 }
 
 .diag {
@@ -282,6 +389,7 @@
   border-radius: 4px;
   background: color-mix(in srgb, var(--panel) 88%, transparent);
   padding: 10px 12px;
+  overflow: visible;
 }
 
 .diagItem summary {
@@ -315,11 +423,15 @@
   padding-left: 18px;
   display: grid;
   gap: 8px;
-  font-size:13px
+  font-size:13px;
+  overflow: visible;
 }
 .diagList li {
+  position: relative;
   word-break: break-word;
   margin-bottom:4px;
+  overflow: visible;
+  z-index: 0;
 }
 
 .miniList {
@@ -329,6 +441,7 @@
   gap: 6px;
   color: var(--muted);
   font-size: 13px;
+  overflow: visible;
 }
 
 .miniMore {
@@ -339,11 +452,117 @@
   margin-bottom: 4px;
 }
 
-.diagUrl {
+.diagUrlWrap {
+  position: relative;
+  margin-top: 6px;
+  width: min(100%, 560px);
+  z-index: 1;
+}
+
+.diagUrlWrap:hover,
+.diagUrlWrap:focus-within {
+  z-index: 30;
+}
+
+.diagUrlTrigger {
+  width: 100%;
+  display: block;
+  padding: 6px 10px;
+  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+  background: color-mix(in srgb, var(--panel2) 62%, transparent);
   color: var(--muted);
-  word-break: break-word;
-  font-size: 13px;
-  overflow-wrap: anywhere;
+  font-size: 12px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: help;
+}
+
+.diagUrlWrap:hover .diagUrlTooltip,
+.diagUrlWrap:focus-within .diagUrlTooltip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.diagUrlTooltip {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 8px);
+  z-index: 21;
+  width: min(100vw - 48px, 520px);
+  padding: 12px;
+  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, var(--accent2) 24%, var(--border));
+  background-color: var(--bg0);
+  box-shadow: 0 18px 36px rgba(6, 10, 25, 0.24);
+  backdrop-filter: blur(20px) saturate(145%);
+  -webkit-backdrop-filter: blur(20px) saturate(145%);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(4px);
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease,
+    visibility 140ms ease;
+  pointer-events: none;
+}
+
+.diagUrlTooltip::before {
+  content: '';
+  position: absolute;
+  left: 18px;
+  top: -7px;
+  width: 12px;
+  height: 12px;
+  transform: rotate(45deg);
+  border-top: 1px solid color-mix(in srgb, var(--accent2) 24%, var(--border));
+  border-left: 1px solid color-mix(in srgb, var(--accent2) 24%, var(--border));
+  background-color: var(--bg0);
+}
+
+.diagUrlTooltipText {
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.45;
+  display: -webkit-box;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: break-all;
+  user-select: text;
+}
+
+.diagUrlCopyButton {
+  margin-top: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent2) 34%, var(--border));
+  background: color-mix(in srgb, var(--panel2) 70%, transparent);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.diagUrlCopied {
+  display: inline-block;
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.diagUrlCopyButton:hover {
+  border-color: color-mix(in srgb, var(--accent2) 52%, var(--border));
+  background: color-mix(in srgb, var(--panel2) 86%, transparent);
 }
 
 .diagStack {
@@ -399,6 +618,7 @@
   text-align:center;
 }
 
+.btnBackHome,
 .btnGhost {
   display: inline-flex;
   align-items: center;
@@ -412,16 +632,40 @@
   margin:0 auto 20px;
 }
 
+.refreshGhostButton {
+  margin: 0 auto 20px;
+}
+
+.btnBackHome {
+  padding: 10px 16px;
+  margin: 0;
+  border-color: color-mix(in srgb, var(--accent2) 30%, var(--border));
+  background:
+    linear-gradient(135deg, rgba(124, 136, 255, 0.2), rgba(82, 209, 255, 0.12)),
+    color-mix(in srgb, var(--panel2) 54%, transparent);
+  box-shadow: 0 8px 18px rgba(6, 10, 25, 0.12);
+  font-weight: 700;
+}
+
+.btnBackHome::before {
+  content: '←';
+  font-size: 14px;
+  line-height: 1;
+}
+
+.btnBackHome:hover,
 .btnGhost:hover {
   border-color: color-mix(in srgb, var(--accent2) 45%, var(--border));
   background: color-mix(in srgb, var(--panel2) 65%, transparent);
   transform: translateY(-1px);
 }
 
+.btnBackHome:active,
 .btnGhost:active {
   transform: translateY(0px);
 }
 
+.btnBackHome:disabled,
 .btnGhost:disabled {
   opacity: 0.6;
   cursor: not-allowed;
@@ -448,7 +692,7 @@
   border: 1px solid var(--border);
   border-radius: 4px;
   background: color-mix(in srgb, var(--panel) 88%, transparent);
-  overflow: hidden;
+  overflow: visible;
 }
 
 .historyDateSummary {
@@ -551,6 +795,7 @@ details[open].historyItem .historyChevron {
 
 .historyBody {
   padding: 10px 6px 2px;
+  overflow: visible;
 }
 
 .miniSectionTitle {
@@ -564,15 +809,45 @@ details[open].historyItem .historyChevron {
   padding-left: 18px;
   display: grid;
   gap: 6px;
+  overflow: visible;
+}
+
+.miniConsoleList li {
+  position: relative;
+  overflow: visible;
+  z-index: 0;
 }
 
 @media (max-width: 560px) {
   .top {
     align-items: flex-start;
   }
+
+  .heroCopy {
+    flex-basis: 100%;
+  }
+
   .mascot {
     justify-items: end;
     width: 100%;
+  }
+
+  .targetPicker {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .targetCard {
+    padding: 16px 14px;
+    gap: 10px;
+    align-items: flex-start;
+  }
+
+  .targetTitle {
+    font-size: 15px;
+  }
+
+  .targetDescription {
+    font-size: 12px;
   }
 
   .kv > div {
