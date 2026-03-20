@@ -62,6 +62,10 @@ function formatTimeOnly(iso: string) {
   })
 }
 
+function shouldHideConsoleWarning(text: string) {
+  return text.includes('automatically upgraded to HTTPS')
+}
+
 function classifyIssueText(text: string) {
   const lower = text.toLowerCase()
   for (const rule of ISSUE_SOURCE_RULES) {
@@ -305,7 +309,9 @@ export function MonitorReportPanel() {
 
   const currentConsoleWarnings = useMemo(() => {
     if (state.kind !== 'loaded') return []
-    return (state.report.diagnostics?.consoleMessages ?? []).filter((m) => m.type === 'warning')
+    return (state.report.diagnostics?.consoleMessages ?? []).filter(
+      (m) => m.type === 'warning' && !shouldHideConsoleWarning(m.text),
+    )
   }, [state])
 
   return (
@@ -459,7 +465,9 @@ export function MonitorReportPanel() {
                                     const requestFailures = it.counts?.requestFailures ?? 0
                                     const s = summarizeFailures(it.failures, 5)
                                     const consoleErrorSample = it.consoleErrorSample ?? []
-                                    const consoleWarningSample = it.consoleWarningSample ?? []
+                                    const consoleWarningSample = (it.consoleWarningSample ?? []).filter(
+                                      (m) => !shouldHideConsoleWarning(m.text),
+                                    )
                                     const issueSources = classifyHistoryEntry(it)
 
                                     const hasAnyDetail =
