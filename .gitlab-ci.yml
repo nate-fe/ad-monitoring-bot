@@ -121,6 +121,7 @@ pages:
       HISTORY_MAX="720" \
       GITHUB_RUN_URL="" \
       node ./scripts/update-history.js || true
+    - node ./scripts/write-legacy-flat-aliases.js dist || true
 
     - rm -rf public && mkdir -p public
     - cp -r dist/* public/

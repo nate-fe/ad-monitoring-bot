@@ -1,0 +1,23 @@
+[
+  {
+    "checkedAt": "2026-03-23T08:04:08.002Z",
+    "ok": true,
+    "url": "https://m.pann.nate.com/talk/375312093",
+    "status": 200,
+    "durationMs": 4212,
+    "failures": [],
+    "counts": {
+      "pageErrors": 0,
+      "consoleErrors": 0,
+      "consoleWarnings": 0,
+      "requestFailures": 1
+    },
+    "consoleErrorSample": [],
+    "consoleWarningSample": [],
+    "meta": {
+      "runId": "",
+      "runUrl": "",
+      "sha": ""
+    }
+  }
+]

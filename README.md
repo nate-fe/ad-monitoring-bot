@@ -6,6 +6,7 @@
 - **모니터 실행기**: `scripts/monitor.js` (`npm run monitor`)
 - **대시보드**: Vite + React (`npm run dev` / `npm run build`)
 - **결과 파일**: `public/news/view/monitor-report.json`, `public/news/home/monitor-report.json`, `public/pann/view/monitor-report.json`, `public/pann/home/monitor-report.json`
+- **호환 경로**: 이전 대시보드/캐시 대응용으로 `public/news/monitor-report.json`, `public/pann/monitor-report.json`도 함께 생성됨
 
 ## 무엇을 감지하나
 
@@ -127,10 +128,14 @@ npm run dev
 
 - 뉴스 뷰 최신 결과: `https://yoonzeen.github.io/ad-monitoring-bot/news/view/monitor-report.json`
 - 뉴스 뷰 누적 기록: `https://yoonzeen.github.io/ad-monitoring-bot/news/view/history.json`
+- 뉴스 호환 최신 결과: `https://yoonzeen.github.io/ad-monitoring-bot/news/monitor-report.json`
+- 뉴스 호환 누적 기록: `https://yoonzeen.github.io/ad-monitoring-bot/news/history.json`
 - 뉴스 홈 최신 결과: `https://yoonzeen.github.io/ad-monitoring-bot/news/home/monitor-report.json`
 - 뉴스 홈 누적 기록: `https://yoonzeen.github.io/ad-monitoring-bot/news/home/history.json`
 - 판 뷰 최신 결과: `https://yoonzeen.github.io/ad-monitoring-bot/pann/view/monitor-report.json`
 - 판 뷰 누적 기록: `https://yoonzeen.github.io/ad-monitoring-bot/pann/view/history.json`
+- 판 호환 최신 결과: `https://yoonzeen.github.io/ad-monitoring-bot/pann/monitor-report.json`
+- 판 호환 누적 기록: `https://yoonzeen.github.io/ad-monitoring-bot/pann/history.json`
 - 판 홈 최신 결과: `https://yoonzeen.github.io/ad-monitoring-bot/pann/home/monitor-report.json`
 - 판 홈 누적 기록: `https://yoonzeen.github.io/ad-monitoring-bot/pann/home/history.json`
 

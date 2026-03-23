@@ -168,6 +168,9 @@ jobs:
           GITHUB_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: node ./scripts/update-history.js
 
+      - name: Write legacy flat aliases
+        run: node ./scripts/write-legacy-flat-aliases.js dist
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
