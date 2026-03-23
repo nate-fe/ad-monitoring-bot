@@ -19,9 +19,10 @@ function runScope(scope) {
   })
 }
 
+const scopes = ['news', 'news-home', 'pann', 'pann-home']
 let hasFailure = false
 
-for (const scope of ['news', 'pann']) {
+for (const scope of scopes) {
   const code = await runScope(scope)
   if (code !== 0) hasFailure = true
 }

@@ -75,14 +75,42 @@ async function ensureParentDir(filePath) {
 
 function inferTargetScope(targetUrl) {
   const lower = String(targetUrl).toLowerCase()
-  if (lower.includes('m.news.nate.com') || lower.includes('/news/')) return 'news'
-  if (lower.includes('pann.nate.com') || lower.includes('/talk/') || lower.includes('/pann/')) return 'pann'
+  try {
+    const parsed = new URL(lower)
+    const pathname = parsed.pathname.replace(/\/+$/, '') || '/'
+
+    if (parsed.hostname === 'm.news.nate.com') {
+      return pathname.startsWith('/view/') ? 'news' : 'news-home'
+    }
+
+    if (parsed.hostname === 'm.pann.nate.com') {
+      return pathname.startsWith('/talk/') ? 'pann' : 'pann-home'
+    }
+  } catch {
+    // fall back to string heuristics below
+  }
+
+  if (lower.includes('m.news.nate.com/view/')) return 'news'
+  if (lower.includes('m.news.nate.com')) return 'news-home'
+  if (lower.includes('m.pann.nate.com/talk/')) return 'pann'
+  if (lower.includes('m.pann.nate.com')) return 'pann-home'
   return ''
 }
 
 function getScopedTargetUrl(scope) {
   if (!scope) return ''
-  return getEnv(`MONITOR_TARGET_URL_${scope.toUpperCase()}`, { defaultValue: '' })
+  const envNamesByScope = {
+    news: ['MONITOR_TARGET_URL_NEWS_VIEW', 'MONITOR_TARGET_URL_NEWS'],
+    'news-home': ['MONITOR_TARGET_URL_NEWS_HOME'],
+    pann: ['MONITOR_TARGET_URL_PANN_VIEW', 'MONITOR_TARGET_URL_PANN'],
+    'pann-home': ['MONITOR_TARGET_URL_PANN_HOME'],
+  }
+  const envNames = envNamesByScope[scope] ?? []
+  for (const envName of envNames) {
+    const value = getEnv(envName, { defaultValue: '' })
+    if (value) return value
+  }
+  return ''
 }
 
 const CONSOLE_CAPTURE_SCRIPT = `
@@ -137,7 +165,7 @@ async function main() {
   const scopedTargetUrl = getScopedTargetUrl(requestedScope)
   const directTargetUrl = getEnv('MONITOR_TARGET_URL', { defaultValue: '' })
   if (requestedScope && !directTargetUrl && !scopedTargetUrl) {
-    throw new Error(`Missing target URL for scope "${requestedScope}". Set MONITOR_TARGET_URL_${requestedScope.toUpperCase()} or MONITOR_TARGET_URL.`)
+    throw new Error(`Missing target URL for scope "${requestedScope}". Set the matching scoped MONITOR_TARGET_URL_* variable or MONITOR_TARGET_URL.`)
   }
   const targetUrl = directTargetUrl || scopedTargetUrl || 'https://m.news.nate.com/view/20260223n02867?issue_sq=10477'
   const targetScope = requestedScope || inferTargetScope(targetUrl)
@@ -149,7 +177,7 @@ async function main() {
   })
 
   if (!targetScope) {
-    throw new Error('Could not infer target scope from MONITOR_TARGET_URL. Set MONITOR_TARGET_SCOPE to news or pann.')
+    throw new Error('Could not infer target scope from MONITOR_TARGET_URL. Set MONITOR_TARGET_SCOPE to news, news-home, pann, or pann-home.')
   }
 
   const reportPath = getEnv('MONITOR_REPORT_PATH', {

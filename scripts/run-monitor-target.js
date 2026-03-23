@@ -4,9 +4,29 @@ import path from 'node:path'
 import process from 'node:process'
 
 const scope = process.argv[2]
+const validScopes = ['news', 'news-home', 'pann', 'pann-home']
 
-if (scope !== 'news' && scope !== 'pann') {
-  console.error('Usage: node ./scripts/run-monitor-target.js <news|pann>')
+const SCOPE_CONFIG = {
+  news: {
+    envNames: ['MONITOR_TARGET_URL_NEWS_VIEW', 'MONITOR_TARGET_URL_NEWS'],
+    reportPath: path.join('public', 'news', 'view', 'monitor-report.json'),
+  },
+  'news-home': {
+    envNames: ['MONITOR_TARGET_URL_NEWS_HOME'],
+    reportPath: path.join('public', 'news', 'home', 'monitor-report.json'),
+  },
+  pann: {
+    envNames: ['MONITOR_TARGET_URL_PANN_VIEW', 'MONITOR_TARGET_URL_PANN'],
+    reportPath: path.join('public', 'pann', 'view', 'monitor-report.json'),
+  },
+  'pann-home': {
+    envNames: ['MONITOR_TARGET_URL_PANN_HOME'],
+    reportPath: path.join('public', 'pann', 'home', 'monitor-report.json'),
+  },
+}
+
+if (!validScopes.includes(scope)) {
+  console.error('Usage: node ./scripts/run-monitor-target.js <news|news-home|pann|pann-home>')
   process.exit(1)
 }
 
@@ -40,12 +60,12 @@ async function loadDotEnv(filePath = '.env') {
 
 await loadDotEnv()
 
-const envName = `MONITOR_TARGET_URL_${scope.toUpperCase()}`
-const scopedUrl = process.env[envName] ?? ''
+const scopeConfig = SCOPE_CONFIG[scope]
+const scopedUrl = scopeConfig.envNames.map((name) => process.env[name] ?? '').find(Boolean) ?? ''
 const directUrl = process.env.MONITOR_TARGET_URL ?? ''
 
 if (!directUrl && !scopedUrl) {
-  console.error(`Missing target URL. Set ${envName} or MONITOR_TARGET_URL before running ${scope} monitor.`)
+  console.error(`Missing target URL. Set ${scopeConfig.envNames.join(' or ')} or MONITOR_TARGET_URL before running ${scope} monitor.`)
   process.exit(1)
 }
 
@@ -58,7 +78,7 @@ const child = spawn(
       ...process.env,
       MONITOR_TARGET_SCOPE: scope,
       MONITOR_TARGET_URL: directUrl || scopedUrl,
-      MONITOR_REPORT_PATH: process.env.MONITOR_REPORT_PATH || path.join('public', scope, 'monitor-report.json'),
+      MONITOR_REPORT_PATH: process.env.MONITOR_REPORT_PATH || scopeConfig.reportPath,
     },
   },
 )

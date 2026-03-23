@@ -4,9 +4,33 @@ import path from 'node:path'
 import process from 'node:process'
 
 const scope = process.argv[2]
+const validScopes = ['news', 'news-home', 'pann', 'pann-home']
 
-if (scope !== 'news' && scope !== 'pann') {
-  console.error('Usage: node ./scripts/run-history-target.js <news|pann>')
+const SCOPE_CONFIG = {
+  news: {
+    historyEnvNames: ['HISTORY_SOURCE_URL_NEWS_VIEW', 'HISTORY_SOURCE_URL_NEWS'],
+    reportPath: path.join('public', 'news', 'view', 'monitor-report.json'),
+    historyPath: path.join('public', 'news', 'view', 'history.json'),
+  },
+  'news-home': {
+    historyEnvNames: ['HISTORY_SOURCE_URL_NEWS_HOME'],
+    reportPath: path.join('public', 'news', 'home', 'monitor-report.json'),
+    historyPath: path.join('public', 'news', 'home', 'history.json'),
+  },
+  pann: {
+    historyEnvNames: ['HISTORY_SOURCE_URL_PANN_VIEW', 'HISTORY_SOURCE_URL_PANN'],
+    reportPath: path.join('public', 'pann', 'view', 'monitor-report.json'),
+    historyPath: path.join('public', 'pann', 'view', 'history.json'),
+  },
+  'pann-home': {
+    historyEnvNames: ['HISTORY_SOURCE_URL_PANN_HOME'],
+    reportPath: path.join('public', 'pann', 'home', 'monitor-report.json'),
+    historyPath: path.join('public', 'pann', 'home', 'history.json'),
+  },
+}
+
+if (!validScopes.includes(scope)) {
+  console.error('Usage: node ./scripts/run-history-target.js <news|news-home|pann|pann-home>')
   process.exit(1)
 }
 
@@ -40,6 +64,8 @@ async function loadDotEnv(filePath = '.env') {
 
 await loadDotEnv()
 
+const scopeConfig = SCOPE_CONFIG[scope]
+
 const child = spawn(
   process.execPath,
   [path.resolve(process.cwd(), 'scripts', 'update-history.js')],
@@ -48,11 +74,11 @@ const child = spawn(
     env: {
       ...process.env,
       MONITOR_TARGET_SCOPE: scope,
-      REPORT_PATH: process.env.REPORT_PATH || path.join('public', scope, 'monitor-report.json'),
-      HISTORY_PATH: process.env.HISTORY_PATH || path.join('public', scope, 'history.json'),
+      REPORT_PATH: process.env.REPORT_PATH || scopeConfig.reportPath,
+      HISTORY_PATH: process.env.HISTORY_PATH || scopeConfig.historyPath,
       HISTORY_SOURCE_URL:
         process.env.HISTORY_SOURCE_URL ||
-        process.env[`HISTORY_SOURCE_URL_${scope.toUpperCase()}`] ||
+        scopeConfig.historyEnvNames.map((name) => process.env[name] ?? '').find(Boolean) ||
         '',
     },
   },

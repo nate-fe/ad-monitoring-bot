@@ -5,19 +5,35 @@ import { useEffect, useMemo, useState } from 'react'
 const TARGETS = {
   news: {
     id: 'news',
-    label: '모바일 뉴스',
-    description: '네이트 모바일 뉴스 페이지의 광고 스크립트 상태를 확인합니다.',
-    reportPaths: ['news/monitor-report.json'],
-    historyPaths: ['news/history.json'],
+    label: '모바일 뉴스 뷰',
+    description: '네이트 모바일 뉴스 뷰 페이지의 광고 스크립트 상태를 확인합니다.',
+    reportPaths: ['news/view/monitor-report.json'],
+    historyPaths: ['news/view/history.json'],
     icon: 'MN',
+  },
+  'news-home': {
+    id: 'news-home',
+    label: '모바일 뉴스 홈',
+    description: '네이트 모바일 뉴스 홈의 광고 스크립트 상태를 확인합니다.',
+    reportPaths: ['news/home/monitor-report.json'],
+    historyPaths: ['news/home/history.json'],
+    icon: 'NH',
   },
   pann: {
     id: 'pann',
-    label: '모바일 판',
-    description: '네이트 판 페이지의 광고/콘솔 경고 및 에러를 확인합니다.',
-    reportPaths: ['pann/monitor-report.json'],
-    historyPaths: ['pann/history.json'],
+    label: '모바일 판 뷰',
+    description: '네이트 판 뷰 페이지의 광고/콘솔 경고 및 에러를 확인합니다.',
+    reportPaths: ['pann/view/monitor-report.json'],
+    historyPaths: ['pann/view/history.json'],
     icon: 'PN',
+  },
+  'pann-home': {
+    id: 'pann-home',
+    label: '모바일 판 홈',
+    description: '네이트 모바일 판 홈의 광고/콘솔 경고 및 에러를 확인합니다.',
+    reportPaths: ['pann/home/monitor-report.json'],
+    historyPaths: ['pann/home/history.json'],
+    icon: 'PH',
   },
 } as const
 
@@ -25,7 +41,7 @@ type TargetId = keyof typeof TARGETS
 
 function getTargetFromHash(): TargetId | null {
   const hash = window.location.hash.replace('#', '').trim()
-  if (hash === 'news' || hash === 'pann') return hash
+  if (hash === 'news' || hash === 'news-home' || hash === 'pann' || hash === 'pann-home') return hash
   return null
 }
 

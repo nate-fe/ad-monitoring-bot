@@ -22,35 +22,67 @@ pages:
     # Generate scoped monitor-report.json files into dist/ so they are always deployed.
     - |
       mkdir -p dist
-      mkdir -p dist/news dist/pann
+      mkdir -p dist/news/view dist/news/home dist/pann/view dist/pann/home
 
-      if [ -n "${MONITOR_TARGET_URL_NEWS}" ]; then
-        MONITOR_TARGET_SCOPE="news" MONITOR_TARGET_URL="${MONITOR_TARGET_URL_NEWS}" MONITOR_REPORT_PATH="dist/news/monitor-report.json" npm run monitor || true
+      if [ -n "${MONITOR_TARGET_URL_NEWS_VIEW}" ]; then
+        MONITOR_TARGET_SCOPE="news" MONITOR_TARGET_URL="${MONITOR_TARGET_URL_NEWS_VIEW}" MONITOR_REPORT_PATH="dist/news/view/monitor-report.json" npm run monitor || true
       else
-        cat > dist/news/monitor-report.json <<'EOF'
+        cat > dist/news/view/monitor-report.json <<'EOF'
         {
           "ok": false,
           "url": "",
           "status": 0,
           "durationMs": 0,
           "checkedAt": "",
-          "failures": ["news monitor-report.json was not produced (missing MONITOR_TARGET_URL_NEWS)"],
+          "failures": ["news view monitor-report.json was not produced (missing MONITOR_TARGET_URL_NEWS_VIEW)"],
           "diagnostics": { "pageErrors": [], "consoleMessages": [], "requestFailures": [] }
         }
         EOF
       fi
 
-      if [ -n "${MONITOR_TARGET_URL_PANN}" ]; then
-        MONITOR_TARGET_SCOPE="pann" MONITOR_TARGET_URL="${MONITOR_TARGET_URL_PANN}" MONITOR_REPORT_PATH="dist/pann/monitor-report.json" npm run monitor || true
+      if [ -n "${MONITOR_TARGET_URL_NEWS_HOME}" ]; then
+        MONITOR_TARGET_SCOPE="news-home" MONITOR_TARGET_URL="${MONITOR_TARGET_URL_NEWS_HOME}" MONITOR_REPORT_PATH="dist/news/home/monitor-report.json" npm run monitor || true
       else
-        cat > dist/pann/monitor-report.json <<'EOF'
+        cat > dist/news/home/monitor-report.json <<'EOF'
         {
           "ok": false,
           "url": "",
           "status": 0,
           "durationMs": 0,
           "checkedAt": "",
-          "failures": ["pann monitor-report.json was not produced (missing MONITOR_TARGET_URL_PANN)"],
+          "failures": ["news home monitor-report.json was not produced (missing MONITOR_TARGET_URL_NEWS_HOME)"],
+          "diagnostics": { "pageErrors": [], "consoleMessages": [], "requestFailures": [] }
+        }
+        EOF
+      fi
+
+      if [ -n "${MONITOR_TARGET_URL_PANN_VIEW}" ]; then
+        MONITOR_TARGET_SCOPE="pann" MONITOR_TARGET_URL="${MONITOR_TARGET_URL_PANN_VIEW}" MONITOR_REPORT_PATH="dist/pann/view/monitor-report.json" npm run monitor || true
+      else
+        cat > dist/pann/view/monitor-report.json <<'EOF'
+        {
+          "ok": false,
+          "url": "",
+          "status": 0,
+          "durationMs": 0,
+          "checkedAt": "",
+          "failures": ["pann view monitor-report.json was not produced (missing MONITOR_TARGET_URL_PANN_VIEW)"],
+          "diagnostics": { "pageErrors": [], "consoleMessages": [], "requestFailures": [] }
+        }
+        EOF
+      fi
+
+      if [ -n "${MONITOR_TARGET_URL_PANN_HOME}" ]; then
+        MONITOR_TARGET_SCOPE="pann-home" MONITOR_TARGET_URL="${MONITOR_TARGET_URL_PANN_HOME}" MONITOR_REPORT_PATH="dist/pann/home/monitor-report.json" npm run monitor || true
+      else
+        cat > dist/pann/home/monitor-report.json <<'EOF'
+        {
+          "ok": false,
+          "url": "",
+          "status": 0,
+          "durationMs": 0,
+          "checkedAt": "",
+          "failures": ["pann home monitor-report.json was not produced (missing MONITOR_TARGET_URL_PANN_HOME)"],
           "diagnostics": { "pageErrors": [], "consoleMessages": [], "requestFailures": [] }
         }
         EOF
@@ -59,17 +91,33 @@ pages:
     # Append scoped history.json files (best-effort; if Pages URL is not available yet, they will start fresh).
     - |
       MONITOR_TARGET_SCOPE="news" \
-      HISTORY_SOURCE_URL="${CI_PAGES_URL}/news/history.json" \
-      REPORT_PATH="dist/news/monitor-report.json" \
-      HISTORY_PATH="dist/news/history.json" \
+      HISTORY_SOURCE_URL="${CI_PAGES_URL}/news/view/history.json" \
+      REPORT_PATH="dist/news/view/monitor-report.json" \
+      HISTORY_PATH="dist/news/view/history.json" \
+      HISTORY_MAX="720" \
+      GITHUB_RUN_URL="" \
+      node ./scripts/update-history.js || true
+    - |
+      MONITOR_TARGET_SCOPE="news-home" \
+      HISTORY_SOURCE_URL="${CI_PAGES_URL}/news/home/history.json" \
+      REPORT_PATH="dist/news/home/monitor-report.json" \
+      HISTORY_PATH="dist/news/home/history.json" \
       HISTORY_MAX="720" \
       GITHUB_RUN_URL="" \
       node ./scripts/update-history.js || true
     - |
       MONITOR_TARGET_SCOPE="pann" \
-      HISTORY_SOURCE_URL="${CI_PAGES_URL}/pann/history.json" \
-      REPORT_PATH="dist/pann/monitor-report.json" \
-      HISTORY_PATH="dist/pann/history.json" \
+      HISTORY_SOURCE_URL="${CI_PAGES_URL}/pann/view/history.json" \
+      REPORT_PATH="dist/pann/view/monitor-report.json" \
+      HISTORY_PATH="dist/pann/view/history.json" \
+      HISTORY_MAX="720" \
+      GITHUB_RUN_URL="" \
+      node ./scripts/update-history.js || true
+    - |
+      MONITOR_TARGET_SCOPE="pann-home" \
+      HISTORY_SOURCE_URL="${CI_PAGES_URL}/pann/home/history.json" \
+      REPORT_PATH="dist/pann/home/monitor-report.json" \
+      HISTORY_PATH="dist/pann/home/history.json" \
       HISTORY_MAX="720" \
       GITHUB_RUN_URL="" \
       node ./scripts/update-history.js || true

@@ -30,5 +30,11 @@ dist-ssr
 monitor-report.json
 public/news/history.json
 public/news/monitor-report.json
-public/pann/history.json
-public/pann/monitor-report.json
+public/news/home/history.json
+public/news/home/monitor-report.json
+public/news/view/history.json
+public/news/view/monitor-report.json
+public/pann/home/history.json
+public/pann/home/monitor-report.json
+public/pann/view/history.json
+public/pann/view/monitor-report.json

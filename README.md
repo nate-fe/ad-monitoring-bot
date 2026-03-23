@@ -5,7 +5,7 @@
 
 - **모니터 실행기**: `scripts/monitor.js` (`npm run monitor`)
 - **대시보드**: Vite + React (`npm run dev` / `npm run build`)
-- **결과 파일**: `public/news/monitor-report.json`, `public/pann/monitor-report.json`
+- **결과 파일**: `public/news/view/monitor-report.json`, `public/news/home/monitor-report.json`, `public/pann/view/monitor-report.json`, `public/pann/home/monitor-report.json`
 
 ## 무엇을 감지하나
 
@@ -32,11 +32,13 @@ npx playwright install chromium
 
 ### 2) `.env` 설정
 
-`.env.example`을 `.env`로 복사 후 뉴스/판 URL을 각각 지정합니다.
+`.env.example`을 `.env`로 복사 후 기사 페이지와 홈 페이지 URL을 각각 지정합니다.
 
 ```bash
-MONITOR_TARGET_URL_NEWS=https://m.news.nate.com/view/20260223n02867
-MONITOR_TARGET_URL_PANN=https://m.pann.nate.com/talk/375312093
+MONITOR_TARGET_URL_NEWS_VIEW=https://m.news.nate.com/view/20260223n02867
+MONITOR_TARGET_URL_NEWS_HOME=https://m.news.nate.com/
+MONITOR_TARGET_URL_PANN_VIEW=https://m.pann.nate.com/talk/375312093
+MONITOR_TARGET_URL_PANN_HOME=https://m.pann.nate.com/
 ```
 
 > 참고: 뉴스 URL은 기본값(fallback)이 있지만, 판 URL은 실제 주소를 직접 넣어야 합니다.
@@ -47,7 +49,7 @@ MONITOR_TARGET_URL_PANN=https://m.pann.nate.com/talk/375312093
 npm run monitor:all
 ```
 
-성공/실패 여부와 무관하게(설정에 따라) 대상에 맞는 `public/<scope>/monitor-report.json`이 갱신됩니다.
+성공/실패 여부와 무관하게(설정에 따라) 각 타깃의 `public/<scope>/monitor-report.json`이 갱신됩니다.
 
 ### 4) 대시보드 실행
 
@@ -55,7 +57,7 @@ npm run monitor:all
 npm run dev
 ```
 
-대시보드는 `import.meta.env.BASE_URL + news/monitor-report.json`, `pann/monitor-report.json`을 fetch 해서 결과를 보여줍니다.  
+대시보드는 `news/view`, `news/home`, `pann/view`, `pann/home` 경로의 JSON을 fetch 해서 결과를 보여줍니다.  
 리포트가 없으면 “리포트를 찾을 수 없습니다”로 표시됩니다.
 
 ## 환경변수
@@ -64,13 +66,15 @@ npm run dev
 
 ### 타깃 URL
 
-- **`MONITOR_TARGET_URL_NEWS`**: 뉴스 모니터링 대상 URL
-- **`MONITOR_TARGET_URL_PANN`**: 판 모니터링 대상 URL
+- **`MONITOR_TARGET_URL_NEWS_VIEW`**: 뉴스 뷰 모니터링 대상 URL
+- **`MONITOR_TARGET_URL_NEWS_HOME`**: 뉴스 홈 모니터링 대상 URL
+- **`MONITOR_TARGET_URL_PANN_VIEW`**: 판 뷰 모니터링 대상 URL
+- **`MONITOR_TARGET_URL_PANN_HOME`**: 판 홈 모니터링 대상 URL
 - **`MONITOR_TARGET_URL`**: 단일 타깃 수동 실행용 override
 
 ### 출력
 
-- **`MONITOR_TARGET_SCOPE`**: 타깃 구분값 (`news` 또는 `pann`, 스코프 실행 스크립트에서 자동 지정)
+- **`MONITOR_TARGET_SCOPE`**: 타깃 구분값 (`news`, `news-home`, `pann`, `pann-home`, 스코프 실행 스크립트에서 자동 지정)
 - **`MONITOR_REPORT_PATH`**: 리포트 저장 경로 (기본 `public/<scope>/monitor-report.json`)
   - 값이 `none`(대소문자 무관) 또는 `0`이면 파일 저장을 생략합니다.
 
@@ -119,12 +123,16 @@ npm run dev
 
 ## 데이터 축적(히스토리)
 
-각 타깃 리포트(`news/monitor-report.json`, `pann/monitor-report.json`)는 “최신 1건”이고, 배포 환경에서는 타깃별 `history.json`에 계속 누적합니다.
+각 타깃 리포트는 “최신 1건”이고, 배포 환경에서는 타깃별 `history.json`에 계속 누적합니다.
 
-- 뉴스 최신 결과: `https://yoonzeen.github.io/ad-monitoring-bot/news/monitor-report.json`
-- 뉴스 누적 기록: `https://yoonzeen.github.io/ad-monitoring-bot/news/history.json`
-- 판 최신 결과: `https://yoonzeen.github.io/ad-monitoring-bot/pann/monitor-report.json`
-- 판 누적 기록: `https://yoonzeen.github.io/ad-monitoring-bot/pann/history.json`
+- 뉴스 뷰 최신 결과: `https://yoonzeen.github.io/ad-monitoring-bot/news/view/monitor-report.json`
+- 뉴스 뷰 누적 기록: `https://yoonzeen.github.io/ad-monitoring-bot/news/view/history.json`
+- 뉴스 홈 최신 결과: `https://yoonzeen.github.io/ad-monitoring-bot/news/home/monitor-report.json`
+- 뉴스 홈 누적 기록: `https://yoonzeen.github.io/ad-monitoring-bot/news/home/history.json`
+- 판 뷰 최신 결과: `https://yoonzeen.github.io/ad-monitoring-bot/pann/view/monitor-report.json`
+- 판 뷰 누적 기록: `https://yoonzeen.github.io/ad-monitoring-bot/pann/view/history.json`
+- 판 홈 최신 결과: `https://yoonzeen.github.io/ad-monitoring-bot/pann/home/monitor-report.json`
+- 판 홈 누적 기록: `https://yoonzeen.github.io/ad-monitoring-bot/pann/home/history.json`
 
 대시보드 화면 하단의 **최근 실행 기록**에서 최근 N건을 바로 확인할 수 있습니다.
 
@@ -133,17 +141,19 @@ npm run dev
 워크플로 파일: `.github/workflows/ad-monitor.yml`
 
 - **스케줄**: `cron: '0 * * * *'` (UTC 기준 매시간 정각)
-- **실행 대상**: 매 실행마다 `news`와 `pann`을 모두 수집
+- **실행 대상**: 매 실행마다 `news`, `news-home`, `pann`, `pann-home`을 모두 수집
 - **Node**: 20
 - **브라우저 설치**: `npx playwright install --with-deps chromium`
-- **리포트 업로드**: Pages용 `dist/news/monitor-report.json`, `dist/pann/monitor-report.json`을 artifact로 업로드
+- **리포트 업로드**: Pages용 4개 타깃 `dist/*/monitor-report.json`을 artifact로 업로드
 - **Pages 배포(선택)**: `npm run build` 후 `dist/`를 GitHub Pages로 배포
   - 이때 `VITE_BASE`를 `/<repo-name>/`로 주입해서 경로가 맞게 동작하도록 합니다. (`vite.config.ts` 참고)
 
 필수 Variables/Secrets:
 
-- **`MONITOR_TARGET_URL_NEWS`**
-- **`MONITOR_TARGET_URL_PANN`**
+- **`MONITOR_TARGET_URL_NEWS_VIEW`**
+- **`MONITOR_TARGET_URL_NEWS_HOME`**
+- **`MONITOR_TARGET_URL_PANN_VIEW`**
+- **`MONITOR_TARGET_URL_PANN_HOME`**
 
 ## GitLab CI (참고)
 
@@ -157,9 +167,9 @@ npm run dev
 ## 주요 파일
 
 - **`scripts/monitor.js`**: Playwright로 모니터링 후 타깃별 리포트 생성
-- **`scripts/run-monitor-target.js`**: 뉴스/판 스코프별 모니터 실행 래퍼
-- **`scripts/run-history-target.js`**: 뉴스/판 스코프별 히스토리 갱신 래퍼
-- **`public/news/monitor-report.json`**, **`public/pann/monitor-report.json`**: 최신 리포트(자동 생성/갱신, `.gitignore` 대상)
+- **`scripts/run-monitor-target.js`**: 타깃 스코프별 모니터 실행 래퍼
+- **`scripts/run-history-target.js`**: 타깃 스코프별 히스토리 갱신 래퍼
+- **`public/news/view/monitor-report.json`**, **`public/news/home/monitor-report.json`**, **`public/pann/view/monitor-report.json`**, **`public/pann/home/monitor-report.json`**: 최신 리포트(자동 생성/갱신, `.gitignore` 대상)
 - **`src/components/MonitorReportPanel.tsx`**: 리포트 로딩/표시 UI
 - **`src/monitor/types.ts`**: 리포트 타입 정의
 - **`.github/workflows/ad-monitor.yml`**: 스케줄 실행 + Pages 배포
