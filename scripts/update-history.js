@@ -13,8 +13,12 @@ function toInt(value, fallback) {
 }
 
 async function readJsonFile(filePath) {
-  const raw = await readFile(filePath, 'utf8')
-  return JSON.parse(raw)
+  try {
+    const raw = await readFile(filePath, 'utf8')
+    return JSON.parse(raw)
+  } catch {
+    return null
+  }
 }
 
 async function fetchJsonArray(url) {
@@ -83,6 +87,22 @@ function summarize(report) {
   }
 }
 
+function buildFallbackReport(targetScope) {
+  return {
+    checkedAt: new Date().toISOString(),
+    ok: false,
+    url: '',
+    status: 0,
+    durationMs: 0,
+    failures: [`${targetScope || 'unknown'} monitor-report.json could not be read while updating history`],
+    diagnostics: {
+      pageErrors: [],
+      consoleMessages: [],
+      requestFailures: [],
+    },
+  }
+}
+
 function dedupeAndTrim(items, max) {
   const seen = new Set()
   /** @type {any[]} */
@@ -114,7 +134,7 @@ async function main() {
   const historySourceUrl = getEnv('HISTORY_SOURCE_URL', { defaultValue: '' })
   const historyMax = toInt(getEnv('HISTORY_MAX', { defaultValue: '720' }), 720)
 
-  const report = await readJsonFile(reportPath)
+  const report = (await readJsonFile(reportPath)) ?? buildFallbackReport(targetScope)
   const previous = await fetchJsonArray(historySourceUrl)
   const entry = summarize(report)
 
