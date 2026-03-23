@@ -1,4 +1,5 @@
-import { readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import path from 'node:path'
 
 function getEnv(name, { defaultValue = '' } = {}) {
   const v = process.env[name]
@@ -26,6 +27,18 @@ async function fetchJsonArray(url) {
   } catch {
     return []
   }
+}
+
+async function ensureParentDir(filePath) {
+  const dir = path.dirname(filePath)
+  if (dir && dir !== '.') await mkdir(dir, { recursive: true })
+}
+
+function inferTargetScopeFromReportPath(filePath) {
+  const normalized = filePath.replaceAll('\\', '/').toLowerCase()
+  if (normalized.includes('/news/monitor-report.json')) return 'news'
+  if (normalized.includes('/pann/monitor-report.json')) return 'pann'
+  return ''
 }
 
 function summarize(report) {
@@ -90,8 +103,14 @@ function dedupeAndTrim(items, max) {
 async function main() {
   // Defaults are for local dev (Vite serves from public/).
   // CI can override to write directly into dist/ for GitHub Pages.
-  const reportPath = getEnv('REPORT_PATH', { defaultValue: 'public/monitor-report.json' })
-  const historyPath = getEnv('HISTORY_PATH', { defaultValue: 'public/history.json' })
+  const reportPathFromEnv = getEnv('REPORT_PATH', { defaultValue: '' })
+  const targetScope = getEnv('MONITOR_TARGET_SCOPE', {
+    defaultValue: inferTargetScopeFromReportPath(reportPathFromEnv),
+  })
+  const reportPath = reportPathFromEnv || path.join('public', targetScope || 'news', 'monitor-report.json')
+  const historyPath = getEnv('HISTORY_PATH', {
+    defaultValue: path.join('public', targetScope || 'news', 'history.json'),
+  })
   const historySourceUrl = getEnv('HISTORY_SOURCE_URL', { defaultValue: '' })
   const historyMax = toInt(getEnv('HISTORY_MAX', { defaultValue: '720' }), 720)
 
@@ -101,6 +120,7 @@ async function main() {
 
   // Most recent first.
   const merged = dedupeAndTrim([entry, ...previous], historyMax)
+  await ensureParentDir(historyPath)
   await writeFile(historyPath, JSON.stringify(merged, null, 2), 'utf8')
   console.log(`Wrote history: ${historyPath} (items=${merged.length})`)
 }

@@ -73,12 +73,29 @@ async function ensureParentDir(filePath) {
   if (dir && dir !== '.') await mkdir(dir, { recursive: true })
 }
 
+function inferTargetScope(targetUrl) {
+  const lower = String(targetUrl).toLowerCase()
+  if (lower.includes('m.news.nate.com') || lower.includes('/news/')) return 'news'
+  if (lower.includes('pann.nate.com') || lower.includes('/talk/') || lower.includes('/pann/')) return 'pann'
+  return ''
+}
+
+function getScopedTargetUrl(scope) {
+  if (!scope) return ''
+  return getEnv(`MONITOR_TARGET_URL_${scope.toUpperCase()}`, { defaultValue: '' })
+}
+
 async function main() {
   await loadDotEnv()
 
-  const targetUrl = getEnv('MONITOR_TARGET_URL', {
-    defaultValue: 'https://m.news.nate.com/view/20260223n02867?issue_sq=10477',
-  })
+  const requestedScope = getEnv('MONITOR_TARGET_SCOPE', { defaultValue: '' })
+  const scopedTargetUrl = getScopedTargetUrl(requestedScope)
+  const directTargetUrl = getEnv('MONITOR_TARGET_URL', { defaultValue: '' })
+  if (requestedScope && !directTargetUrl && !scopedTargetUrl) {
+    throw new Error(`Missing target URL for scope "${requestedScope}". Set MONITOR_TARGET_URL_${requestedScope.toUpperCase()} or MONITOR_TARGET_URL.`)
+  }
+  const targetUrl = directTargetUrl || scopedTargetUrl || 'https://m.news.nate.com/view/20260223n02867?issue_sq=10477'
+  const targetScope = requestedScope || inferTargetScope(targetUrl)
   const timeoutMs = Number(getEnv('MONITOR_TIMEOUT_MS', { defaultValue: '45000' }))
   const navTimeoutMs = Number(getEnv('MONITOR_NAV_TIMEOUT_MS', { defaultValue: '30000' }))
   const afterLoadWaitMs = Number(getEnv('MONITOR_WAIT_AFTER_LOAD_MS', { defaultValue: '1500' }))
@@ -86,7 +103,13 @@ async function main() {
     defaultValue: 'ad-monitoring-bot/1.0 (+https://github.com)',
   })
 
-  const reportPath = getEnv('MONITOR_REPORT_PATH', { defaultValue: 'public/monitor-report.json' })
+  if (!targetScope) {
+    throw new Error('Could not infer target scope from MONITOR_TARGET_URL. Set MONITOR_TARGET_SCOPE to news or pann.')
+  }
+
+  const reportPath = getEnv('MONITOR_REPORT_PATH', {
+    defaultValue: path.join('public', targetScope, 'monitor-report.json'),
+  })
 
   const failOnPageError = parseBool(getEnv('MONITOR_FAIL_ON_PAGEERROR', { defaultValue: 'true' }), true)
   const failOnConsoleError = parseBool(getEnv('MONITOR_FAIL_ON_CONSOLE_ERROR', { defaultValue: 'true' }), true)

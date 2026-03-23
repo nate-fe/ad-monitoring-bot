@@ -7,8 +7,8 @@ const TARGETS = {
     id: 'news',
     label: '모바일 뉴스',
     description: '네이트 모바일 뉴스 페이지의 광고 스크립트 상태를 확인합니다.',
-    reportPaths: ['news/monitor-report.json', 'monitor-report.json'],
-    historyPaths: ['news/history.json', 'history.json'],
+    reportPaths: ['news/monitor-report.json'],
+    historyPaths: ['news/history.json'],
     icon: 'MN',
   },
   pann: {

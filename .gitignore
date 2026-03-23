@@ -28,5 +28,7 @@ dist-ssr
 
 # Monitor outputs
 monitor-report.json
-public/monitor-report.json
-public/history.json
+public/news/history.json
+public/news/monitor-report.json
+public/pann/history.json
+public/pann/monitor-report.json
