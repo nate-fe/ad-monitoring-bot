@@ -98,7 +98,7 @@ function App() {
             </div>
           )}
           <figcaption className="mascotCaption">
-            {target ? `${target.label}` : '네이트 광고 스크립트 모니터링 봇'}, <br />
+            네이트 광고 스크립트 모니터링 봇, <br />
             <strong>다롱이</strong>
           </figcaption>
         </figure>
