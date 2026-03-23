@@ -85,6 +85,51 @@ function getScopedTargetUrl(scope) {
   return getEnv(`MONITOR_TARGET_URL_${scope.toUpperCase()}`, { defaultValue: '' })
 }
 
+const CONSOLE_CAPTURE_SCRIPT = `
+(() => {
+  const key = '__adMonitorConsoleMessages__';
+  if (globalThis[key]) return;
+
+  const formatArg = (value) => {
+    if (typeof value === 'string') return value;
+    if (value == null) return String(value);
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
+  };
+
+  const store = [];
+  Object.defineProperty(globalThis, key, {
+    value: store,
+    configurable: false,
+    enumerable: false,
+    writable: false,
+  });
+
+  const wrap = (methodName, normalizedType) => {
+    const original = console[methodName];
+    if (typeof original !== 'function') return;
+    console[methodName] = (...args) => {
+      try {
+        store.push({
+          type: normalizedType,
+          text: args.map(formatArg).join(' '),
+          url: globalThis.location?.href || undefined,
+        });
+      } catch {
+        // ignore capture errors
+      }
+      return original.apply(console, args);
+    };
+  };
+
+  wrap('error', 'error');
+  wrap('warn', 'warning');
+})();
+`
+
 async function main() {
   await loadDotEnv()
 
@@ -145,6 +190,7 @@ async function main() {
         userAgent,
         viewport: { width: 1280, height: 720 },
       })
+      await context.addInitScript(CONSOLE_CAPTURE_SCRIPT)
       const page = await context.newPage()
       page.setDefaultTimeout(Number.isFinite(timeoutMs) ? timeoutMs : 45000)
       page.setDefaultNavigationTimeout(Number.isFinite(navTimeoutMs) ? navTimeoutMs : 30000)
@@ -153,16 +199,6 @@ async function main() {
         const message = err instanceof Error ? err.message : String(err)
         if (shouldIgnore(message)) return
         pageErrors.push({ message, stack: err instanceof Error ? err.stack : undefined })
-      })
-      page.on('console', (msg) => {
-        const type = msg.type()
-        const text = msg.text()
-        if (type === 'error' || type === 'warning') {
-          if (shouldIgnore(text)) return
-          const location = msg.location()
-          const url = typeof location?.url === 'string' && location.url ? location.url : undefined
-          consoleMessages.push({ type, text, url })
-        }
       })
       page.on('requestfailed', (req) => {
         const failure = req.failure()
@@ -191,6 +227,15 @@ async function main() {
       if (Number.isFinite(afterLoadWaitMs) && afterLoadWaitMs > 0) {
         await page.waitForTimeout(afterLoadWaitMs)
       }
+
+      const capturedConsoleMessages = await page.evaluate(() => {
+        const key = '__adMonitorConsoleMessages__'
+        const messages = globalThis[key]
+        return Array.isArray(messages) ? messages : []
+      })
+      consoleMessages.push(
+        ...capturedConsoleMessages.filter((item) => item && !shouldIgnore(String(item.text ?? ''))),
+      )
 
       if (failOnPageError && pageErrors.length > 0) failures.push(`JS page errors: ${pageErrors.length}`)
       if (failOnConsoleError && consoleMessages.some((m) => m.type === 'error')) {
