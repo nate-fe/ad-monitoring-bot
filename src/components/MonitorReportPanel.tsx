@@ -668,8 +668,9 @@ export function MonitorReportPanel({
             <div className="failTitle">리포트를 찾을 수 없습니다</div>
             <p className="muted">{state.message}</p>
             <p className="muted">
-              먼저 <code>npm run monitor</code>를 실행해 <code>public/monitor-report.json</code>이 생성되게 한 뒤
-              새로고침하세요.
+              로컬에서는 <code>npm run monitor:all</code>과 <code>npm run history:update:all</code>을 실행해
+              대상별 <code>public/news/view</code>, <code>public/news/home</code>, <code>public/pann/view</code>,
+              <code>public/pann/home</code> JSON을 생성한 뒤 새로고침하세요.
             </p>
           </div>
         </div>
