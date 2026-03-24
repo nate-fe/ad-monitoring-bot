@@ -133,6 +133,28 @@ function buildClassifiedIssues(items: IssueSourceCandidate[]): ClassifiedIssue[]
   return Array.from(bucket.values()).sort((a, b) => b.count - a.count)
 }
 
+function getFailureBuckets(failures: string[] | undefined) {
+  const items = failures ?? []
+  let actionableCount = 0
+  let collectionFailureCount = 0
+
+  for (const failure of items) {
+    if (
+      failure.startsWith('Console errors:') ||
+      failure.startsWith('Console warnings:') ||
+      failure.startsWith('JS page errors:') ||
+      failure.startsWith('Request failures:') ||
+      failure.startsWith('HTTP status not OK:')
+    ) {
+      actionableCount += 1
+    } else {
+      collectionFailureCount += 1
+    }
+  }
+
+  return { actionableCount, collectionFailureCount }
+}
+
 function classifyCurrentReportErrors(report: MonitorReport): ClassifiedIssue[] {
   const items: IssueSourceCandidate[] = []
 
@@ -248,6 +270,8 @@ export function MonitorReportPanel({
     const consoleErrors = it.counts?.consoleErrors ?? 0
     const consoleWarnings = it.counts?.consoleWarnings ?? 0
     const pageErrors = it.counts?.pageErrors ?? 0
+    const requestFailures = it.counts?.requestFailures ?? 0
+    const { actionableCount, collectionFailureCount } = getFailureBuckets(it.failures)
 
     const parts: string[] = []
 
@@ -258,7 +282,9 @@ export function MonitorReportPanel({
     }
 
     if (pageErrors) parts.push(`페이지 오류 ${pageErrors}개`)
-    if (it.failures?.length) parts.push(`고쳐야 할 항목 ${it.failures.length}개`)
+    if (requestFailures) parts.push(`요청 실패 ${requestFailures}개`)
+    if (actionableCount) parts.push(`고쳐야 할 항목 ${actionableCount}개`)
+    if (collectionFailureCount) parts.push(`데이터 수집 실패 ${collectionFailureCount}개`)
 
     return parts.join(' · ')
   }
@@ -411,6 +437,14 @@ export function MonitorReportPanel({
     )
   }, [state])
 
+  const currentFailureBuckets = useMemo(() => {
+    if (state.kind !== 'loaded') {
+      return { actionableCount: 0, collectionFailureCount: 0 }
+    }
+
+    return getFailureBuckets(state.report.failures)
+  }, [state])
+
   return (
     <section className="panel">
       <div className="panelHeader">
@@ -454,7 +488,9 @@ export function MonitorReportPanel({
             <div className="okBox">광고 코드/페이지 상태에 문제가 발견되지 않았습니다.</div>
           ) : (
             <div className="failBox">
-              <div className="failTitle">고쳐야 할 항목</div>
+              <div className="failTitle">
+                {currentFailureBuckets.actionableCount > 0 ? '고쳐야 할 항목' : '데이터 수집 실패'}
+              </div>
               {currentErrorIssueSources.length ? (
                 <div className="issueSourceBlock">
                   <div className="issueSourceTitle">문제가 발생한 광고/영역</div>
