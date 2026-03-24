@@ -27,9 +27,14 @@ jobs:
       MONITOR_TARGET_URL_NEWS_HOME: ${{ vars.MONITOR_TARGET_URL_NEWS_HOME || secrets.MONITOR_TARGET_URL_NEWS_HOME || 'https://m.news.nate.com/' }}
       MONITOR_TARGET_URL_PANN_VIEW: ${{ vars.MONITOR_TARGET_URL_PANN_VIEW || vars.MONITOR_TARGET_URL_PANN || secrets.MONITOR_TARGET_URL_PANN_VIEW || secrets.MONITOR_TARGET_URL_PANN }}
       MONITOR_TARGET_URL_PANN_HOME: ${{ vars.MONITOR_TARGET_URL_PANN_HOME || secrets.MONITOR_TARGET_URL_PANN_HOME || 'https://m.pann.nate.com/' }}
+      HISTORY_SOURCE_URL_NEWS_VIEW: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/news/view/history.json
+      HISTORY_SOURCE_URL_NEWS_HOME: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/news/home/history.json
+      HISTORY_SOURCE_URL_PANN_VIEW: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/pann/view/history.json
+      HISTORY_SOURCE_URL_PANN_HOME: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/pann/home/history.json
       MONITOR_IGNORE_ERROR_PATTERNS: ${{ vars.MONITOR_IGNORE_ERROR_PATTERNS || secrets.MONITOR_IGNORE_ERROR_PATTERNS }}
       MONITOR_TIMEOUT_MS: '20000'
       MONITOR_USER_AGENT: 'ad-monitoring-bot/1.0 (github-actions)'
+      GITHUB_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
     steps:
       - name: Checkout
@@ -53,76 +58,21 @@ jobs:
           VITE_BASE: /${{ github.event.repository.name }}/
         run: npm run build
 
-      - name: Run monitor for scoped targets
+      - name: Run monitor targets
         continue-on-error: true
+        run: npm run monitor:all
+
+      - name: Update history files
+        run: npm run history:update:all
+
+      - name: Write legacy flat aliases
+        run: npm run aliases:flat
+
+      - name: Copy monitor outputs into dist
         run: |
-          mkdir -p dist
-          mkdir -p dist/news/view dist/news/home dist/pann/view dist/pann/home
-
-          if [ -n "${MONITOR_TARGET_URL_NEWS_VIEW}" ]; then
-            MONITOR_TARGET_SCOPE="news" MONITOR_TARGET_URL="${MONITOR_TARGET_URL_NEWS_VIEW}" MONITOR_REPORT_PATH="dist/news/view/monitor-report.json" npm run monitor || true
-          else
-            cat > dist/news/view/monitor-report.json <<'EOF'
-            {
-              "ok": false,
-              "url": "",
-              "status": 0,
-              "durationMs": 0,
-              "checkedAt": "",
-              "failures": ["news view monitor-report.json was not produced (missing MONITOR_TARGET_URL_NEWS_VIEW)"],
-              "diagnostics": { "pageErrors": [], "consoleMessages": [], "requestFailures": [] }
-            }
-            EOF
-          fi
-
-          if [ -n "${MONITOR_TARGET_URL_NEWS_HOME}" ]; then
-            MONITOR_TARGET_SCOPE="news-home" MONITOR_TARGET_URL="${MONITOR_TARGET_URL_NEWS_HOME}" MONITOR_REPORT_PATH="dist/news/home/monitor-report.json" npm run monitor || true
-          else
-            cat > dist/news/home/monitor-report.json <<'EOF'
-            {
-              "ok": false,
-              "url": "",
-              "status": 0,
-              "durationMs": 0,
-              "checkedAt": "",
-              "failures": ["news home monitor-report.json was not produced (missing MONITOR_TARGET_URL_NEWS_HOME)"],
-              "diagnostics": { "pageErrors": [], "consoleMessages": [], "requestFailures": [] }
-            }
-            EOF
-          fi
-
-          if [ -n "${MONITOR_TARGET_URL_PANN_VIEW}" ]; then
-            MONITOR_TARGET_SCOPE="pann" MONITOR_TARGET_URL="${MONITOR_TARGET_URL_PANN_VIEW}" MONITOR_REPORT_PATH="dist/pann/view/monitor-report.json" npm run monitor || true
-          else
-            cat > dist/pann/view/monitor-report.json <<'EOF'
-            {
-              "ok": false,
-              "url": "",
-              "status": 0,
-              "durationMs": 0,
-              "checkedAt": "",
-              "failures": ["pann view monitor-report.json was not produced (missing MONITOR_TARGET_URL_PANN_VIEW)"],
-              "diagnostics": { "pageErrors": [], "consoleMessages": [], "requestFailures": [] }
-            }
-            EOF
-          fi
-
-          if [ -n "${MONITOR_TARGET_URL_PANN_HOME}" ]; then
-            MONITOR_TARGET_SCOPE="pann-home" MONITOR_TARGET_URL="${MONITOR_TARGET_URL_PANN_HOME}" MONITOR_REPORT_PATH="dist/pann/home/monitor-report.json" npm run monitor || true
-          else
-            cat > dist/pann/home/monitor-report.json <<'EOF'
-            {
-              "ok": false,
-              "url": "",
-              "status": 0,
-              "durationMs": 0,
-              "checkedAt": "",
-              "failures": ["pann home monitor-report.json was not produced (missing MONITOR_TARGET_URL_PANN_HOME)"],
-              "diagnostics": { "pageErrors": [], "consoleMessages": [], "requestFailures": [] }
-            }
-            EOF
-          fi
-
+          mkdir -p dist/news dist/pann
+          cp -r public/news dist/
+          cp -r public/pann dist/
           ls -la dist | sed -n '1,160p'
           ls -la dist/news | sed -n '1,160p'
           ls -la dist/news/view | sed -n '1,160p'
@@ -130,49 +80,6 @@ jobs:
           ls -la dist/pann | sed -n '1,160p'
           ls -la dist/pann/view | sed -n '1,160p'
           ls -la dist/pann/home | sed -n '1,160p'
-
-      - name: Update news history.json
-        env:
-          MONITOR_TARGET_SCOPE: news
-          HISTORY_SOURCE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/news/view/history.json
-          REPORT_PATH: dist/news/view/monitor-report.json
-          HISTORY_PATH: dist/news/view/history.json
-          HISTORY_MAX: '720'
-          GITHUB_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: node ./scripts/update-history.js
-
-      - name: Update news home history.json
-        env:
-          MONITOR_TARGET_SCOPE: news-home
-          HISTORY_SOURCE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/news/home/history.json
-          REPORT_PATH: dist/news/home/monitor-report.json
-          HISTORY_PATH: dist/news/home/history.json
-          HISTORY_MAX: '720'
-          GITHUB_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: node ./scripts/update-history.js
-
-      - name: Update pann history.json
-        env:
-          MONITOR_TARGET_SCOPE: pann
-          HISTORY_SOURCE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/pann/view/history.json
-          REPORT_PATH: dist/pann/view/monitor-report.json
-          HISTORY_PATH: dist/pann/view/history.json
-          HISTORY_MAX: '720'
-          GITHUB_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: node ./scripts/update-history.js
-
-      - name: Update pann home history.json
-        env:
-          MONITOR_TARGET_SCOPE: pann-home
-          HISTORY_SOURCE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/pann/home/history.json
-          REPORT_PATH: dist/pann/home/monitor-report.json
-          HISTORY_PATH: dist/pann/home/history.json
-          HISTORY_MAX: '720'
-          GITHUB_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: node ./scripts/update-history.js
-
-      - name: Write legacy flat aliases
-        run: node ./scripts/write-legacy-flat-aliases.js dist
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
@@ -188,10 +95,10 @@ jobs:
         with:
           name: monitor-report
           path: |
-            dist/news/view/monitor-report.json
-            dist/news/home/monitor-report.json
-            dist/pann/view/monitor-report.json
-            dist/pann/home/monitor-report.json
+            public/news/view/monitor-report.json
+            public/news/home/monitor-report.json
+            public/pann/view/monitor-report.json
+            public/pann/home/monitor-report.json
           if-no-files-found: ignore
 
       - name: Create issue on scheduled failure
