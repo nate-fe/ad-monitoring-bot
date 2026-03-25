@@ -59,17 +59,29 @@ function summarize(report) {
     type: m?.type ?? 'error',
     text: String(m?.text ?? ''),
     url: typeof m?.url === 'string' && m.url ? m.url : undefined,
+    sourceUrl: typeof m?.sourceUrl === 'string' && m.sourceUrl ? m.sourceUrl : undefined,
+    line: Number.isFinite(Number(m?.line)) ? Number(m.line) : undefined,
+    column: Number.isFinite(Number(m?.column)) ? Number(m.column) : undefined,
   }))
   const consoleWarningSample = warningMessages.slice(0, 5).map((m) => ({
     type: m?.type ?? 'log',
     text: String(m?.text ?? ''),
     url: typeof m?.url === 'string' && m.url ? m.url : undefined,
+    sourceUrl: typeof m?.sourceUrl === 'string' && m.sourceUrl ? m.sourceUrl : undefined,
+    line: Number.isFinite(Number(m?.line)) ? Number(m.line) : undefined,
+    column: Number.isFinite(Number(m?.column)) ? Number(m.column) : undefined,
   }))
   const requestFailureSample = requestFailures.slice(0, 5).map((item) => ({
     url: String(item?.url ?? ''),
     method: String(item?.method ?? ''),
     resourceType: String(item?.resourceType ?? ''),
     errorText: String(item?.errorText ?? ''),
+  }))
+  const pageErrorSample = pageErrors.slice(0, 5).map((item) => ({
+    message: String(item?.message ?? ''),
+    sourceUrl: typeof item?.sourceUrl === 'string' && item.sourceUrl ? item.sourceUrl : undefined,
+    line: Number.isFinite(Number(item?.line)) ? Number(item.line) : undefined,
+    column: Number.isFinite(Number(item?.column)) ? Number(item.column) : undefined,
   }))
 
   return {
@@ -85,6 +97,7 @@ function summarize(report) {
       consoleWarnings,
       requestFailures: requestFailures.length,
     },
+    pageErrorSample,
     consoleErrorSample,
     consoleWarningSample,
     requestFailureSample,

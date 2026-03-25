@@ -26,6 +26,18 @@ type IssueUrlPreviewProps = {
   url: string
 }
 
+type ConsoleLikeMessage = {
+  type: string
+  text: string
+  url?: string
+  sourceUrl?: string
+  line?: number
+  column?: number
+}
+
+const REQUEST_FAILURE_HELP_TEXT =
+  '페이지 로드 중 완료되지 못한 네트워크 요청입니다. 광고 스크립트나 광고 API 문제를 추적할 때 참고용으로 확인합니다.'
+
 type IssueSourceCandidate =
   | string
   | {
@@ -252,6 +264,61 @@ function IssueUrlPreview({ url }: IssueUrlPreviewProps) {
   )
 }
 
+function InfoIcon() {
+  return (
+    <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+      <circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M10 8v5" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+      <circle cx="10" cy="5.6" r="1" fill="currentColor" />
+    </svg>
+  )
+}
+
+function InlineHelpTooltip({ text }: { text: string }) {
+  return (
+    <span className="inlineHelpWrap">
+      <button type="button" className="inlineHelpButton" aria-label={text}>
+        <InfoIcon />
+      </button>
+      <span className="inlineHelpTooltip" role="tooltip">
+        {text}
+      </span>
+    </span>
+  )
+}
+
+function RequestFailureTitle({ suffix = '' }: { suffix?: string }) {
+  return (
+    <span className="requestFailureTitle">
+      요청 실패 내용{suffix}
+      <InlineHelpTooltip text={REQUEST_FAILURE_HELP_TEXT} />
+    </span>
+  )
+}
+
+function SourceLocationMeta({
+  sourceUrl,
+  line,
+  column,
+}: {
+  sourceUrl?: string
+  line?: number
+  column?: number
+}) {
+  if (!line) return null
+
+  return (
+    <div className="sourceLocationMeta">
+      <span className="pill info">위치</span>
+      <span className="sourceLocationText">
+        줄 {line}
+        {column ? `:${column}` : ''}
+        {sourceUrl ? ` · ${sourceUrl}` : ''}
+      </span>
+    </div>
+  )
+}
+
 function RequestFailureList({
   items,
 }: {
@@ -269,6 +336,14 @@ function RequestFailureList({
         </li>
       ))}
     </ul>
+  )
+}
+
+function FailureSourceUrl({ url }: { url: string }) {
+  return (
+    <div className="failureSourceUrl">
+      <IssueUrlPreview url={url} />
+    </div>
   )
 }
 
@@ -315,9 +390,12 @@ export function MonitorReportPanel({
     const pageErrors = report.diagnostics?.pageErrors ?? []
     const requestFailures = report.diagnostics?.requestFailures ?? []
 
-    const renderConsoleMessage = (item: { type: string; text: string; url?: string }, idx: number) => (
+    const renderConsoleMessage = (item: ConsoleLikeMessage, idx: number) => (
       <li key={`${idx}-${item.type}-${item.text}-${item.url ?? ''}`}>
-        <span className={`pill ${item.type}`}>{item.type}</span> {item.text}
+        <div>
+          <span className={`pill ${item.type}`}>{item.type}</span> {item.text}
+        </div>
+        <SourceLocationMeta sourceUrl={item.sourceUrl} line={item.line} column={item.column} />
         {item.url ? <IssueUrlPreview url={item.url} /> : null}
       </li>
     )
@@ -345,7 +423,11 @@ export function MonitorReportPanel({
       return (
         <ul className="failDetailList">
           {pageErrors.map((item, idx) => (
-            <li key={`${idx}-${item.message}`}>{item.message}</li>
+            <li key={`${idx}-${item.message}`}>
+              <div>{item.message}</div>
+              <SourceLocationMeta sourceUrl={item.sourceUrl} line={item.line} column={item.column} />
+              <FailureSourceUrl url={report.url} />
+            </li>
           ))}
         </ul>
       )
@@ -354,6 +436,16 @@ export function MonitorReportPanel({
     if (failure.startsWith('Request failures:')) {
       if (!requestFailures.length) return null
       return <RequestFailureList items={requestFailures} />
+    }
+
+    if (failure.startsWith('HTTP status not OK:') || failure.startsWith('Request failed:')) {
+      return (
+        <ul className="failDetailList">
+          <li>
+            <FailureSourceUrl url={report.url} />
+          </li>
+        </ul>
+      )
     }
 
     return null
@@ -567,7 +659,9 @@ export function MonitorReportPanel({
                     )}
                   </div>
                   <div className="diagSection">
-                    <div className="diagSectionTitle">요청 실패</div>
+                    <div className="diagSectionTitle">
+                      <RequestFailureTitle />
+                    </div>
                     <RequestFailureList items={currentRequestFailures} />
                   </div>
                 </div>
@@ -623,6 +717,7 @@ export function MonitorReportPanel({
                                     const pageErrors = it.counts?.pageErrors ?? 0
                                     const requestFailures = it.counts?.requestFailures ?? 0
                                     const s = summarizeFailures(it.failures, 5)
+                                    const pageErrorSample = it.pageErrorSample ?? []
                                     const consoleErrorSample = it.consoleErrorSample ?? []
                                     const consoleWarningSample = (it.consoleWarningSample ?? []).filter(
                                       (m) => !shouldHideConsoleWarning(m.text),
@@ -636,6 +731,7 @@ export function MonitorReportPanel({
                                       pageErrors ||
                                       requestFailures ||
                                       s ||
+                                      pageErrorSample.length ||
                                       consoleErrorSample.length ||
                                       consoleWarningSample.length ||
                                       requestFailureSample.length
@@ -669,19 +765,46 @@ export function MonitorReportPanel({
                                             콘솔 경고 <b>{consoleWarnings}</b>
                                           </span>
                                           <span className="chip">
-                                            요청 실패 <b>{requestFailures}</b>
+                                            요청 실패<b>{requestFailures}</b>
                                           </span>
                                         </div>
 
                                         <ul className="miniList">
+                                          <li>페이지 오류: {pageErrors}개</li>
                                           <li>콘솔 로그: 오류 {consoleErrors}개, 경고 {consoleWarnings}개</li>
+                                          <li>요청 실패: {requestFailures}개</li>
+                                          {pageErrorSample.length ? (
+                                            <li>
+                                              <div className="miniSectionTitle">페이지 오류 내용</div>
+                                              <ul className="miniConsoleList">
+                                                {pageErrorSample.map((item, sampleIdx) => (
+                                                  <li key={`${sampleIdx}-${item.message}`}>
+                                                    <div>{item.message}</div>
+                                                    <SourceLocationMeta
+                                                      sourceUrl={item.sourceUrl}
+                                                      line={item.line}
+                                                      column={item.column}
+                                                    />
+                                                    {it.url ? <FailureSourceUrl url={it.url} /> : null}
+                                                  </li>
+                                                ))}
+                                              </ul>
+                                            </li>
+                                          ) : null}
                                           {consoleErrorSample.length ? (
                                             <li>
                                               <div className="miniSectionTitle">콘솔 오류 내용</div>
                                               <ul className="miniConsoleList">
                                                 {consoleErrorSample.map((m, sampleIdx) => (
                                                   <li key={`${sampleIdx}-${m.type}-${m.text}-${m.url ?? ''}`}>
-                                                    <span className={`pill ${m.type}`}>{m.type}</span> {m.text}
+                                                    <div>
+                                                      <span className={`pill ${m.type}`}>{m.type}</span> {m.text}
+                                                    </div>
+                                                    <SourceLocationMeta
+                                                      sourceUrl={m.sourceUrl}
+                                                      line={m.line}
+                                                      column={m.column}
+                                                    />
                                                     {m.url ? <IssueUrlPreview url={m.url} /> : null}
                                                   </li>
                                                 ))}
@@ -694,7 +817,14 @@ export function MonitorReportPanel({
                                               <ul className="miniConsoleList">
                                                 {consoleWarningSample.map((m, sampleIdx) => (
                                                   <li key={`${sampleIdx}-${m.type}-${m.text}-${m.url ?? ''}`}>
-                                                    <span className={`pill ${m.type}`}>{m.type}</span> {m.text}
+                                                    <div>
+                                                      <span className={`pill ${m.type}`}>{m.type}</span> {m.text}
+                                                    </div>
+                                                    <SourceLocationMeta
+                                                      sourceUrl={m.sourceUrl}
+                                                      line={m.line}
+                                                      column={m.column}
+                                                    />
                                                     {m.url ? <IssueUrlPreview url={m.url} /> : null}
                                                   </li>
                                                 ))}
@@ -703,7 +833,9 @@ export function MonitorReportPanel({
                                           ) : null}
                                           {requestFailureSample.length ? (
                                             <li>
-                                              <div className="miniSectionTitle">요청 실패 내용</div>
+                                              <div className="miniSectionTitle">
+                                                <RequestFailureTitle />
+                                              </div>
                                               <RequestFailureList items={requestFailureSample} />
                                             </li>
                                           ) : null}

@@ -6,8 +6,8 @@ export type MonitorReport = {
   checkedAt: string
   failures: string[]
   diagnostics?: {
-    pageErrors?: { message: string; stack?: string }[]
-    consoleMessages?: { type: string; text: string; url?: string }[]
+    pageErrors?: { message: string; stack?: string; sourceUrl?: string; line?: number; column?: number }[]
+    consoleMessages?: { type: string; text: string; url?: string; sourceUrl?: string; line?: number; column?: number }[]
     requestFailures?: { url: string; method: string; resourceType: string; errorText: string }[]
   }
 }
@@ -25,8 +25,9 @@ export type MonitorHistoryEntry = {
     consoleWarnings: number
     requestFailures: number
   }
-  consoleErrorSample?: { type: string; text: string; url?: string }[]
-  consoleWarningSample?: { type: string; text: string; url?: string }[]
+  pageErrorSample?: { message: string; sourceUrl?: string; line?: number; column?: number }[]
+  consoleErrorSample?: { type: string; text: string; url?: string; sourceUrl?: string; line?: number; column?: number }[]
+  consoleWarningSample?: { type: string; text: string; url?: string; sourceUrl?: string; line?: number; column?: number }[]
   requestFailureSample?: { url: string; method: string; resourceType: string; errorText: string }[]
   meta?: {
     runId?: string

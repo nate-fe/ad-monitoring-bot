@@ -113,6 +113,29 @@ function getScopedTargetUrl(scope) {
   return ''
 }
 
+function parseLocationFromStack(stackText) {
+  if (!stackText) return {}
+
+  const lines = String(stackText)
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+
+  for (const line of lines) {
+    const match =
+      line.match(/\(?((?:https?|file):\/\/[^\s)]+):(\d+):(\d+)\)?$/i) ||
+      line.match(/\(?([^()\s]+\.js):(\d+):(\d+)\)?$/i)
+    if (!match) continue
+
+    return {
+      sourceUrl: match[1],
+      line: Number(match[2]),
+      column: Number(match[3]),
+    }
+  }
+
+  return {}
+}
+
 const CONSOLE_CAPTURE_SCRIPT = `
 (() => {
   const key = '__adMonitorConsoleMessages__';
@@ -136,15 +159,41 @@ const CONSOLE_CAPTURE_SCRIPT = `
     writable: false,
   });
 
+  const parseLocation = (stackText) => {
+    if (!stackText) return {};
+    const lines = String(stackText)
+      .split(/\\r?\\n/)
+      .map((line) => line.trim());
+
+    for (const line of lines) {
+      const match =
+        line.match(/\\(?((?:https?|file):\\/\\/[^\\s)]+):(\\d+):(\\d+)\\)?$/i) ||
+        line.match(/\\(?([^()\\s]+\\.js):(\\d+):(\\d+)\\)?$/i);
+      if (!match) continue;
+
+      return {
+        sourceUrl: match[1],
+        line: Number(match[2]),
+        column: Number(match[3]),
+      };
+    }
+
+    return {};
+  };
+
   const wrap = (methodName, normalizedType) => {
     const original = console[methodName];
     if (typeof original !== 'function') return;
     console[methodName] = (...args) => {
       try {
+        const location = parseLocation(new Error().stack);
         store.push({
           type: normalizedType,
           text: args.map(formatArg).join(' '),
           url: globalThis.location?.href || undefined,
+          sourceUrl: location.sourceUrl,
+          line: location.line,
+          column: location.column,
         });
       } catch {
         // ignore capture errors
@@ -198,9 +247,9 @@ async function main() {
   let ok = false
   /** @type {string[]} */
   const failures = []
-  /** @type {{ message: string, stack?: string }[]} */
+  /** @type {{ message: string, stack?: string, sourceUrl?: string, line?: number, column?: number }[]} */
   const pageErrors = []
-  /** @type {{ type: string, text: string, url?: string }[]} */
+  /** @type {{ type: string, text: string, url?: string, sourceUrl?: string, line?: number, column?: number }[]} */
   const consoleMessages = []
   /** @type {{ url: string, method: string, resourceType: string, errorText: string }[]} */
   const requestFailures = []
@@ -226,7 +275,14 @@ async function main() {
       page.on('pageerror', (err) => {
         const message = err instanceof Error ? err.message : String(err)
         if (shouldIgnore(message)) return
-        pageErrors.push({ message, stack: err instanceof Error ? err.stack : undefined })
+        const location = parseLocationFromStack(err instanceof Error ? err.stack : undefined)
+        pageErrors.push({
+          message,
+          stack: err instanceof Error ? err.stack : undefined,
+          sourceUrl: location.sourceUrl,
+          line: location.line,
+          column: location.column,
+        })
       })
       page.on('requestfailed', (req) => {
         const failure = req.failure()
