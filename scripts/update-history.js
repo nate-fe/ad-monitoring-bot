@@ -65,6 +65,12 @@ function summarize(report) {
     text: String(m?.text ?? ''),
     url: typeof m?.url === 'string' && m.url ? m.url : undefined,
   }))
+  const requestFailureSample = requestFailures.slice(0, 5).map((item) => ({
+    url: String(item?.url ?? ''),
+    method: String(item?.method ?? ''),
+    resourceType: String(item?.resourceType ?? ''),
+    errorText: String(item?.errorText ?? ''),
+  }))
 
   return {
     checkedAt: String(report?.checkedAt ?? ''),
@@ -81,6 +87,7 @@ function summarize(report) {
     },
     consoleErrorSample,
     consoleWarningSample,
+    requestFailureSample,
     meta: {
       runId: getEnv('GITHUB_RUN_ID', { defaultValue: '' }),
       runUrl: getEnv('GITHUB_RUN_URL', { defaultValue: '' }),

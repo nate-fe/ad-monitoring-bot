@@ -27,6 +27,7 @@ export type MonitorHistoryEntry = {
   }
   consoleErrorSample?: { type: string; text: string; url?: string }[]
   consoleWarningSample?: { type: string; text: string; url?: string }[]
+  requestFailureSample?: { url: string; method: string; resourceType: string; errorText: string }[]
   meta?: {
     runId?: string
     runUrl?: string

@@ -252,6 +252,26 @@ function IssueUrlPreview({ url }: IssueUrlPreviewProps) {
   )
 }
 
+function RequestFailureList({
+  items,
+}: {
+  items: { url: string; method: string; resourceType: string; errorText: string }[]
+}) {
+  if (!items.length) return <p className="muted">없음</p>
+
+  return (
+    <ul className="failDetailList">
+      {items.map((item, idx) => (
+        <li key={`${idx}-${item.url}-${item.errorText}`}>
+          <span className="pill info">{item.method}</span>{' '}
+          <span className="pill info">{item.resourceType}</span> {item.errorText}
+          <IssueUrlPreview url={item.url} />
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 export function MonitorReportPanel({
   reportPaths = ['monitor-report.json'],
   historyPaths = ['history.json'],
@@ -333,17 +353,7 @@ export function MonitorReportPanel({
 
     if (failure.startsWith('Request failures:')) {
       if (!requestFailures.length) return null
-      return (
-        <ul className="failDetailList">
-          {requestFailures.map((item, idx) => (
-            <li key={`${idx}-${item.url}-${item.errorText}`}>
-              <span className="pill info">{item.method}</span>{' '}
-              <span className="pill info">{item.resourceType}</span> {item.errorText}
-              <IssueUrlPreview url={item.url} />
-            </li>
-          ))}
-        </ul>
-      )
+      return <RequestFailureList items={requestFailures} />
     }
 
     return null
@@ -437,6 +447,11 @@ export function MonitorReportPanel({
     )
   }, [state])
 
+  const currentRequestFailures = useMemo(() => {
+    if (state.kind !== 'loaded') return []
+    return state.report.diagnostics?.requestFailures ?? []
+  }, [state])
+
   const currentFailureBuckets = useMemo(() => {
     if (state.kind !== 'loaded') {
       return { actionableCount: 0, collectionFailureCount: 0 }
@@ -519,7 +534,7 @@ export function MonitorReportPanel({
               <details className="diagItem">
                 <summary>
                   추가 정보{' '}
-                  <span className="count">{currentConsoleWarnings.length}</span>
+                  <span className="count">{currentConsoleWarnings.length + currentRequestFailures.length}</span>
                 </summary>
 
                 {currentAllIssueSources.length ? (
@@ -550,6 +565,10 @@ export function MonitorReportPanel({
                     ) : (
                       <p className="muted">없음</p>
                     )}
+                  </div>
+                  <div className="diagSection">
+                    <div className="diagSectionTitle">요청 실패</div>
+                    <RequestFailureList items={currentRequestFailures} />
                   </div>
                 </div>
               </details>
@@ -608,6 +627,7 @@ export function MonitorReportPanel({
                                     const consoleWarningSample = (it.consoleWarningSample ?? []).filter(
                                       (m) => !shouldHideConsoleWarning(m.text),
                                     )
+                                    const requestFailureSample = it.requestFailureSample ?? []
                                     const issueSources = classifyHistoryEntry(it)
 
                                     const hasAnyDetail =
@@ -617,7 +637,8 @@ export function MonitorReportPanel({
                                       requestFailures ||
                                       s ||
                                       consoleErrorSample.length ||
-                                      consoleWarningSample.length
+                                      consoleWarningSample.length ||
+                                      requestFailureSample.length
 
                                     if (!hasAnyDetail) {
                                       return <p className="muted">이 실행에서 특별한 이상은 기록되지 않았습니다.</p>
@@ -647,6 +668,9 @@ export function MonitorReportPanel({
                                           <span className="chip">
                                             콘솔 경고 <b>{consoleWarnings}</b>
                                           </span>
+                                          <span className="chip">
+                                            요청 실패 <b>{requestFailures}</b>
+                                          </span>
                                         </div>
 
                                         <ul className="miniList">
@@ -675,6 +699,12 @@ export function MonitorReportPanel({
                                                   </li>
                                                 ))}
                                               </ul>
+                                            </li>
+                                          ) : null}
+                                          {requestFailureSample.length ? (
+                                            <li>
+                                              <div className="miniSectionTitle">요청 실패 내용</div>
+                                              <RequestFailureList items={requestFailureSample} />
                                             </li>
                                           ) : null}
                                         </ul>
