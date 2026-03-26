@@ -309,7 +309,6 @@ function SourceLocationMeta({
 
   return (
     <div className="sourceLocationMeta">
-      <span className="pill info">위치</span>
       <span className="sourceLocationText">
         줄 {line}
         {column ? `:${column}` : ''}
@@ -331,7 +330,7 @@ function RequestFailureList({
       {items.map((item, idx) => (
         <li key={`${idx}-${item.url}-${item.errorText}`}>
           <span className="pill info">{item.method}</span>{' '}
-          <span className="pill info">{item.resourceType}</span> {item.errorText}
+          <span className="pill">{item.resourceType}</span> {item.errorText}
           <IssueUrlPreview url={item.url} />
         </li>
       ))}
