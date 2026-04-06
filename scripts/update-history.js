@@ -52,10 +52,14 @@ function summarize(report) {
   const pageErrors = report?.diagnostics?.pageErrors ?? []
   const requestFailures = report?.diagnostics?.requestFailures ?? []
   const errorMessages = consoleMessages.filter((m) => m?.type === 'error')
+  const pageScriptErrors = errorMessages.filter((m) => m?.source !== 'devtools')
   const warningMessages = consoleMessages.filter((m) => m?.type === 'warning')
-  const consoleErrors = errorMessages.length
+  const logLikeMessages = consoleMessages.filter((m) => m?.type === 'log' || m?.type === 'info')
+  // 페이지 스크립트 콘솔 오류만 (헤드리스 네트워크 줄은 devToolsConsoleSample·별도 집계)
+  const consoleErrors = pageScriptErrors.length
   const consoleWarnings = warningMessages.length
-  const consoleErrorSample = errorMessages.slice(0, 5).map((m) => ({
+  const consoleLogs = logLikeMessages.length
+  const consoleErrorSample = pageScriptErrors.slice(0, 5).map((m) => ({
     type: m?.type ?? 'error',
     text: String(m?.text ?? ''),
     url: typeof m?.url === 'string' && m.url ? m.url : undefined,
@@ -71,6 +75,26 @@ function summarize(report) {
     line: Number.isFinite(Number(m?.line)) ? Number(m.line) : undefined,
     column: Number.isFinite(Number(m?.column)) ? Number(m.column) : undefined,
   }))
+  const consoleLogSample = logLikeMessages.slice(0, 8).map((m) => ({
+    type: m?.type ?? 'log',
+    text: String(m?.text ?? ''),
+    url: typeof m?.url === 'string' && m.url ? m.url : undefined,
+    sourceUrl: typeof m?.sourceUrl === 'string' && m.sourceUrl ? m.sourceUrl : undefined,
+    line: Number.isFinite(Number(m?.line)) ? Number(m.line) : undefined,
+    column: Number.isFinite(Number(m?.column)) ? Number(m.column) : undefined,
+  }))
+  const devToolsConsoleSample = errorMessages
+    .filter((m) => m?.source === 'devtools')
+    .slice(0, 8)
+    .map((m) => ({
+      type: 'error',
+      text: String(m?.text ?? ''),
+      url: typeof m?.url === 'string' && m.url ? m.url : undefined,
+      sourceUrl: typeof m?.sourceUrl === 'string' && m.sourceUrl ? m.sourceUrl : undefined,
+      line: Number.isFinite(Number(m?.line)) ? Number(m.line) : undefined,
+      column: Number.isFinite(Number(m?.column)) ? Number(m.column) : undefined,
+      source: 'devtools',
+    }))
   const requestFailureSample = requestFailures.slice(0, 5).map((item) => ({
     url: String(item?.url ?? ''),
     method: String(item?.method ?? ''),
@@ -95,11 +119,14 @@ function summarize(report) {
       pageErrors: pageErrors.length,
       consoleErrors,
       consoleWarnings,
+      consoleLogs,
       requestFailures: requestFailures.length,
     },
     pageErrorSample,
     consoleErrorSample,
     consoleWarningSample,
+    consoleLogSample,
+    devToolsConsoleSample,
     requestFailureSample,
     meta: {
       runId: getEnv('GITHUB_RUN_ID', { defaultValue: '' }),
@@ -154,7 +181,8 @@ async function main() {
     defaultValue: path.join('public', targetScope || 'news', 'history.json'),
   })
   const historySourceUrl = getEnv('HISTORY_SOURCE_URL', { defaultValue: '' })
-  const historyMax = toInt(getEnv('HISTORY_MAX', { defaultValue: '720' }), 720)
+  // 기본 ~약 3년치(시간당 1회 기준). 오래된 항목은 오래될수록 잘림 — 더 늘리려면 HISTORY_MAX 환경 변수 사용.
+  const historyMax = toInt(getEnv('HISTORY_MAX', { defaultValue: '26280' }), 26280)
 
   const report = (await readJsonFile(reportPath)) ?? buildFallbackReport(targetScope)
   const previous = await fetchJsonArray(historySourceUrl)

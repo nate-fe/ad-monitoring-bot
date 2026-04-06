@@ -1,5 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { MonitorHistoryEntry, MonitorReport } from '../monitor/types'
+import {
+  buildClassifiedIssues,
+  classifyHistoryEntry,
+  extractHttpUrlFromText,
+  shouldHideConsoleWarning,
+  type ClassifiedIssue,
+  type IssueSourceCandidate,
+} from '../monitor/issueSources'
+import { AdIssueBreakdown } from './AdIssueBreakdown'
+import { HistoryMonthlyConsoleSection } from './HistoryMonthlyConsoleSection'
 
 type LoadState =
   | { kind: 'idle' | 'loading' }
@@ -11,19 +21,21 @@ type HistoryState =
   | { kind: 'error'; message: string }
   | { kind: 'loaded'; items: MonitorHistoryEntry[] }
 
+export type HeroReportMetaPayload =
+  | { status: 'loading' }
+  | { status: 'error'; message: string }
+  | { status: 'loaded'; url: string; checkedAtLabel: string; durationMs: number }
+
 type MonitorReportPanelProps = {
   reportPaths?: string[]
   historyPaths?: string[]
-}
-
-type ClassifiedIssue = {
-  key: string
-  label: string
-  count: number
+  onHeroReportMeta?: (meta: HeroReportMetaPayload) => void
 }
 
 type IssueUrlPreviewProps = {
   url: string
+  /** 미지정 시 원인 URL 보기 */
+  ariaLabel?: string
 }
 
 type ConsoleLikeMessage = {
@@ -33,27 +45,14 @@ type ConsoleLikeMessage = {
   sourceUrl?: string
   line?: number
   column?: number
+  source?: string
 }
 
 const REQUEST_FAILURE_HELP_TEXT =
   '페이지 로드 중 완료되지 못한 네트워크 요청입니다. 광고 스크립트나 광고 API 문제를 추적할 때 참고용으로 확인합니다.'
 
-type IssueSourceCandidate =
-  | string
-  | {
-      text?: string
-      url?: string
-    }
-
-const ISSUE_SOURCE_RULES = [
-  { key: 'adsense', label: 'Google AdSense', patterns: ['googlesyndication', 'pagead2', 'show_ads.js', 'adsbygoogle'] },
-  { key: 'gam', label: 'Google Ad Manager', patterns: ['googletag', 'doubleclick', 'pubads'] },
-  { key: 'dable', label: 'Dable', patterns: ['api.dable.io', 'dablewidget', 'dable'] },
-  { key: 'widerplanet', label: 'WiderPlanet', patterns: ['widerplanet'] },
-  { key: 'mobwith', label: 'Mobwith', patterns: ['mobwith', 'nateimp.mobwith.co.kr'] },
-  { key: 'criteo', label: 'Criteo', patterns: ['criteo'] },
-  { key: 'nate', label: 'Nate 내부', patterns: ['news.nate.com', 'm.news.nate.com', 'nate.com'] },
-]
+const HEADLESS_NETWORK_LOG_HELP_TEXT =
+  'Playwright로 띄운 headless Chromium이 페이지를 열 때, 브라우저 엔진이 콘솔 API로 넘기는 네트워크 관련 한 줄입니다. 본문에 Failed to load resource처럼 보여도, 직접 연 크롬의 개발자 도구 Console·Network에 같은 항목이 항상 보이지는 않을 수 있습니다(자동화 전용 User-Agent·쿠키·타이밍 등이 다를 때). 크롬 UI에서 빨간 오류로 분류되지 않는 경우도 있어 참고용으로만 두었습니다. 페이지 스크립트가 찍은 console 오류와는 별도입니다.'
 
 function formatDate(iso: string) {
   const d = new Date(iso)
@@ -68,6 +67,20 @@ function formatDateKey(iso: string) {
   const month = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
+}
+
+function formatMonthKey(iso: string) {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  return `${year}-${month}`
+}
+
+function formatMonthLabel(monthKey: string) {
+  const d = new Date(`${monthKey}-01T00:00:00`)
+  if (Number.isNaN(d.getTime())) return monthKey
+  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'long' })
 }
 
 function formatDateLabel(dateKey: string) {
@@ -112,39 +125,6 @@ async function fetchJsonFromPaths<T>(paths: string[]) {
   throw new Error(lastError)
 }
 
-function shouldHideConsoleWarning(text: string) {
-  return text.includes('automatically upgraded to HTTPS')
-}
-
-function classifyIssueText(candidate: IssueSourceCandidate) {
-  const lower =
-    typeof candidate === 'string'
-      ? candidate.toLowerCase()
-      : `${candidate.url ?? ''} ${candidate.text ?? ''}`.toLowerCase()
-  for (const rule of ISSUE_SOURCE_RULES) {
-    if (rule.patterns.some((pattern) => lower.includes(pattern.toLowerCase()))) {
-      return { key: rule.key, label: rule.label }
-    }
-  }
-  return { key: 'other', label: '기타/미분류' }
-}
-
-function buildClassifiedIssues(items: IssueSourceCandidate[]): ClassifiedIssue[] {
-  const bucket = new Map<string, ClassifiedIssue>()
-
-  for (const item of items) {
-    const matched = classifyIssueText(item)
-    const prev = bucket.get(matched.key)
-    if (prev) {
-      prev.count += 1
-    } else {
-      bucket.set(matched.key, { ...matched, count: 1 })
-    }
-  }
-
-  return Array.from(bucket.values()).sort((a, b) => b.count - a.count)
-}
-
 function getFailureBuckets(failures: string[] | undefined) {
   const items = failures ?? []
   let actionableCount = 0
@@ -174,11 +154,17 @@ function classifyCurrentReportErrors(report: MonitorReport): ClassifiedIssue[] {
     items.push(
       ...((report.diagnostics?.consoleMessages ?? [])
         .filter((m) => m.type === 'error')
-        .map((m) => ({ text: m.text, url: m.url })) ?? []),
+        .map((m) => ({
+          text: m.text,
+          url: m.url ?? extractHttpUrlFromText(m.text),
+          sourceUrl: m.sourceUrl,
+        })) ?? []),
     )
   }
   if ((report.failures ?? []).some((f) => f.startsWith('JS page errors:'))) {
-    items.push(...(report.diagnostics?.pageErrors?.map((e) => e.message) ?? []))
+    items.push(
+      ...(report.diagnostics?.pageErrors?.map((e) => ({ text: e.message, sourceUrl: e.sourceUrl })) ?? []),
+    )
   }
   if ((report.failures ?? []).some((f) => f.startsWith('Request failures:'))) {
     items.push(...(report.diagnostics?.requestFailures?.map((r) => ({ url: r.url })) ?? []))
@@ -190,15 +176,7 @@ function classifyCurrentReportErrors(report: MonitorReport): ClassifiedIssue[] {
 function classifyCurrentReportAll(report: MonitorReport): ClassifiedIssue[] {
   const items = (report.diagnostics?.consoleMessages ?? [])
     .filter((m) => m.type === 'warning')
-    .map((m) => ({ text: m.text, url: m.url }))
-  return buildClassifiedIssues(items)
-}
-
-function classifyHistoryEntry(entry: MonitorHistoryEntry): ClassifiedIssue[] {
-  const items = [
-    ...(entry.consoleErrorSample?.map((m) => ({ text: m.text, url: m.url })) ?? []),
-    ...(entry.consoleWarningSample?.map((m) => ({ text: m.text, url: m.url })) ?? []),
-  ]
+    .map((m) => ({ text: m.text, url: m.url, sourceUrl: m.sourceUrl }))
   return buildClassifiedIssues(items)
 }
 
@@ -225,7 +203,12 @@ function RefreshIcon() {
   )
 }
 
-function IssueUrlPreview({ url }: IssueUrlPreviewProps) {
+type DiagCopyableFieldProps = {
+  value: string
+  ariaLabel: string
+}
+
+function DiagCopyableField({ value, ariaLabel }: DiagCopyableFieldProps) {
   const [copied, setCopied] = useState(false)
 
   useEffect(() => {
@@ -236,7 +219,7 @@ function IssueUrlPreview({ url }: IssueUrlPreviewProps) {
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(url)
+      await navigator.clipboard.writeText(value)
       setCopied(true)
     } catch {
       setCopied(false)
@@ -245,11 +228,11 @@ function IssueUrlPreview({ url }: IssueUrlPreviewProps) {
 
   return (
     <div className="diagUrlWrap">
-      <button type="button" className="diagUrlTrigger" aria-label={`원인 URL 보기: ${url}`}>
-        {url}
+      <button type="button" className="diagUrlTrigger" aria-label={ariaLabel}>
+        {value}
       </button>
       <div className="diagUrlTooltip" role="tooltip">
-        <div className="diagUrlTooltipText">{url}</div>
+        <div className="diagUrlTooltipText">{value}</div>
         {copied ? (
           <span className="diagUrlCopied" aria-live="polite">
             복사됨
@@ -261,6 +244,12 @@ function IssueUrlPreview({ url }: IssueUrlPreviewProps) {
         )}
       </div>
     </div>
+  )
+}
+
+function IssueUrlPreview({ url, ariaLabel }: IssueUrlPreviewProps) {
+  return (
+    <DiagCopyableField value={url} ariaLabel={ariaLabel ?? `원인 URL 보기: ${url}`} />
   )
 }
 
@@ -296,24 +285,31 @@ function RequestFailureTitle({ suffix = '' }: { suffix?: string }) {
   )
 }
 
-function SourceLocationMeta({
-  sourceUrl,
-  line,
-  column,
-}: {
-  sourceUrl?: string
-  line?: number
-  column?: number
-}) {
-  if (!line) return null
+function HeadlessNetworkLogTitle({ suffix = '' }: { suffix?: string }) {
+  return (
+    <span className="headlessNetworkLogTitle">
+      헤드리스가 기록한 네트워크 로그{suffix}
+      <InlineHelpTooltip text={HEADLESS_NETWORK_LOG_HELP_TEXT} />
+    </span>
+  )
+}
+function SourceLocationLineText({ line, column }: { line?: number; column?: number }) {
+  const hasLine = line != null && Number.isFinite(line)
+  const hasCol = column != null && Number.isFinite(column)
+  if (!hasLine) return null
+  return (
+    <span className="sourceLocationText">
+      Line {line}
+      {hasCol ? `:${column}` : ''}
+    </span>
+  )
+}
 
+function SourceLocationUrlBlock({ sourceUrl }: { sourceUrl?: string }) {
+  if (!sourceUrl) return null
   return (
     <div className="sourceLocationMeta">
-      <span className="sourceLocationText">
-        줄 {line}
-        {column ? `:${column}` : ''}
-        {sourceUrl ? ` · ${sourceUrl}` : ''}
-      </span>
+      <IssueUrlPreview url={sourceUrl} ariaLabel={`출처 URL: ${sourceUrl}`} />
     </div>
   )
 }
@@ -349,9 +345,11 @@ function FailureSourceUrl({ url }: { url: string }) {
 export function MonitorReportPanel({
   reportPaths = ['monitor-report.json'],
   historyPaths = ['history.json'],
+  onHeroReportMeta,
 }: MonitorReportPanelProps) {
   const [state, setState] = useState<LoadState>({ kind: 'idle' })
   const [history, setHistory] = useState<HistoryState>({ kind: 'idle' })
+  const [historyMonthFilter, setHistoryMonthFilter] = useState<'all' | string>('all')
 
   const summarizeFailures = (failures: string[] | undefined, maxItems = 2) => {
     if (!failures?.length) return null
@@ -363,6 +361,7 @@ export function MonitorReportPanel({
   const summarizeHistoryLine = (it: MonitorHistoryEntry) => {
     const consoleErrors = it.counts?.consoleErrors ?? 0
     const consoleWarnings = it.counts?.consoleWarnings ?? 0
+    const consoleLogs = it.counts?.consoleLogs ?? 0
     const pageErrors = it.counts?.pageErrors ?? 0
     const requestFailures = it.counts?.requestFailures ?? 0
     const { actionableCount, collectionFailureCount } = getFailureBuckets(it.failures)
@@ -376,6 +375,7 @@ export function MonitorReportPanel({
     }
 
     if (pageErrors) parts.push(`페이지 오류 ${pageErrors}개`)
+    if (consoleLogs) parts.push(`콘솔 log/info ${consoleLogs}개`)
     if (requestFailures) parts.push(`요청 실패 ${requestFailures}개`)
     if (actionableCount) parts.push(`고쳐야 할 항목 ${actionableCount}개`)
     if (collectionFailureCount) parts.push(`데이터 수집 실패 ${collectionFailureCount}개`)
@@ -384,18 +384,21 @@ export function MonitorReportPanel({
   }
 
   const renderCurrentFailureDetails = (report: MonitorReport, failure: string) => {
-    const consoleErrors = (report.diagnostics?.consoleMessages ?? []).filter((m) => m.type === 'error')
+    const consoleErrors = (report.diagnostics?.consoleMessages ?? []).filter(
+      (m) => m.type === 'error' && m.source !== 'devtools',
+    )
     const consoleWarnings = (report.diagnostics?.consoleMessages ?? []).filter((m) => m.type === 'warning')
     const pageErrors = report.diagnostics?.pageErrors ?? []
     const requestFailures = report.diagnostics?.requestFailures ?? []
 
     const renderConsoleMessage = (item: ConsoleLikeMessage, idx: number) => (
       <li key={`${idx}-${item.type}-${item.text}-${item.url ?? ''}`}>
-        <div>
-          <span className={`pill ${item.type}`}>{item.type}</span> {item.text}
+        <div className="diagLineHead">
+          <span className={`pill ${item.type}`}>{item.type}</span>
+          <span className="diagLineHeadMsg">{item.text}</span>
+          <SourceLocationLineText line={item.line} column={item.column} />
         </div>
-        <SourceLocationMeta sourceUrl={item.sourceUrl} line={item.line} column={item.column} />
-        {item.url ? <IssueUrlPreview url={item.url} /> : null}
+        <SourceLocationUrlBlock sourceUrl={item.sourceUrl} />
       </li>
     )
 
@@ -423,9 +426,11 @@ export function MonitorReportPanel({
         <ul className="failDetailList">
           {pageErrors.map((item, idx) => (
             <li key={`${idx}-${item.message}`}>
-              <div>{item.message}</div>
-              <SourceLocationMeta sourceUrl={item.sourceUrl} line={item.line} column={item.column} />
-              <FailureSourceUrl url={report.url} />
+              <div className="diagLineHead">
+                <span className="diagLineHeadMsg">{item.message}</span>
+                <SourceLocationLineText line={item.line} column={item.column} />
+              </div>
+              <SourceLocationUrlBlock sourceUrl={item.sourceUrl} />
             </li>
           ))}
         </ul>
@@ -492,6 +497,28 @@ export function MonitorReportPanel({
     void loadHistory()
   }, [load, loadHistory])
 
+  useEffect(() => {
+    if (!onHeroReportMeta) return
+    if (state.kind === 'loaded') {
+      onHeroReportMeta({
+        status: 'loaded',
+        url: state.report.url,
+        checkedAtLabel: formatDate(state.report.checkedAt),
+        durationMs: state.report.durationMs,
+      })
+    } else if (state.kind === 'error') {
+      onHeroReportMeta({ status: 'error', message: state.message })
+    } else {
+      onHeroReportMeta({ status: 'loading' })
+    }
+  }, [state, onHeroReportMeta])
+
+  useEffect(() => {
+    if (history.kind !== 'loaded' || historyMonthFilter === 'all') return
+    const hasMonth = history.items.some((it) => formatMonthKey(it.checkedAt) === historyMonthFilter)
+    if (!hasMonth) setHistoryMonthFilter('all')
+  }, [history, historyMonthFilter])
+
   const header = useMemo(() => {
     if (state.kind === 'loaded') {
       return state.report.ok ? '이상 없음' : '이상 감지'
@@ -500,11 +527,25 @@ export function MonitorReportPanel({
     return '불러오는 중…'
   }, [state])
 
-  const groupedHistory = useMemo(() => {
+  const historyMonthOptions = useMemo(() => {
     if (history.kind !== 'loaded') return []
+    const set = new Set<string>()
+    for (const it of history.items) {
+      const mk = formatMonthKey(it.checkedAt)
+      if (mk) set.add(mk)
+    }
+    return Array.from(set).sort((a, b) => b.localeCompare(a))
+  }, [history])
 
+  const historyItemsForView = useMemo(() => {
+    if (history.kind !== 'loaded') return []
+    if (historyMonthFilter === 'all') return history.items
+    return history.items.filter((it) => formatMonthKey(it.checkedAt) === historyMonthFilter)
+  }, [history, historyMonthFilter])
+
+  const groupedHistory = useMemo(() => {
     const groups = new Map<string, MonitorHistoryEntry[]>()
-    for (const item of history.items) {
+    for (const item of historyItemsForView) {
       const key = formatDateKey(item.checkedAt)
       const existing = groups.get(key)
       if (existing) {
@@ -514,12 +555,14 @@ export function MonitorReportPanel({
       }
     }
 
-    return Array.from(groups.entries()).map(([dateKey, items]) => ({
-      dateKey,
-      label: formatDateLabel(dateKey),
-      items,
-    }))
-  }, [history])
+    return Array.from(groups.entries())
+      .map(([dateKey, items]) => ({
+        dateKey,
+        label: formatDateLabel(dateKey),
+        items,
+      }))
+      .sort((a, b) => b.dateKey.localeCompare(a.dateKey))
+  }, [historyItemsForView])
 
   const currentErrorIssueSources = useMemo(() => {
     if (state.kind !== 'loaded') return []
@@ -543,6 +586,16 @@ export function MonitorReportPanel({
     return state.report.diagnostics?.requestFailures ?? []
   }, [state])
 
+  const currentConsoleLogs = useMemo(() => {
+    if (state.kind !== 'loaded') return []
+    return (state.report.diagnostics?.consoleMessages ?? []).filter((m) => m.type === 'log' || m.type === 'info')
+  }, [state])
+
+  const currentDevToolsConsole = useMemo(() => {
+    if (state.kind !== 'loaded') return []
+    return (state.report.diagnostics?.consoleMessages ?? []).filter((m) => m.source === 'devtools')
+  }, [state])
+
   const currentFailureBuckets = useMemo(() => {
     if (state.kind !== 'loaded') {
       return { actionableCount: 0, collectionFailureCount: 0 }
@@ -554,7 +607,14 @@ export function MonitorReportPanel({
   return (
     <section className="panel">
       <div className="panelHeader">
-        <div className="panelTitle">{header}</div>
+        <div className="panelHeaderText">
+          <div className="panelTitle">{header}</div>
+          {state.kind === 'loaded' && state.report.ok ? (
+            <p className="panelHeaderSub panelHeaderSubOk">
+              광고 코드/페이지 상태에 문제가 발견되지 않았습니다.
+            </p>
+          ) : null}
+        </div>
         <div className="panelActions">
           <button
             type="button"
@@ -571,28 +631,7 @@ export function MonitorReportPanel({
 
       {state.kind === 'loaded' ? (
         <div className="panelBody">
-          <dl className="kv">
-            <div>
-              <dt>대상 URL</dt>
-              <dd>
-                <a href={state.report.url} target="_blank" rel="noreferrer">
-                  {state.report.url}
-                </a>
-              </dd>
-            </div>
-            <div>
-              <dt>체크 시각</dt>
-              <dd>{formatDate(state.report.checkedAt)}</dd>
-            </div>
-            <div>
-              <dt>소요 시간</dt>
-              <dd>{state.report.durationMs}ms</dd>
-            </div>
-          </dl>
-
-          {state.report.ok ? (
-            <div className="okBox">광고 코드/페이지 상태에 문제가 발견되지 않았습니다.</div>
-          ) : (
+          {state.report.ok ? null : (
             <div className="failBox">
               <div className="failTitle">
                 {currentFailureBuckets.actionableCount > 0 ? '고쳐야 할 항목' : '데이터 수집 실패'}
@@ -620,13 +659,26 @@ export function MonitorReportPanel({
             </div>
           )}
 
+          <div className="adIssueSection">
+            <h2 className="adIssueSectionTitle">광고·영역별 오류 / 경고</h2>
+            <p className="adIssueSectionDesc">
+              콘솔·페이지·요청 실패 메시지와 URL을 키워드로 묶어, 어떤 광고/플랫폼 쪽 이슈가 많은지 보여 줍니다.
+            </p>
+            <AdIssueBreakdown report={state.report} />
+          </div>
+
           {state.report.diagnostics ? (
             <div className="diag">
-              <details className="diagItem">
-                <summary>
+              <div className="diagItem">
+                <div className="diagHeader">
                   추가 정보{' '}
-                  <span className="count">{currentConsoleWarnings.length + currentRequestFailures.length}</span>
-                </summary>
+                  <span className="count">
+                    {currentConsoleWarnings.length +
+                      currentRequestFailures.length +
+                      currentConsoleLogs.length +
+                      currentDevToolsConsole.length}
+                  </span>
+                </div>
 
                 {currentAllIssueSources.length ? (
                   <div className="issueSourceBlock">
@@ -648,8 +700,12 @@ export function MonitorReportPanel({
                       <ul className="diagList">
                         {currentConsoleWarnings.map((m, idx) => (
                           <li key={`${idx}-${m.type}-${m.text}-${m.url ?? ''}`}>
-                            <span className={`pill ${m.type}`}>{m.type}</span> {m.text}
-                            {m.url ? <IssueUrlPreview url={m.url} /> : null}
+                            <div className="diagLineHead">
+                              <span className={`pill ${m.type}`}>{m.type}</span>
+                              <span className="diagLineHeadMsg">{m.text}</span>
+                              <SourceLocationLineText line={m.line} column={m.column} />
+                            </div>
+                            <SourceLocationUrlBlock sourceUrl={m.sourceUrl} />
                           </li>
                         ))}
                       </ul>
@@ -663,16 +719,71 @@ export function MonitorReportPanel({
                     </div>
                     <RequestFailureList items={currentRequestFailures} />
                   </div>
+                  <div className="diagSection">
+                    <div className="diagSectionTitle">콘솔 log / info</div>
+                    {currentConsoleLogs.length ? (
+                      <ul className="diagList">
+                        {currentConsoleLogs.map((m, idx) => (
+                          <li key={`${idx}-${m.type}-${m.text}`}>
+                            <div className="diagLineHead">
+                              <span className={`pill ${m.type}`}>{m.type}</span>
+                              <span className="diagLineHeadMsg">{m.text}</span>
+                              <SourceLocationLineText line={m.line} column={m.column} />
+                            </div>
+                            <SourceLocationUrlBlock sourceUrl={m.sourceUrl} />
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="muted">없음</p>
+                    )}
+                  </div>
+                  <div className="diagSection">
+                    <div className="diagSectionTitle">
+                      <HeadlessNetworkLogTitle />
+                    </div>
+                    {currentDevToolsConsole.length ? (
+                      <ul className="diagList">
+                        {currentDevToolsConsole.map((m, idx) => {
+                          return (
+                            <li key={`${idx}-devtools-${m.text}`}>
+                              <div className="diagLineHead">
+                                <span className="diagLineHeadMsg">{m.text}</span>
+                                <SourceLocationLineText line={m.line} column={m.column} />
+                              </div>
+                              <SourceLocationUrlBlock sourceUrl={m.sourceUrl} />
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    ) : (
+                      <p className="muted">없음</p>
+                    )}
+                  </div>
                 </div>
-              </details>
+              </div>
             </div>
           ) : null}
-
           <div className="history">
             <details className="diagItem">
               <summary>
-                최근 실행 기록 <span className="count">{history.kind === 'loaded' ? history.items.length : 0}</span>
+                최근 실행 기록{' '}
+                <span className="count">
+                  {history.kind === 'loaded' ? historyItemsForView.length : 0}
+                </span>
+                {history.kind === 'loaded' && historyMonthFilter !== 'all' ? (
+                  <span className="historyMonthFilterHint"> · {formatMonthLabel(historyMonthFilter)}</span>
+                ) : null}
               </summary>
+              <HistoryMonthlyConsoleSection
+                historyItems={history.kind === 'loaded' ? historyItemsForView : undefined}
+                historyStatus={history.kind}
+                activeMonthFilterLabel={
+                  history.kind === 'loaded' && historyMonthFilter !== 'all'
+                    ? formatMonthLabel(historyMonthFilter)
+                    : null
+                }
+              />
               <div className="btnGhostWrap">
                 <button
                   type="button"
@@ -687,6 +798,28 @@ export function MonitorReportPanel({
               </div>
 
               {history.kind === 'loaded' ? (
+                <>
+                  {historyMonthOptions.length ? (
+                    <div className="historyMonthBar">
+                      <select
+                        id="history-month-filter"
+                        className="historyMonthSelect"
+                        value={historyMonthFilter}
+                        onChange={(e) => setHistoryMonthFilter(e.target.value === 'all' ? 'all' : e.target.value)}
+                        aria-label="최근 실행 기록 월 필터"
+                      >
+                        <option value="all">전체</option>
+                        {historyMonthOptions.map((mk) => (
+                          <option key={mk} value={mk}>
+                            {formatMonthLabel(mk)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : null}
+                  {!history.items.length ? (
+                    <p className="muted">아직 저장된 실행 기록이 없습니다.</p>
+                  ) : groupedHistory.length ? (
                 <ul className="diagList">
                   {groupedHistory.map((group) => (
                     <li key={group.dateKey}>
@@ -713,6 +846,7 @@ export function MonitorReportPanel({
                                   {(() => {
                                     const consoleErrors = it.counts?.consoleErrors ?? 0
                                     const consoleWarnings = it.counts?.consoleWarnings ?? 0
+                                    const consoleLogs = it.counts?.consoleLogs ?? 0
                                     const pageErrors = it.counts?.pageErrors ?? 0
                                     const requestFailures = it.counts?.requestFailures ?? 0
                                     const s = summarizeFailures(it.failures, 5)
@@ -721,18 +855,23 @@ export function MonitorReportPanel({
                                     const consoleWarningSample = (it.consoleWarningSample ?? []).filter(
                                       (m) => !shouldHideConsoleWarning(m.text),
                                     )
+                                    const consoleLogSample = it.consoleLogSample ?? []
+                                    const devToolsConsoleSample = it.devToolsConsoleSample ?? []
                                     const requestFailureSample = it.requestFailureSample ?? []
                                     const issueSources = classifyHistoryEntry(it)
 
                                     const hasAnyDetail =
                                       consoleErrors ||
                                       consoleWarnings ||
+                                      consoleLogs ||
                                       pageErrors ||
                                       requestFailures ||
                                       s ||
                                       pageErrorSample.length ||
                                       consoleErrorSample.length ||
                                       consoleWarningSample.length ||
+                                      consoleLogSample.length ||
+                                      devToolsConsoleSample.length ||
                                       requestFailureSample.length
 
                                     if (!hasAnyDetail) {
@@ -753,24 +892,10 @@ export function MonitorReportPanel({
                                             </div>
                                           </div>
                                         ) : null}
-                                        <div className="diagChips">
-                                          <span className="chip">
-                                            페이지 <b>{pageErrors}</b>
-                                          </span>
-                                          <span className="chip">
-                                            콘솔 오류 <b>{consoleErrors}</b>
-                                          </span>
-                                          <span className="chip">
-                                            콘솔 경고 <b>{consoleWarnings}</b>
-                                          </span>
-                                          <span className="chip">
-                                            요청 실패<b>{requestFailures}</b>
-                                          </span>
-                                        </div>
-
                                         <ul className="miniList">
                                           <li>페이지 오류: {pageErrors}개</li>
                                           <li>콘솔 로그: 오류 {consoleErrors}개, 경고 {consoleWarnings}개</li>
+                                          <li>콘솔 log/info: {consoleLogs}개</li>
                                           <li>요청 실패: {requestFailures}개</li>
                                           {pageErrorSample.length ? (
                                             <li>
@@ -778,13 +903,14 @@ export function MonitorReportPanel({
                                               <ul className="miniConsoleList">
                                                 {pageErrorSample.map((item, sampleIdx) => (
                                                   <li key={`${sampleIdx}-${item.message}`}>
-                                                    <div>{item.message}</div>
-                                                    <SourceLocationMeta
-                                                      sourceUrl={item.sourceUrl}
-                                                      line={item.line}
-                                                      column={item.column}
-                                                    />
-                                                    {it.url ? <FailureSourceUrl url={it.url} /> : null}
+                                                    <div className="diagLineHead">
+                                                      <span className="diagLineHeadMsg">{item.message}</span>
+                                                      <SourceLocationLineText
+                                                        line={item.line}
+                                                        column={item.column}
+                                                      />
+                                                    </div>
+                                                    <SourceLocationUrlBlock sourceUrl={item.sourceUrl} />
                                                   </li>
                                                 ))}
                                               </ul>
@@ -796,15 +922,12 @@ export function MonitorReportPanel({
                                               <ul className="miniConsoleList">
                                                 {consoleErrorSample.map((m, sampleIdx) => (
                                                   <li key={`${sampleIdx}-${m.type}-${m.text}-${m.url ?? ''}`}>
-                                                    <div>
-                                                      <span className={`pill ${m.type}`}>{m.type}</span> {m.text}
+                                                    <div className="diagLineHead">
+                                                      <span className={`pill ${m.type}`}>{m.type}</span>
+                                                      <span className="diagLineHeadMsg">{m.text}</span>
+                                                      <SourceLocationLineText line={m.line} column={m.column} />
                                                     </div>
-                                                    <SourceLocationMeta
-                                                      sourceUrl={m.sourceUrl}
-                                                      line={m.line}
-                                                      column={m.column}
-                                                    />
-                                                    {m.url ? <IssueUrlPreview url={m.url} /> : null}
+                                                    <SourceLocationUrlBlock sourceUrl={m.sourceUrl} />
                                                   </li>
                                                 ))}
                                               </ul>
@@ -816,18 +939,54 @@ export function MonitorReportPanel({
                                               <ul className="miniConsoleList">
                                                 {consoleWarningSample.map((m, sampleIdx) => (
                                                   <li key={`${sampleIdx}-${m.type}-${m.text}-${m.url ?? ''}`}>
-                                                    <div>
-                                                      <span className={`pill ${m.type}`}>{m.type}</span> {m.text}
+                                                    <div className="diagLineHead">
+                                                      <span className={`pill ${m.type}`}>{m.type}</span>
+                                                      <span className="diagLineHeadMsg">{m.text}</span>
+                                                      <SourceLocationLineText line={m.line} column={m.column} />
                                                     </div>
-                                                    <SourceLocationMeta
-                                                      sourceUrl={m.sourceUrl}
-                                                      line={m.line}
-                                                      column={m.column}
-                                                    />
-                                                    {m.url ? <IssueUrlPreview url={m.url} /> : null}
+                                                    <SourceLocationUrlBlock sourceUrl={m.sourceUrl} />
                                                   </li>
                                                 ))}
                                               </ul>
+                                            </li>
+                                          ) : null}
+                                          {consoleLogSample.length ? (
+                                            <li>
+                                              <div className="miniSectionTitle">콘솔 log / info 내용</div>
+                                              <ul className="miniConsoleList">
+                                                {consoleLogSample.map((m, sampleIdx) => (
+                                                  <li key={`${sampleIdx}-${m.type}-${m.text}-${m.url ?? ''}`}>
+                                                    <div className="diagLineHead">
+                                                      <span className={`pill ${m.type}`}>{m.type}</span>
+                                                      <span className="diagLineHeadMsg">{m.text}</span>
+                                                      <SourceLocationLineText line={m.line} column={m.column} />
+                                                    </div>
+                                                    <SourceLocationUrlBlock sourceUrl={m.sourceUrl} />
+                                                  </li>
+                                                ))}
+                                              </ul>
+                                            </li>
+                                          ) : null}
+                                          {devToolsConsoleSample.length ? (
+                                            <li>
+                                              <div className="diagSection">
+                                                <div className="diagSectionTitle">
+                                                  <HeadlessNetworkLogTitle />
+                                                </div>
+                                                <ul className="diagList">
+                                                  {devToolsConsoleSample.map((m, sampleIdx) => {
+                                                    return (
+                                                      <li key={`${sampleIdx}-devtools-${m.text}`}>
+                                                        <div className="diagLineHead">
+                                                          <span className="diagLineHeadMsg">{m.text}</span>
+                                                          <SourceLocationLineText line={m.line} column={m.column} />
+                                                        </div>
+                                                        <SourceLocationUrlBlock sourceUrl={m.sourceUrl} />
+                                                      </li>
+                                                    )
+                                                  })}
+                                                </ul>
+                                              </div>
                                             </li>
                                           ) : null}
                                           {requestFailureSample.length ? (
@@ -851,6 +1010,10 @@ export function MonitorReportPanel({
                     </li>
                   ))}
                 </ul>
+                  ) : (
+                    <p className="muted">선택한 월에 해당하는 기록이 없습니다.</p>
+                  )}
+                </>
               ) : history.kind === 'error' ? (
                 <p className="muted">{history.message}</p>
               ) : (

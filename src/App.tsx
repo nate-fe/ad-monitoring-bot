@@ -1,6 +1,6 @@
 import './App.css'
-import { MonitorReportPanel } from './components/MonitorReportPanel'
-import { useEffect, useMemo, useState } from 'react'
+import { MonitorReportPanel, type HeroReportMetaPayload } from './components/MonitorReportPanel'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 const TARGETS = {
   news: {
@@ -51,15 +51,24 @@ function App() {
   const [selectedTarget, setSelectedTarget] = useState<TargetId | null>(() =>
     typeof window === 'undefined' ? null : getTargetFromHash(),
   )
+  const [heroReportMeta, setHeroReportMeta] = useState<HeroReportMetaPayload | null>(null)
   const targets = Object.values(TARGETS)
 
   useEffect(() => {
-    const onHashChange = () => setSelectedTarget(getTargetFromHash())
+    const onHashChange = () => {
+      const next = getTargetFromHash()
+      setSelectedTarget(next)
+      setHeroReportMeta(next ? { status: 'loading' } : null)
+    }
     window.addEventListener('hashchange', onHashChange)
     return () => window.removeEventListener('hashchange', onHashChange)
   }, [])
 
   const target = useMemo(() => (selectedTarget ? TARGETS[selectedTarget] : null), [selectedTarget])
+
+  const handleHeroReportMeta = useCallback((meta: HeroReportMetaPayload) => {
+    setHeroReportMeta(meta)
+  }, [])
 
   const updateHash = (nextTarget: TargetId | null) => {
     const nextUrl = nextTarget
@@ -67,6 +76,7 @@ function App() {
       : `${window.location.pathname}${window.location.search}`
     window.history.pushState(null, '', nextUrl)
     setSelectedTarget(nextTarget)
+    setHeroReportMeta(nextTarget ? { status: 'loading' } : null)
   }
 
   const moveToTarget = (targetId: TargetId) => {
@@ -86,11 +96,41 @@ function App() {
             {target ? `${target.label} 모니터링 결과를 확인합니다.` : '모니터링할 페이지를 선택하세요.'}
           </p>
           {target ? (
-            <div className="heroActions">
-              <button type="button" className="btnBackHome" onClick={moveToHome}>
-                전체 보기
-              </button>
-            </div>
+            <>
+              <div className="heroReportMeta">
+                {!heroReportMeta || heroReportMeta.status === 'loading' ? (
+                  <p className="heroReportMetaStatus">리포트를 불러오는 중…</p>
+                ) : heroReportMeta.status === 'error' ? (
+                  <p className="heroReportMetaStatus">{heroReportMeta.message}</p>
+                ) : (
+                  <dl className="kv kvInHero">
+                    <div>
+                      <dt>대상 URL</dt>
+                      <dd>
+                        <a href={heroReportMeta.url} target="_blank" rel="noreferrer">
+                          {heroReportMeta.url}
+                        </a>
+                      </dd>
+                    </div>
+                    <div className="kvRow">
+                      <div>
+                        <dt>체크 시각</dt>
+                        <dd>{heroReportMeta.checkedAtLabel}</dd>
+                      </div>
+                      <div>
+                        <dt>소요 시간</dt>
+                        <dd>{heroReportMeta.durationMs}ms</dd>
+                      </div>
+                    </div>
+                  </dl>
+                )}
+              </div>
+              <div className="heroActions">
+                <button type="button" className="btnBackHome" onClick={moveToHome}>
+                  전체 보기
+                </button>
+              </div>
+            </>
           ) : null}
         </div>
 
@@ -122,7 +162,11 @@ function App() {
 
       <main className="main">
         {target ? (
-          <MonitorReportPanel reportPaths={target.reportPaths as unknown as string[]} historyPaths={target.historyPaths as unknown as string[]} />
+          <MonitorReportPanel
+            reportPaths={target.reportPaths as unknown as string[]}
+            historyPaths={target.historyPaths as unknown as string[]}
+            onHeroReportMeta={handleHeroReportMeta}
+          />
         ) : (
           <section className="targetPicker">
             {targets.map((item) => (

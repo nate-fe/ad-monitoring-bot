@@ -94,7 +94,7 @@ pages:
       HISTORY_SOURCE_URL="${CI_PAGES_URL}/news/view/history.json" \
       REPORT_PATH="dist/news/view/monitor-report.json" \
       HISTORY_PATH="dist/news/view/history.json" \
-      HISTORY_MAX="720" \
+      HISTORY_MAX="26280" \
       GITHUB_RUN_URL="" \
       node ./scripts/update-history.js || true
     - |
@@ -102,7 +102,7 @@ pages:
       HISTORY_SOURCE_URL="${CI_PAGES_URL}/news/home/history.json" \
       REPORT_PATH="dist/news/home/monitor-report.json" \
       HISTORY_PATH="dist/news/home/history.json" \
-      HISTORY_MAX="720" \
+      HISTORY_MAX="26280" \
       GITHUB_RUN_URL="" \
       node ./scripts/update-history.js || true
     - |
@@ -110,7 +110,7 @@ pages:
       HISTORY_SOURCE_URL="${CI_PAGES_URL}/pann/view/history.json" \
       REPORT_PATH="dist/pann/view/monitor-report.json" \
       HISTORY_PATH="dist/pann/view/history.json" \
-      HISTORY_MAX="720" \
+      HISTORY_MAX="26280" \
       GITHUB_RUN_URL="" \
       node ./scripts/update-history.js || true
     - |
@@ -118,7 +118,7 @@ pages:
       HISTORY_SOURCE_URL="${CI_PAGES_URL}/pann/home/history.json" \
       REPORT_PATH="dist/pann/home/monitor-report.json" \
       HISTORY_PATH="dist/pann/home/history.json" \
-      HISTORY_MAX="720" \
+      HISTORY_MAX="26280" \
       GITHUB_RUN_URL="" \
       node ./scripts/update-history.js || true
     - node ./scripts/write-legacy-flat-aliases.js dist || true

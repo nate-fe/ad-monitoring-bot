@@ -40,6 +40,33 @@ function safeSnippet(s, maxLen = 120) {
   return `${oneLine.slice(0, maxLen - 1)}…`
 }
 
+function extractHttpUrlFromText(text) {
+  const m = String(text).match(/https?:\/\/[^\s)\]}>'"]+/i)
+  return m ? m[0] : undefined
+}
+
+/** 동일 URL(쿼리까지, hash 제외)의 마지막 HTTP 상태 — 재시도 시 덮어씀 */
+function getLastResponseStatus(urlStatusMap, url) {
+  if (!url) return undefined
+  if (urlStatusMap.has(url)) return urlStatusMap.get(url)
+  try {
+    const want = new URL(url)
+    const wantKey = `${want.origin}${want.pathname}${want.search}`
+    for (const [k, st] of urlStatusMap) {
+      try {
+        const ku = new URL(k)
+        const kKey = `${ku.origin}${ku.pathname}${ku.search}`
+        if (kKey === wantKey) return st
+      } catch {
+        /* ignore */
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  return undefined
+}
+
 function stripOptionalQuotes(v) {
   const s = v.trim()
   if (s.length >= 2) {
@@ -194,6 +221,7 @@ const CONSOLE_CAPTURE_SCRIPT = `
           sourceUrl: location.sourceUrl,
           line: location.line,
           column: location.column,
+          source: 'page',
         });
       } catch {
         // ignore capture errors
@@ -204,6 +232,8 @@ const CONSOLE_CAPTURE_SCRIPT = `
 
   wrap('error', 'error');
   wrap('warn', 'warning');
+  wrap('log', 'log');
+  wrap('info', 'info');
 })();
 `
 
@@ -249,10 +279,16 @@ async function main() {
   const failures = []
   /** @type {{ message: string, stack?: string, sourceUrl?: string, line?: number, column?: number }[]} */
   const pageErrors = []
-  /** @type {{ type: string, text: string, url?: string, sourceUrl?: string, line?: number, column?: number }[]} */
+  /** @type {{ type: string, text: string, url?: string, sourceUrl?: string, line?: number, column?: number, source?: string }[]} */
   const consoleMessages = []
+  /** @type {{ type: string, text: string, url?: string, source?: string }[]} */
+  const devToolsConsoleMessages = []
   /** @type {{ url: string, method: string, resourceType: string, errorText: string }[]} */
   const requestFailures = []
+  /** @type {Map<string, number>} */
+  const urlResponseStatus = new Map()
+  /** @type {{ url: string, method: string, resourceType: string, errorText: string }[]} */
+  let requestFailuresForReport = []
 
   const shouldIgnore = (text) => ignoreErrorPatterns.some((p) => p && text.includes(p))
 
@@ -271,6 +307,62 @@ async function main() {
       const page = await context.newPage()
       page.setDefaultTimeout(Number.isFinite(timeoutMs) ? timeoutMs : 45000)
       page.setDefaultNavigationTimeout(Number.isFinite(navTimeoutMs) ? navTimeoutMs : 30000)
+
+      page.on('response', (response) => {
+        let st = 0
+        try {
+          st = response.status()
+        } catch {
+          return
+        }
+        try {
+          urlResponseStatus.set(response.url(), st)
+        } catch {
+          /* ignore */
+        }
+      })
+
+      page.on('console', (msg) => {
+        const t = msg.type()
+        const text = msg.text()
+        if (!text || shouldIgnore(text)) return
+
+        // DevTools-style network lines (e.g. "news@rpbt_Bottom1:15  GET https://… net::ERR_…").
+        // Chromium often emits these as console type "log" or "info", not "error", so we must not
+        // filter by type before detecting the pattern.
+        const looksNetwork =
+          text.includes('net::') ||
+          /failed to load resource/i.test(text) ||
+          /\bGET\s+https?:\/\//i.test(text) ||
+          /\bPOST\s+https?:\/\//i.test(text)
+        if (!looksNetwork) return
+
+        const allowedDevToolsTypes = new Set(['error', 'warning', 'log', 'info', 'debug'])
+        if (!allowedDevToolsTypes.has(t)) return
+
+        const requestUrl = extractHttpUrlFromText(text)
+        let sourceUrl
+        let line
+        let column
+        try {
+          const loc = msg.location()
+          if (loc?.url) sourceUrl = loc.url
+          if (Number.isFinite(loc.lineNumber)) line = loc.lineNumber + 1
+          if (Number.isFinite(loc.columnNumber)) column = loc.columnNumber
+        } catch {
+          /* ignore */
+        }
+
+        devToolsConsoleMessages.push({
+          type: 'error',
+          text,
+          url: requestUrl,
+          sourceUrl,
+          line,
+          column,
+          source: 'devtools',
+        })
+      })
 
       page.on('pageerror', (err) => {
         const message = err instanceof Error ? err.message : String(err)
@@ -317,15 +409,39 @@ async function main() {
         const messages = globalThis[key]
         return Array.isArray(messages) ? messages : []
       })
-      consoleMessages.push(
-        ...capturedConsoleMessages.filter((item) => item && !shouldIgnore(String(item.text ?? ''))),
-      )
+      const fromPage = capturedConsoleMessages.filter((item) => item && !shouldIgnore(String(item.text ?? '')))
+      consoleMessages.push(...fromPage)
+      const pageTexts = new Set(fromPage.map((m) => String(m.text ?? '')))
+
+      const devToolsFiltered = devToolsConsoleMessages.filter((m) => {
+        const text = String(m.text ?? '')
+        if (text.includes('net::') || /failed to load resource/i.test(text)) return true
+        const u = extractHttpUrlFromText(text)
+        if (!u) return true
+        const st = getLastResponseStatus(urlResponseStatus, u)
+        if (Number.isFinite(st) && st >= 200 && st < 300) return false
+        return true
+      })
+
+      requestFailuresForReport = requestFailures.filter((rf) => {
+        const st = getLastResponseStatus(urlResponseStatus, rf.url)
+        return !(Number.isFinite(st) && st >= 200 && st < 300)
+      })
+
+      for (const m of devToolsFiltered) {
+        if (pageTexts.has(m.text)) continue
+        pageTexts.add(m.text)
+        consoleMessages.push(m)
+      }
 
       if (failOnPageError && pageErrors.length > 0) failures.push(`JS page errors: ${pageErrors.length}`)
-      if (failOnConsoleError && consoleMessages.some((m) => m.type === 'error')) {
-        failures.push(`Console errors: ${consoleMessages.filter((m) => m.type === 'error').length}`)
+      const pageScriptConsoleErrors = consoleMessages.filter((m) => m.type === 'error' && m.source !== 'devtools')
+      if (failOnConsoleError && pageScriptConsoleErrors.length > 0) {
+        failures.push(`Console errors: ${pageScriptConsoleErrors.length}`)
       }
-      if (failOnRequestFailed && requestFailures.length > 0) failures.push(`Request failures: ${requestFailures.length}`)
+      if (failOnRequestFailed && requestFailuresForReport.length > 0) {
+        failures.push(`Request failures: ${requestFailuresForReport.length}`)
+      }
 
       ok = failures.length === 0
     } finally {
@@ -348,7 +464,7 @@ async function main() {
     diagnostics: {
       pageErrors,
       consoleMessages,
-      requestFailures,
+      requestFailures: requestFailuresForReport,
     },
   }
 
