@@ -101,6 +101,16 @@ function summarize(report) {
     resourceType: String(item?.resourceType ?? ''),
     errorText: String(item?.errorText ?? ''),
   }))
+  const rawPm = report?.diagnostics?.performanceMetrics
+  const performanceMetrics =
+    rawPm && typeof rawPm === 'object'
+      ? {
+          approxTbtMs: Number(rawPm.approxTbtMs) || 0,
+          longTaskCount: Number(rawPm.longTaskCount) || 0,
+          avgAdScriptResourceDurationMs: Number(rawPm.avgAdScriptResourceDurationMs) || 0,
+          adScriptResourceCount: Number(rawPm.adScriptResourceCount) || 0,
+        }
+      : undefined
   const pageErrorSample = pageErrors.slice(0, 5).map((item) => ({
     message: String(item?.message ?? ''),
     sourceUrl: typeof item?.sourceUrl === 'string' && item.sourceUrl ? item.sourceUrl : undefined,
@@ -133,6 +143,7 @@ function summarize(report) {
       runUrl: getEnv('GITHUB_RUN_URL', { defaultValue: '' }),
       sha: getEnv('GITHUB_SHA', { defaultValue: '' }),
     },
+    ...(performanceMetrics ? { performanceMetrics } : {}),
   }
 }
 

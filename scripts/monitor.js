@@ -100,6 +100,123 @@ async function ensureParentDir(filePath) {
   if (dir && dir !== '.') await mkdir(dir, { recursive: true })
 }
 
+function hostnameFromUrl(url) {
+  if (!url || typeof url !== 'string') return null
+  try {
+    return new URL(url).hostname
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Performance 리소스 타이밍(호스트별) + 페이지·페이지 콘솔 오류·요청 실패 URL을 묶어 Top5를 만든다.
+ * 에러율 집계에서는 헤드리스 네트워크 한 줄(source: devtools)은 제외한다.
+ * @param {Record<string, { sumDuration: number, count: number }>} resourceByHost
+ * @param {Array<{ sourceUrl?: string }>} pageErrors
+ * @param {Array<{ type?: string, source?: string, sourceUrl?: string }>} consoleMessages
+ * @param {Array<{ url?: string }>} requestFailures
+ */
+function buildDomainInsights(resourceByHost, pageErrors, consoleMessages, requestFailures) {
+  const byHost = resourceByHost && typeof resourceByHost === 'object' ? resourceByHost : {}
+
+  const latencyTop5 = Object.entries(byHost)
+    .map(([hostname, v]) => ({
+      hostname,
+      avgDurationMs: v.count > 0 ? v.sumDuration / v.count : 0,
+      sampleCount: v.count,
+    }))
+    .filter((r) => r.sampleCount >= 2 && r.avgDurationMs > 0)
+    .sort((a, b) => b.avgDurationMs - a.avgDurationMs)
+    .slice(0, 5)
+
+  const errByHost = new Map()
+  const bumpErr = (u) => {
+    const h = hostnameFromUrl(u)
+    if (!h) return
+    errByHost.set(h, (errByHost.get(h) ?? 0) + 1)
+  }
+
+  for (const e of pageErrors) {
+    if (e?.sourceUrl) bumpErr(e.sourceUrl)
+  }
+  for (const m of consoleMessages) {
+    if (m?.type === 'error' && m?.source !== 'devtools' && m?.sourceUrl) bumpErr(m.sourceUrl)
+  }
+  for (const r of requestFailures) {
+    if (r?.url) bumpErr(r.url)
+  }
+
+  const rateCandidates = []
+  const hostSet = new Set([...Object.keys(byHost), ...errByHost.keys()])
+  for (const hostname of hostSet) {
+    const errorCount = errByHost.get(hostname) ?? 0
+    if (errorCount < 1) continue
+    const resourceCount = byHost[hostname]?.count ?? 0
+    const errorRate = resourceCount > 0 ? errorCount / resourceCount : 1
+    rateCandidates.push({ hostname, errorCount, resourceCount, errorRate })
+  }
+  rateCandidates.sort((a, b) => b.errorRate - a.errorRate || b.errorCount - a.errorCount)
+  const errorRateTop5 = rateCandidates.slice(0, 5)
+
+  return { latencyTop5, errorRateTop5 }
+}
+
+function shouldHideConsoleWarningText(text) {
+  return String(text ?? '').includes('automatically upgraded to HTTPS')
+}
+
+/** 출처 URL을 스크립트(파일) 단위로 묶기 — 쿼리는 제외해 동일 경로를 한 줄로 집계 */
+function normalizeScriptSourceKey(url) {
+  if (!url || typeof url !== 'string') return null
+  const t = url.trim()
+  if (!t) return null
+  try {
+    const u = new URL(t)
+    return `${u.origin}${u.pathname}`
+  } catch {
+    return t
+  }
+}
+
+/**
+ * 페이지 오류·페이지 콘솔(헤드리스 제외)의 sourceUrl 기준, 오류·경고 건수 상위 10개 스크립트 URL.
+ * @param {Array<{ sourceUrl?: string }>} pageErrors
+ * @param {Array<{ type?: string, source?: string, sourceUrl?: string, text?: string }>} consoleMessages
+ */
+function buildScriptIssueTop10(pageErrors, consoleMessages) {
+  const map = new Map()
+  const bump = (key, field) => {
+    if (!key) return
+    const cur = map.get(key) ?? { errors: 0, warnings: 0 }
+    cur[field] += 1
+    map.set(key, cur)
+  }
+
+  for (const e of pageErrors) {
+    bump(normalizeScriptSourceKey(e?.sourceUrl), 'errors')
+  }
+
+  for (const m of consoleMessages) {
+    if (m?.source === 'devtools') continue
+    if (m?.type !== 'error' && m?.type !== 'warning') continue
+    if (m?.type === 'warning' && shouldHideConsoleWarningText(m?.text)) continue
+    const key = normalizeScriptSourceKey(m?.sourceUrl)
+    if (!key) continue
+    bump(key, m.type === 'error' ? 'errors' : 'warnings')
+  }
+
+  return Array.from(map.entries())
+    .map(([sourceUrl, v]) => ({
+      sourceUrl,
+      errors: v.errors,
+      warnings: v.warnings,
+      total: v.errors + v.warnings,
+    }))
+    .sort((a, b) => b.total - a.total || b.errors - a.errors)
+    .slice(0, 10)
+}
+
 function inferTargetScope(targetUrl) {
   const lower = String(targetUrl).toLowerCase()
   try {
@@ -237,6 +354,31 @@ const CONSOLE_CAPTURE_SCRIPT = `
 })();
 `
 
+/** Long Task API로 메인 스레드 블로킹 구간을 버퍼링(초기화는 네비게이션 이전에 실행) */
+const LONG_TASK_CAPTURE_SCRIPT = `
+(() => {
+  const key = '__adMonitorLongTasks__';
+  if (globalThis[key]) return;
+  const tasks = [];
+  Object.defineProperty(globalThis, key, {
+    value: tasks,
+    configurable: false,
+    enumerable: false,
+    writable: false,
+  });
+  try {
+    const po = new PerformanceObserver((list) => {
+      for (const e of list.getEntries()) {
+        tasks.push({ duration: e.duration, startTime: e.startTime });
+      }
+    });
+    po.observe({ type: 'longtask', buffered: true });
+  } catch (_) {
+    tasks._observeFailed = true;
+  }
+})();
+`
+
 async function main() {
   await loadDotEnv()
 
@@ -289,6 +431,10 @@ async function main() {
   const urlResponseStatus = new Map()
   /** @type {{ url: string, method: string, resourceType: string, errorText: string }[]} */
   let requestFailuresForReport = []
+  /** @type {{ approxTbtMs: number, longTaskCount: number, avgAdScriptResourceDurationMs: number, adScriptResourceCount: number } | null} */
+  let performanceMetrics = null
+  /** @type {{ latencyTop5: object[], errorRateTop5: object[] } | null} */
+  let domainInsights = null
 
   const shouldIgnore = (text) => ignoreErrorPatterns.some((p) => p && text.includes(p))
 
@@ -303,6 +449,7 @@ async function main() {
         userAgent,
         viewport: { width: 1280, height: 720 },
       })
+      await context.addInitScript(LONG_TASK_CAPTURE_SCRIPT)
       await context.addInitScript(CONSOLE_CAPTURE_SCRIPT)
       const page = await context.newPage()
       page.setDefaultTimeout(Number.isFinite(timeoutMs) ? timeoutMs : 45000)
@@ -434,6 +581,75 @@ async function main() {
         consoleMessages.push(m)
       }
 
+      try {
+        const perfRaw = await page.evaluate(() => {
+          const key = '__adMonitorLongTasks__'
+          const fromObs = Array.isArray(globalThis[key]) ? globalThis[key] : []
+          const fromPerf = performance.getEntriesByType('longtask')
+          const seen = new Set()
+          /** @type {{ duration: number, startTime: number }[]} */
+          const all = []
+          const add = (e) => {
+            const id = `${e.startTime}:${e.duration}`
+            if (seen.has(id)) return
+            seen.add(id)
+            all.push({ duration: e.duration, startTime: e.startTime })
+          }
+          for (const e of fromObs) {
+            if (e && typeof e.duration === 'number') add(e)
+          }
+          for (const e of fromPerf) add(e)
+          let approxTbtMs = 0
+          for (const e of all) {
+            if (e.duration > 50) approxTbtMs += e.duration - 50
+          }
+          const adRe =
+            /googlesyndication|doubleclick|googletagmanager\.com\/gtag|pagead2|adservice|taboola|criteo|adnxs|amazon-adsystem|casalemedia|pubmatic|rubiconproject|openx|prebid|adform|adsafeprotected|2mdn\.net|creativecdn|spotx|outbrain|facebook\.net\/|connect\.facebook|dable|widerplanet|mobwith|googletagservices|gpt\.js|pubads\.gmpubads|securepubads\.g\.doubleclick/i
+          const resources = performance.getEntriesByType('resource')
+          const adScripts = resources.filter((r) => r.initiatorType === 'script' && adRe.test(r.name))
+          const avgAdScriptResourceDurationMs = adScripts.length
+            ? adScripts.reduce((s, r) => s + r.duration, 0) / adScripts.length
+            : 0
+          const resourceByHost = {}
+          for (const r of resources) {
+            if (r.initiatorType === 'navigation') continue
+            let host
+            try {
+              host = new URL(r.name).hostname
+            } catch {
+              continue
+            }
+            if (!host) continue
+            if (!resourceByHost[host]) resourceByHost[host] = { sumDuration: 0, count: 0 }
+            resourceByHost[host].sumDuration += r.duration
+            resourceByHost[host].count += 1
+          }
+          return {
+            approxTbtMs,
+            longTaskCount: all.length,
+            avgAdScriptResourceDurationMs,
+            adScriptResourceCount: adScripts.length,
+            resourceByHost,
+          }
+        })
+        if (perfRaw && typeof perfRaw === 'object') {
+          const { resourceByHost, ...perfRest } = perfRaw
+          performanceMetrics = perfRest
+          domainInsights = buildDomainInsights(
+            resourceByHost && typeof resourceByHost === 'object' ? resourceByHost : {},
+            pageErrors,
+            consoleMessages,
+            requestFailuresForReport,
+          )
+        } else {
+          performanceMetrics = null
+          domainInsights = null
+        }
+      } catch {
+        performanceMetrics = null
+        domainInsights = null
+      }
+
       if (failOnPageError && pageErrors.length > 0) failures.push(`JS page errors: ${pageErrors.length}`)
       const pageScriptConsoleErrors = consoleMessages.filter((m) => m.type === 'error' && m.source !== 'devtools')
       if (failOnConsoleError && pageScriptConsoleErrors.length > 0) {
@@ -454,6 +670,7 @@ async function main() {
   }
 
   const durationMs = Date.now() - startedAt
+  const scriptIssueTop10 = buildScriptIssueTop10(pageErrors, consoleMessages)
   const result = {
     ok,
     url: targetUrl,
@@ -465,6 +682,9 @@ async function main() {
       pageErrors,
       consoleMessages,
       requestFailures: requestFailuresForReport,
+      scriptIssueTop10,
+      ...(performanceMetrics != null ? { performanceMetrics } : {}),
+      ...(domainInsights != null ? { domainInsights } : {}),
     },
   }
 

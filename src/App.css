@@ -348,11 +348,66 @@
   letter-spacing: -0.02em;
 }
 
+.adIssueSectionTitleWithHelp {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 .adIssueSectionDesc {
   margin: 0 0 12px;
   font-size: 14px;
   line-height: 1.45;
   color: var(--muted);
+}
+
+.domainTop5Root {
+  min-width: 0;
+}
+
+.domainTop5Grid {
+  display: grid;
+  gap: 22px;
+}
+
+@media (min-width: 860px) {
+  .domainTop5Grid {
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+  }
+}
+
+.domainTop5BlockTitle {
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 700;
+  color: color-mix(in srgb, var(--text) 82%, var(--muted));
+}
+
+.domainTop5BlockTitleWithHelp {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.domainTop5TableWrap {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.domainTop5Table th.domainTop5Host,
+.domainTop5Table .domainTop5Host {
+  text-align: left;
+  font-weight: 600;
+  word-break: break-all;
+  max-width: 200px;
+}
+
+.domainTop5Empty {
+  margin: 0;
+  font-size: 14px;
 }
 
 .adIssueBreakdownRoot {
@@ -400,6 +455,47 @@
   height: 11px;
   border-radius: 3px;
   flex-shrink: 0;
+}
+
+.historyPerformance {
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.historyPerfLegend {
+  margin-top: 0;
+}
+
+.historyPerfLineSwatch {
+  display: inline-block;
+  width: 18px;
+  height: 3px;
+  margin-right: 2px;
+  vertical-align: middle;
+  border-radius: 1px;
+  flex-shrink: 0;
+}
+
+.historyPerfLineSwatchTbt {
+  background: var(--warn);
+}
+
+.historyPerfLineSwatchScript {
+  background: var(--accent2);
+}
+
+.diagPerfList {
+  margin: 0 0 8px;
+}
+
+.diagPerfList li {
+  margin-bottom: 6px;
+}
+
+.diagPerfLabel {
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .adIssueMonthlyChartBlock {
@@ -465,6 +561,105 @@
   margin-bottom: 14px;
 }
 
+.scriptIssueTopWrap {
+  margin-top: 4px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.scriptIssueTopTable {
+  table-layout: fixed;
+  width: 100%;
+  max-width: 100%;
+}
+
+.scriptIssueTopTable col.scriptIssueTopColRank {
+  width: 2.75rem;
+}
+
+.scriptIssueTopTable col.scriptIssueTopColNum {
+  width: 4.25rem;
+}
+
+.scriptIssueTopTable col.scriptIssueTopColTotal {
+  width: 4.5rem;
+}
+
+/* URL 열: 나머지 공간 — 명시 width 없음 */
+.scriptIssueTopTable col.scriptIssueTopColUrl {
+  width: auto;
+}
+
+.scriptIssueTopTable thead th {
+  padding: 10px 8px;
+  vertical-align: bottom;
+}
+
+.scriptIssueTopThRank,
+.scriptIssueTopThNum {
+  text-align: center;
+  white-space: nowrap;
+}
+
+.scriptIssueTopThUrl {
+  padding-left: 12px;
+  padding-right: 12px;
+}
+
+/* .adIssueTable thead th 가 center를 주므로 이 테이블만 덮어씀 */
+.adIssueTable.scriptIssueTopTable thead th.scriptIssueTopThUrl {
+  text-align: left;
+}
+
+.scriptIssueTopTdRank,
+.scriptIssueTopTdNum {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  padding: 10px 8px;
+  vertical-align: middle;
+}
+
+.scriptIssueTopTdNum {
+  white-space: nowrap;
+}
+
+.scriptIssueTopTdRank {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.scriptIssueTopTdTotal {
+  font-weight: 700;
+  color: color-mix(in srgb, var(--text) 90%, var(--muted));
+}
+
+.scriptIssueTopUrlCell {
+  text-align: left;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  font-weight: 500;
+  vertical-align: top;
+  padding: 10px 12px;
+  min-width: 0;
+}
+
+.scriptIssueTopUrlLink {
+  display: inline;
+  color: color-mix(in srgb, var(--accent2) 92%, white 8%);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.scriptIssueTopUrlLink:hover {
+  color: color-mix(in srgb, var(--accent) 90%, white 10%);
+}
+
+.scriptIssueTopEmpty {
+  margin: 0;
+  font-size: 14px;
+}
+
 .adIssueTableWrap {
   overflow-x: auto;
 }
@@ -495,7 +690,9 @@
 
 .adIssueTable td:nth-child(2),
 .adIssueTable td:nth-child(3),
-.adIssueTable td:nth-child(4) {
+.adIssueTable td:nth-child(4),
+.adIssueTable td:nth-child(5),
+.adIssueTable td:nth-child(6) {
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
@@ -541,16 +738,52 @@
   overflow: visible;
 }
 
+.failDetailList > li {
+  min-width: 0;
+}
+
 .failureSourceUrl {
   margin-top: 6px;
 }
 
+/* Grid로 메시지 열에 minmax(0,1fr)를 줘 flex에서 생기던 가로 누수를 막음 */
 .diagLineHead {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 6px 8px;
+  display: grid;
+  align-items: start;
+  column-gap: 8px;
+  row-gap: 4px;
   width: 100%;
+  max-width: 100%;
+}
+
+.diagLineHead:has(.pill) {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.diagLineHead:has(.pill) .pill {
+  grid-column: 1;
+}
+
+.diagLineHead:has(.pill) .diagLineHeadMsg {
+  grid-column: 2;
+}
+
+.diagLineHead:has(.pill) .sourceLocationText {
+  grid-column: 3;
+  justify-self: end;
+}
+
+.diagLineHead:not(:has(.pill)) {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.diagLineHead:not(:has(.pill)) .diagLineHeadMsg {
+  grid-column: 1;
+}
+
+.diagLineHead:not(:has(.pill)) .sourceLocationText {
+  grid-column: 2;
+  justify-self: end;
 }
 
 .diagLineHead .pill {
@@ -559,13 +792,20 @@
 
 .diagLineHead .sourceLocationText {
   flex-shrink: 0;
-  margin-left: auto;
+  white-space: nowrap;
+  margin-left: 0;
 }
 
 .diagLineHeadMsg {
-  flex: 1 1 0;
   min-width: 0;
+  max-width: 100%;
   word-break: break-word;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
 }
 
 .sourceLocationMeta {
@@ -619,6 +859,26 @@
   gap: 10px;
 }
 
+.diagRankingsTitle {
+  margin: 0 0 6px;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.diagRankingsDesc {
+  margin: 0 0 12px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.diagRankingsSubsection {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+}
+
 .diagChips {
   margin-top: 10px;
   display: flex;
@@ -655,6 +915,13 @@
   margin-bottom: 6px;
   color: var(--muted);
   font-size: 14px;
+}
+
+.diagSectionTitleWithHelp {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .diagSectionHint {
@@ -811,6 +1078,7 @@
   word-break: break-word;
   margin-bottom:4px;
   overflow: visible;
+  min-width: 0;
 }
 
 .miniList {

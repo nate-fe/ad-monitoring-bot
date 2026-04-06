@@ -177,11 +177,27 @@ function monthKeyFromCheckedAt(iso: string): string {
   return `${year}-${month}`
 }
 
+function dayKeyFromCheckedAt(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 /** 월 축 라벨 (예: 2026년 4월) */
 export function formatMonthKeyShortLabel(monthKey: string): string {
   const d = new Date(`${monthKey}-01T00:00:00`)
   if (Number.isNaN(d.getTime())) return monthKey
   return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short' })
+}
+
+/** 일 축 라벨 (예: 4월 3일) */
+export function formatDayKeyShortLabel(dayKey: string): string {
+  const d = new Date(`${dayKey}T12:00:00`)
+  if (Number.isNaN(d.getTime())) return dayKey
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
 export type MonthlyStackSeries = {
@@ -191,11 +207,23 @@ export type MonthlyStackSeries = {
   data: { x: string; y: number }[]
 }
 
+/** 일·월 버킷 한 칸: 막대는 오류/경고 개수만, byAd는 툴팁용 */
+export type ConsoleHistoryBucketPoint = {
+  x: string
+  errors: number
+  warnings: number
+  byAd: { label: string; errors: number; warnings: number }[]
+}
+
 export type MonthlyConsoleAdChartModel = {
   monthKeys: string[]
-  errorsSeries: MonthlyStackSeries[]
-  warningsSeries: MonthlyStackSeries[]
-  /** 샘플 메시지를 하나라도 집계했는지 (그래프가 비어 있을 때 안내용) */
+  points: ConsoleHistoryBucketPoint[]
+  hasAnyConsoleSample: boolean
+}
+
+export type DailyConsoleAdChartModel = {
+  dayKeys: string[]
+  points: ConsoleHistoryBucketPoint[]
   hasAnyConsoleSample: boolean
 }
 
@@ -210,23 +238,27 @@ export const MONTHLY_AD_CHART_FILLS = [
   '#64748b',
 ] as const
 
-/**
- * 최근 실행 기록의 콘솔 샘플(실행당 오류·경고)을 월·광고 키로 집계해 스택 막대용 시리즈를 만듭니다.
- * 헤드리스(devToolsConsoleSample)는 그래프에 넣지 않습니다. 전체 건수가 아니라 저장된 샘플 건수 기준입니다.
- */
-export function buildMonthlyConsoleAdChartModel(
+function buildConsoleAdChartByBucket(
   items: MonitorHistoryEntry[],
-  options?: { topAds?: number },
-): MonthlyConsoleAdChartModel {
-  const topN = options?.topAds ?? 7
+  options: {
+    bucketFromCheckedAt: (iso: string) => string
+    /** 최근 N개 버킷만 표시 (일별 등 막대 과다 방지) */
+    maxBuckets?: number
+  },
+): {
+  bucketKeys: string[]
+  points: ConsoleHistoryBucketPoint[]
+  hasAnyConsoleSample: boolean
+} {
+  const maxBuckets = options.maxBuckets
   const cell = new Map<string, Map<string, { label: string; errors: number; warnings: number }>>()
   let hasAnyConsoleSample = false
 
-  const bumpCell = (month: string, adKey: string, label: string, field: 'errors' | 'warnings') => {
-    let row = cell.get(month)
+  const bumpCell = (bucket: string, adKey: string, label: string, field: 'errors' | 'warnings') => {
+    let row = cell.get(bucket)
     if (!row) {
       row = new Map()
-      cell.set(month, row)
+      cell.set(bucket, row)
     }
     const cur = row.get(adKey)
     if (cur) {
@@ -240,80 +272,139 @@ export function buildMonthlyConsoleAdChartModel(
     }
   }
 
-  const bumpMsg = (month: string, candidate: IssueSourceCandidate, field: 'errors' | 'warnings') => {
+  const bumpMsg = (bucket: string, candidate: IssueSourceCandidate, field: 'errors' | 'warnings') => {
     hasAnyConsoleSample = true
     const { key, label } = classifyIssueText(candidate)
-    bumpCell(month, key, label, field)
+    bumpCell(bucket, key, label, field)
   }
 
   for (const entry of items) {
-    const mk = monthKeyFromCheckedAt(entry.checkedAt)
-    if (!mk) continue
+    const bk = options.bucketFromCheckedAt(entry.checkedAt)
+    if (!bk) continue
 
     for (const m of entry.consoleErrorSample ?? []) {
-      bumpMsg(mk, { text: m.text, url: m.url ?? extractHttpUrlFromText(m.text), sourceUrl: m.sourceUrl }, 'errors')
+      bumpMsg(bk, { text: m.text, url: m.url ?? extractHttpUrlFromText(m.text), sourceUrl: m.sourceUrl }, 'errors')
     }
     for (const m of entry.consoleWarningSample ?? []) {
       if (shouldHideConsoleWarning(m.text)) continue
-      bumpMsg(mk, { text: m.text, url: m.url, sourceUrl: m.sourceUrl }, 'warnings')
+      bumpMsg(bk, { text: m.text, url: m.url, sourceUrl: m.sourceUrl }, 'warnings')
     }
   }
 
-  const monthKeys = Array.from(cell.keys()).sort((a, b) => a.localeCompare(b))
-
-  if (!monthKeys.length) {
-    return { monthKeys: [], errorsSeries: [], warningsSeries: [], hasAnyConsoleSample }
+  let bucketKeys = Array.from(cell.keys()).sort((a, b) => a.localeCompare(b))
+  if (maxBuckets != null && bucketKeys.length > maxBuckets) {
+    bucketKeys = bucketKeys.slice(-maxBuckets)
   }
 
-  const adTotals = new Map<string, { label: string; total: number }>()
-  for (const mk of monthKeys) {
-    const row = cell.get(mk)!
-    for (const [key, v] of row) {
-      const add = v.errors + v.warnings
-      const prev = adTotals.get(key)
-      if (prev) prev.total += add
-      else adTotals.set(key, { label: v.label, total: add })
+  if (!bucketKeys.length) {
+    return { bucketKeys: [], points: [], hasAnyConsoleSample }
+  }
+
+  const points: ConsoleHistoryBucketPoint[] = bucketKeys.map((bk) => {
+    const row = cell.get(bk)!
+    let errors = 0
+    let warnings = 0
+    const byAd: { label: string; errors: number; warnings: number }[] = []
+    for (const [, v] of row) {
+      errors += v.errors
+      warnings += v.warnings
+      if (v.errors + v.warnings > 0) {
+        byAd.push({ label: v.label, errors: v.errors, warnings: v.warnings })
+      }
     }
-  }
-
-  const sortedAds = Array.from(adTotals.entries()).sort((a, b) => b[1].total - a[1].total)
-  const topEntries = sortedAds.slice(0, topN)
-  const otherEntries = sortedAds.slice(topN)
-  const otherKeysSet = new Set(otherEntries.map(([k]) => k))
-
-  const displayKeys: string[] = topEntries.map(([k]) => k)
-  if (otherEntries.length) displayKeys.push('__other__')
-
-  const labelFor = (key: string) => {
-    if (key === '__other__') return '기타 (묶음)'
-    return adTotals.get(key)?.label ?? key
-  }
-
-  const buildSeries = (field: 'errors' | 'warnings'): MonthlyStackSeries[] =>
-    displayKeys.map((adKey, colorIndex) => ({
-      key: adKey,
-      label: labelFor(adKey),
-      colorIndex,
-      data: monthKeys.map((mk) => {
-        const row = cell.get(mk)
-        let y = 0
-        if (adKey === '__other__') {
-          if (row) {
-            for (const [k, v] of row) {
-              if (otherKeysSet.has(k)) y += v[field]
-            }
-          }
-        } else {
-          y = row?.get(adKey)?.[field] ?? 0
-        }
-        return { x: mk, y }
-      }),
-    }))
+    byAd.sort((a, b) => b.errors + b.warnings - (a.errors + a.warnings))
+    return { x: bk, errors, warnings, byAd }
+  })
 
   return {
-    monthKeys,
-    errorsSeries: buildSeries('errors'),
-    warningsSeries: buildSeries('warnings'),
+    bucketKeys,
+    points,
     hasAnyConsoleSample,
   }
+}
+
+/**
+ * 콘솔 샘플(실행당 오류·경고)을 월 단위로 집계합니다.
+ * 막대는 오류·경고 개수(스택 2단), 광고·영역별 내역은 UI 툴팁용 points.byAd.
+ */
+export function buildMonthlyConsoleAdChartModel(items: MonitorHistoryEntry[]): MonthlyConsoleAdChartModel {
+  const r = buildConsoleAdChartByBucket(items, {
+    bucketFromCheckedAt: monthKeyFromCheckedAt,
+  })
+  return {
+    monthKeys: r.bucketKeys,
+    points: r.points,
+    hasAnyConsoleSample: r.hasAnyConsoleSample,
+  }
+}
+
+/** 일 단위 집계. 기본 최근 90일만 축에 표시합니다. */
+export function buildDailyConsoleAdChartModel(
+  items: MonitorHistoryEntry[],
+  options?: { maxDays?: number },
+): DailyConsoleAdChartModel {
+  const r = buildConsoleAdChartByBucket(items, {
+    bucketFromCheckedAt: dayKeyFromCheckedAt,
+    maxBuckets: options?.maxDays ?? 90,
+  })
+  return {
+    dayKeys: r.bucketKeys,
+    points: r.points,
+    hasAnyConsoleSample: r.hasAnyConsoleSample,
+  }
+}
+
+/** 일별: 해당 일의 실행 기록에 대해 성능 지표 산술 평균 */
+export type PerformanceHistoryBucketPoint = {
+  x: string
+  approxTbtMs: number
+  avgAdScriptResourceDurationMs: number
+  runCount: number
+}
+
+export type DailyPerformanceChartModel = {
+  dayKeys: string[]
+  points: PerformanceHistoryBucketPoint[]
+  hasAnyPerformanceSample: boolean
+}
+
+export function buildDailyPerformanceChartModel(
+  items: MonitorHistoryEntry[],
+  options?: { maxDays?: number },
+): DailyPerformanceChartModel {
+  const maxDays = options?.maxDays ?? 90
+  const byDay = new Map<string, { tbtSum: number; scriptSum: number; n: number }>()
+  let hasAnyPerformanceSample = false
+
+  for (const entry of items) {
+    const pm = entry.performanceMetrics
+    if (!pm) continue
+    hasAnyPerformanceSample = true
+    const bk = dayKeyFromCheckedAt(entry.checkedAt)
+    if (!bk) continue
+    const tbt = Number(pm.approxTbtMs)
+    const scr = Number(pm.avgAdScriptResourceDurationMs)
+    if (!Number.isFinite(tbt) || !Number.isFinite(scr)) continue
+    const cur = byDay.get(bk) ?? { tbtSum: 0, scriptSum: 0, n: 0 }
+    cur.tbtSum += tbt
+    cur.scriptSum += scr
+    cur.n += 1
+    byDay.set(bk, cur)
+  }
+
+  let dayKeys = Array.from(byDay.keys()).sort((a, b) => a.localeCompare(b))
+  if (dayKeys.length > maxDays) dayKeys = dayKeys.slice(-maxDays)
+
+  const points: PerformanceHistoryBucketPoint[] = dayKeys.map((bk) => {
+    const v = byDay.get(bk)!
+    const n = v.n || 1
+    return {
+      x: bk,
+      approxTbtMs: v.tbtSum / n,
+      avgAdScriptResourceDurationMs: v.scriptSum / n,
+      runCount: v.n,
+    }
+  })
+
+  return { dayKeys, points, hasAnyPerformanceSample }
 }
