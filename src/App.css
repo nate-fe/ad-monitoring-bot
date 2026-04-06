@@ -181,7 +181,6 @@
   border: 1px solid var(--border);
   border-radius: 4px;
   background: var(--panel);
-  overflow: hidden;
   box-shadow: var(--shadow);
   backdrop-filter: blur(10px);
   animation: pop 240ms ease-out both;
