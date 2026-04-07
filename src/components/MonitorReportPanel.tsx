@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { buildAggregatedRankings } from '../monitor/aggregateRankings'
 import type { MonitorHistoryEntry, MonitorReport } from '../monitor/types'
 import {
   buildClassifiedIssues,
@@ -60,6 +61,20 @@ const HEADLESS_NETWORK_LOG_HELP_TEXT =
 
 const PERFORMANCE_METRICS_HELP_TEXT =
   'TBT는 Long Task 기반 근사치이며, 스크립트 시간은 리소스 duration 평균입니다. CLS(레이아웃 밀림)는 placeholder 확보 등 별도 점검이 필요합니다.'
+
+const DOMAIN_RANKINGS_HELP_TECH =
+  '리소스 URL·오류 출처 URL·실패 요청 URL에서 hostname을 뽑아, 평균 지연과 에러 대비 리소스 비율을 각각 상위 5개까지 보여 줍니다. 에러율에는 헤드리스 네트워크 로그 건수를 넣지 않습니다.'
+
+const DOMAIN_RANKINGS_AGGREGATE_HELP =
+  '저장된 실행 기록(전체 기간)과 이번 리포트를 날짜·시각(checkedAt) 단위로 한 번씩만 반영해 합산했습니다.'
+
+function domainRankingsHelpFull() {
+  return `${DOMAIN_RANKINGS_HELP_TECH}\n\n${DOMAIN_RANKINGS_AGGREGATE_HELP}`
+}
+
+function scriptRankingsHelpWithAggregate() {
+  return `${SCRIPT_ISSUE_TOP10_HELP_TEXT}\n\n${DOMAIN_RANKINGS_AGGREGATE_HELP}`
+}
 
 function formatDate(iso: string) {
   const d = new Date(iso)
@@ -585,6 +600,12 @@ export function MonitorReportPanel({
     return state.report.diagnostics?.performanceMetrics ?? null
   }, [state])
 
+  const aggregatedRankings = useMemo(() => {
+    const items = history.kind === 'loaded' ? history.items : []
+    const report = state.kind === 'loaded' ? state.report : null
+    return buildAggregatedRankings(items, report)
+  }, [history, state])
+
   const currentFailureBuckets = useMemo(() => {
     if (state.kind !== 'loaded') {
       return { actionableCount: 0, collectionFailureCount: 0 }
@@ -1047,32 +1068,38 @@ export function MonitorReportPanel({
                 </div>
               </div>
 
-              {(state.report.diagnostics.domainInsights || state.report.diagnostics.scriptIssueTop10 != null) ? (
+              {(aggregatedRankings.domainInsights != null || aggregatedRankings.scriptIssueTop10.length > 0) ? (
                 <div className="diagItem diagRankingsBlock">
-                  {state.report.diagnostics.domainInsights ? (
+                  {aggregatedRankings.domainInsights ? (
                     <>
-                      <h2 className="diagRankingsTitle">도메인(Source URL) 지연 · 에러율 Top 5</h2>
-                      <p className="diagRankingsDesc">
-                        리소스 URL·오류 출처 URL·실패 요청 URL에서 <strong>hostname</strong>을 뽑아, 평균 지연과 에러 대비 리소스
-                        비율을 각각 상위 5개까지 보여 줍니다. 에러율에는 헤드리스 네트워크 로그 건수를 넣지 않습니다.
-                      </p>
-                      <DomainSourceTop5 insights={state.report.diagnostics.domainInsights} />
+                      <h2 className="diagRankingsTitle adIssueSectionTitleWithHelp">
+                        <span>도메인(Source URL) 지연 · 에러율 Top 5</span>
+                        <InlineHelpTooltip text={domainRankingsHelpFull()} />
+                      </h2>
+                      <p className="diagRankingsDesc">총 {aggregatedRankings.snapshotCount} 건 합산</p>
+                      <DomainSourceTop5 insights={aggregatedRankings.domainInsights} />
                     </>
                   ) : null}
-                  {state.report.diagnostics.scriptIssueTop10 != null ? (
+                  {aggregatedRankings.scriptIssueTop10.length > 0 ? (
                     <div
                       className={
-                        state.report.diagnostics.domainInsights ? 'diagRankingsSubsection' : undefined
+                        aggregatedRankings.domainInsights != null ? 'diagRankingsSubsection' : undefined
                       }
                     >
                       <h2 className="diagRankingsTitle adIssueSectionTitleWithHelp">
                         <span>스크립트 파일별 오류 · 경고 Top 10</span>
-                        <InlineHelpTooltip text={SCRIPT_ISSUE_TOP10_HELP_TEXT} />
+                        <InlineHelpTooltip
+                          text={
+                            aggregatedRankings.domainInsights != null
+                              ? SCRIPT_ISSUE_TOP10_HELP_TEXT
+                              : scriptRankingsHelpWithAggregate()
+                          }
+                        />
                       </h2>
                       <p className="diagRankingsDesc">
-                        가장 많은 에러 및 경고를 일으키는 스크립트 출처(<strong>sourceUrl</strong>)입니다.
+                        가장 많은 에러 및 경고를 일으키는 스크립트 출처(<strong>sourceUrl</strong>)입니다. (총 {aggregatedRankings.snapshotCount} 건 합산)
                       </p>
-                      <ScriptIssueTop10 rows={state.report.diagnostics.scriptIssueTop10} />
+                      <ScriptIssueTop10 rows={aggregatedRankings.scriptIssueTop10} />
                     </div>
                   ) : null}
                 </div>

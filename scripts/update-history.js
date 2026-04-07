@@ -144,6 +144,10 @@ function summarize(report) {
       sha: getEnv('GITHUB_SHA', { defaultValue: '' }),
     },
     ...(performanceMetrics ? { performanceMetrics } : {}),
+    ...(report?.diagnostics?.domainInsights ? { domainInsights: report.diagnostics.domainInsights } : {}),
+    ...(Array.isArray(report?.diagnostics?.scriptIssueTop10) && report.diagnostics.scriptIssueTop10.length
+      ? { scriptIssueTop10: report.diagnostics.scriptIssueTop10 }
+      : {}),
   }
 }
 

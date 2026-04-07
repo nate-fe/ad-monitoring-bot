@@ -30,7 +30,6 @@ function LatencyTable({ rows }: { rows: DomainLatencyRankRow[] }) {
             <th scope="col">#</th>
             <th scope="col">호스트 (Source / 요청)</th>
             <th scope="col">평균 지연</th>
-            <th scope="col">샘플</th>
           </tr>
         </thead>
         <tbody>
@@ -41,7 +40,6 @@ function LatencyTable({ rows }: { rows: DomainLatencyRankRow[] }) {
                 {r.hostname}
               </th>
               <td>{r.avgDurationMs.toFixed(1)}ms</td>
-              <td>{r.sampleCount}</td>
             </tr>
           ))}
         </tbody>

@@ -103,5 +103,9 @@ export type MonitorHistoryEntry = {
     sha?: string
   }
   performanceMetrics?: MonitorPerformanceMetrics
+  /** 해당 시점 monitor-report의 도메인 Top5 스냅샷(히스토리 합산용) */
+  domainInsights?: DomainInsights
+  /** 해당 시점 스크립트 Top10 스냅샷(히스토리 합산용) */
+  scriptIssueTop10?: ScriptIssueTop10Row[]
 }
 
