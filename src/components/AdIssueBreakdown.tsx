@@ -9,7 +9,9 @@ type AdIssueBreakdownProps = {
 
 export function AdIssueBreakdown({ report }: AdIssueBreakdownProps) {
   const wrapRef = useRef<HTMLDivElement>(null)
-  const [chartWidth, setChartWidth] = useState(560)
+  const [chartWidth, setChartWidth] = useState(() =>
+    typeof window === 'undefined' ? 300 : Math.max(240, Math.min(560, Math.floor(window.innerWidth - 40))),
+  )
 
   useLayoutEffect(() => {
     const el = wrapRef.current

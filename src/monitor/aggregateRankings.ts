@@ -24,12 +24,13 @@ function mergeDomainInsights(snapshots: DomainInsights[]): DomainInsights | null
     .sort((a, b) => b.avgDurationMs - a.avgDurationMs)
     .slice(0, 5)
 
-  const errRes = new Map<string, { errors: number; resources: number }>()
+  const errRes = new Map<string, { errors: number; resources: number; urlSet: Set<string> }>()
   for (const ins of snapshots) {
     for (const r of ins.errorRateTop5 ?? []) {
-      const prev = errRes.get(r.hostname) ?? { errors: 0, resources: 0 }
+      const prev = errRes.get(r.hostname) ?? { errors: 0, resources: 0, urlSet: new Set<string>() }
       prev.errors += r.errorCount
       prev.resources += r.resourceCount
+      for (const u of r.resourceUrls ?? []) prev.urlSet.add(u)
       errRes.set(r.hostname, prev)
     }
   }
@@ -39,7 +40,8 @@ function mergeDomainInsights(snapshots: DomainInsights[]): DomainInsights | null
     if (v.errors < 1) continue
     const resourceCount = v.resources
     const errorRate = resourceCount > 0 ? v.errors / resourceCount : 1
-    rateCandidates.push({ hostname, errorCount: v.errors, resourceCount, errorRate })
+    const resourceUrls = [...v.urlSet].sort((a, b) => a.localeCompare(b))
+    rateCandidates.push({ hostname, errorCount: v.errors, resourceCount, errorRate, resourceUrls })
   }
   rateCandidates.sort((a, b) => b.errorRate - a.errorRate || b.errorCount - a.errorCount)
   const errorRateTop5 = rateCandidates.slice(0, 5)
@@ -49,12 +51,14 @@ function mergeDomainInsights(snapshots: DomainInsights[]): DomainInsights | null
 }
 
 function mergeScriptIssueTop10(groups: ScriptIssueTop10Row[][]): ScriptIssueTop10Row[] {
-  const map = new Map<string, { errors: number; warnings: number }>()
+  const map = new Map<string, { errors: number; warnings: number; errSet: Set<string>; warnSet: Set<string> }>()
   for (const rows of groups) {
     for (const r of rows) {
-      const cur = map.get(r.sourceUrl) ?? { errors: 0, warnings: 0 }
+      const cur = map.get(r.sourceUrl) ?? { errors: 0, warnings: 0, errSet: new Set<string>(), warnSet: new Set<string>() }
       cur.errors += r.errors
       cur.warnings += r.warnings
+      for (const t of r.errorMessages ?? []) cur.errSet.add(t)
+      for (const t of r.warningMessages ?? []) cur.warnSet.add(t)
       map.set(r.sourceUrl, cur)
     }
   }
@@ -64,6 +68,8 @@ function mergeScriptIssueTop10(groups: ScriptIssueTop10Row[][]): ScriptIssueTop1
       errors: v.errors,
       warnings: v.warnings,
       total: v.errors + v.warnings,
+      errorMessages: [...v.errSet].sort((a, b) => a.localeCompare(b)),
+      warningMessages: [...v.warnSet].sort((a, b) => a.localeCompare(b)),
     }))
     .sort((a, b) => b.total - a.total || b.errors - a.errors)
     .slice(0, 10)

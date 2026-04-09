@@ -112,7 +112,7 @@ function hostnameFromUrl(url) {
 /**
  * Performance 리소스 타이밍(호스트별) + 페이지·페이지 콘솔 오류·요청 실패 URL을 묶어 Top5를 만든다.
  * 에러율 집계에서는 헤드리스 네트워크 한 줄(source: devtools)은 제외한다.
- * @param {Record<string, { sumDuration: number, count: number }>} resourceByHost
+ * @param {Record<string, { sumDuration: number, count: number, resourceUrls?: string[] }>} resourceByHost
  * @param {Array<{ sourceUrl?: string }>} pageErrors
  * @param {Array<{ type?: string, source?: string, sourceUrl?: string }>} consoleMessages
  * @param {Array<{ url?: string }>} requestFailures
@@ -152,9 +152,11 @@ function buildDomainInsights(resourceByHost, pageErrors, consoleMessages, reques
   for (const hostname of hostSet) {
     const errorCount = errByHost.get(hostname) ?? 0
     if (errorCount < 1) continue
-    const resourceCount = byHost[hostname]?.count ?? 0
+    const hostRes = byHost[hostname]
+    const resourceCount = hostRes?.count ?? 0
+    const resourceUrls = Array.isArray(hostRes?.resourceUrls) ? hostRes.resourceUrls : []
     const errorRate = resourceCount > 0 ? errorCount / resourceCount : 1
-    rateCandidates.push({ hostname, errorCount, resourceCount, errorRate })
+    rateCandidates.push({ hostname, errorCount, resourceCount, errorRate, resourceUrls })
   }
   rateCandidates.sort((a, b) => b.errorRate - a.errorRate || b.errorCount - a.errorCount)
   const errorRateTop5 = rateCandidates.slice(0, 5)
@@ -181,20 +183,32 @@ function normalizeScriptSourceKey(url) {
 
 /**
  * 페이지 오류·페이지 콘솔(헤드리스 제외)의 sourceUrl 기준, 오류·경고 건수 상위 10개 스크립트 URL.
- * @param {Array<{ sourceUrl?: string }>} pageErrors
+ * 고유 메시지 텍스트는 errorMessages / warningMessages 로 함께 저장(건수와 불일치할 수 있음).
+ * @param {Array<{ sourceUrl?: string, message?: string }>} pageErrors
  * @param {Array<{ type?: string, source?: string, sourceUrl?: string, text?: string }>} consoleMessages
  */
 function buildScriptIssueTop10(pageErrors, consoleMessages) {
   const map = new Map()
-  const bump = (key, field) => {
-    if (!key) return
-    const cur = map.get(key) ?? { errors: 0, warnings: 0 }
-    cur[field] += 1
-    map.set(key, cur)
+  const ensure = (key) => {
+    if (!key) return null
+    if (!map.has(key)) {
+      map.set(key, {
+        errors: 0,
+        warnings: 0,
+        errorMsgSet: new Set(),
+        warningMsgSet: new Set(),
+      })
+    }
+    return map.get(key)
   }
 
   for (const e of pageErrors) {
-    bump(normalizeScriptSourceKey(e?.sourceUrl), 'errors')
+    const key = normalizeScriptSourceKey(e?.sourceUrl)
+    const cur = ensure(key)
+    if (!cur) continue
+    cur.errors += 1
+    const msg = e?.message != null ? String(e.message) : '페이지 오류'
+    cur.errorMsgSet.add(msg)
   }
 
   for (const m of consoleMessages) {
@@ -202,8 +216,16 @@ function buildScriptIssueTop10(pageErrors, consoleMessages) {
     if (m?.type !== 'error' && m?.type !== 'warning') continue
     if (m?.type === 'warning' && shouldHideConsoleWarningText(m?.text)) continue
     const key = normalizeScriptSourceKey(m?.sourceUrl)
-    if (!key) continue
-    bump(key, m.type === 'error' ? 'errors' : 'warnings')
+    const cur = ensure(key)
+    if (!cur) continue
+    const text = String(m?.text ?? '')
+    if (m.type === 'error') {
+      cur.errors += 1
+      if (text) cur.errorMsgSet.add(text)
+    } else {
+      cur.warnings += 1
+      if (text) cur.warningMsgSet.add(text)
+    }
   }
 
   return Array.from(map.entries())
@@ -212,6 +234,8 @@ function buildScriptIssueTop10(pageErrors, consoleMessages) {
       errors: v.errors,
       warnings: v.warnings,
       total: v.errors + v.warnings,
+      errorMessages: [...v.errorMsgSet].sort((a, b) => a.localeCompare(b)),
+      warningMessages: [...v.warningMsgSet].sort((a, b) => a.localeCompare(b)),
     }))
     .sort((a, b) => b.total - a.total || b.errors - a.errors)
     .slice(0, 10)
@@ -295,6 +319,10 @@ const CONSOLE_CAPTURE_SCRIPT = `
     }
   };
 
+  /** SDK 정책 덤프 — 저장·실제 콘솔 출력 모두 생략 */
+  const isSilencedPolicyInfoLog = (args) =>
+    /^\\s*setPolicyInfo\\b/.test(args.map(formatArg).join(' '));
+
   const store = [];
   Object.defineProperty(globalThis, key, {
     value: store,
@@ -329,6 +357,7 @@ const CONSOLE_CAPTURE_SCRIPT = `
     const original = console[methodName];
     if (typeof original !== 'function') return;
     console[methodName] = (...args) => {
+      if (isSilencedPolicyInfoLog(args)) return;
       try {
         const location = parseLocation(new Error().stack);
         store.push({
@@ -392,7 +421,8 @@ async function main() {
   const targetScope = requestedScope || inferTargetScope(targetUrl)
   const timeoutMs = Number(getEnv('MONITOR_TIMEOUT_MS', { defaultValue: '45000' }))
   const navTimeoutMs = Number(getEnv('MONITOR_NAV_TIMEOUT_MS', { defaultValue: '30000' }))
-  const afterLoadWaitMs = Number(getEnv('MONITOR_WAIT_AFTER_LOAD_MS', { defaultValue: '1500' }))
+  /** 너무 짧으면 Long Task/TBT(근사)가 거의 잡히지 않을 수 있음 — 랩에서 8s 권장 */
+  const afterLoadWaitMs = Number(getEnv('MONITOR_WAIT_AFTER_LOAD_MS', { defaultValue: '8000' }))
   const userAgent = getEnv('MONITOR_USER_AGENT', {
     defaultValue: 'ad-monitoring-bot/1.0 (+https://github.com)',
   })
@@ -620,9 +650,22 @@ async function main() {
               continue
             }
             if (!host) continue
-            if (!resourceByHost[host]) resourceByHost[host] = { sumDuration: 0, count: 0 }
-            resourceByHost[host].sumDuration += r.duration
-            resourceByHost[host].count += 1
+            if (!resourceByHost[host]) {
+              resourceByHost[host] = { sumDuration: 0, count: 0, _urlSet: new Set() }
+            }
+            const bucket = resourceByHost[host]
+            bucket.sumDuration += r.duration
+            bucket.count += 1
+            bucket._urlSet.add(r.name)
+          }
+          for (const h of Object.keys(resourceByHost)) {
+            const b = resourceByHost[h]
+            const urls = [...b._urlSet].sort((a, x) => a.localeCompare(x))
+            resourceByHost[h] = {
+              sumDuration: b.sumDuration,
+              count: b.count,
+              resourceUrls: urls,
+            }
           }
           return {
             approxTbtMs,

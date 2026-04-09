@@ -1,7 +1,8 @@
 import type { ScriptIssueTop10Row } from '../monitor/types'
+import { ScriptIssueMessagesTooltip } from './ScriptIssueMessagesTooltip'
 
 export const SCRIPT_ISSUE_TOP10_HELP_TEXT =
-  '페이지 오류와 페이지 스크립트 콘솔의 오류·경고만 사용합니다(source 필드가 devtools인 헤드리스 네트워크 로그는 제외). 동일 출처는 쿼리 없이 origin+pathname으로 묶어 집계합니다. 특정 자동 HTTPS 경고 문구는 경고에서 제외합니다.'
+  '페이지 오류와 페이지 스크립트 콘솔의 오류·경고만 사용합니다(source 필드가 devtools인 헤드리스 네트워크 로그는 제외). 동일 출처는 쿼리 없이 origin+pathname으로 묶어 집계합니다. 특정 자동 HTTPS 경고 문구는 경고에서 제외합니다. 오류·경고 숫자에 마우스를 올리면(포커스 포함) 해당 출처의 고유 메시지 목록을 툴팁에서 볼 수 있습니다(리포트에 포함된 경우).'
 
 type ScriptIssueTop10Props = {
   rows: ScriptIssueTop10Row[]
@@ -31,7 +32,8 @@ export function ScriptIssueTop10({ rows }: ScriptIssueTop10Props) {
               #
             </th>
             <th scope="col" className="scriptIssueTopThUrl">
-              스크립트 출처 (sourceUrl)
+              <span className="scriptIssueTopHeadUrlDesktop">스크립트 출처 (sourceUrl)</span>
+              <span className="scriptIssueTopHeadUrlMobile">출처</span>
             </th>
             <th scope="col" className="scriptIssueTopThNum">
               오류
@@ -54,12 +56,27 @@ export function ScriptIssueTop10({ rows }: ScriptIssueTop10Props) {
                   target="_blank"
                   rel="noopener noreferrer"
                   className="scriptIssueTopUrlLink"
+                  title={r.sourceUrl}
                 >
                   {r.sourceUrl}
                 </a>
               </th>
-              <td className="scriptIssueTopTdNum">{r.errors}</td>
-              <td className="scriptIssueTopTdNum">{r.warnings}</td>
+              <td className="scriptIssueTopTdNum">
+                <ScriptIssueMessagesTooltip
+                  kind="error"
+                  count={r.errors}
+                  sourceUrl={r.sourceUrl}
+                  messages={r.errorMessages}
+                />
+              </td>
+              <td className="scriptIssueTopTdNum">
+                <ScriptIssueMessagesTooltip
+                  kind="warning"
+                  count={r.warnings}
+                  sourceUrl={r.sourceUrl}
+                  messages={r.warningMessages}
+                />
+              </td>
               <td className="scriptIssueTopTdNum scriptIssueTopTdTotal">{r.total}</td>
             </tr>
           ))}

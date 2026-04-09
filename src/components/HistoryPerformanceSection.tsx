@@ -14,6 +14,10 @@ import {
   type PerformanceHistoryBucketPoint,
 } from '../monitor/issueSources'
 
+/** Google/LH 계열 구간에 맞춘 TBT(근사) 참고선 — ms (차트 Y축과 동일) */
+const TBT_THRESHOLD_GOOD_MAX_MS = 200
+const TBT_THRESHOLD_POOR_MIN_MS = 600
+
 export type HistoryLoadKind = 'idle' | 'loading' | 'error' | 'loaded'
 
 type HistoryPerformanceSectionProps = {
@@ -42,6 +46,14 @@ function PerfLineLegend() {
       <span className="adIssueMonthlyLegendItem">
         <span className="historyPerfLineSwatch historyPerfLineSwatchScript" />
         광고 스크립트 평균(ms)
+      </span>
+      <span className="adIssueMonthlyLegendItem historyPerfLegendThreshold">
+        <span className="historyPerfLineSwatch historyPerfLineSwatchThGood" />
+        TBT 기준 0.2s (좋음)
+      </span>
+      <span className="adIssueMonthlyLegendItem historyPerfLegendThreshold">
+        <span className="historyPerfLineSwatch historyPerfLineSwatchThPoor" />
+        TBT 기준 0.6s (이상 시 Poor)
       </span>
     </div>
   )
@@ -74,21 +86,42 @@ function HistoryPerformanceLineChart({
     )
   }
 
-  const tbtData = points.map((p) => ({ x: p.x, y: p.approxTbtMs, tip: p }))
-  const scriptData = points.map((p) => ({ x: p.x, y: p.avgAdScriptResourceDurationMs, tip: p }))
-  const hitData = points.map((p) => ({
-    x: p.x,
+  const n = dayKeys.length
+  /** 일이 1일 때도 참고 가로선이 그려지도록 x를 [0,1]·중앙 0.5에 둠 */
+  const xAt = (i: number) => (n === 1 ? 0.5 : i)
+  const thresholdSegment = (yMs: number) =>
+    n === 1
+      ? [
+          { x: 0, y: yMs },
+          { x: 1, y: yMs },
+        ]
+      : [
+          { x: 0, y: yMs },
+          { x: n - 1, y: yMs },
+        ]
+
+  const tbtData = points.map((p, i) => ({ x: xAt(i), y: p.approxTbtMs, tip: p }))
+  const scriptData = points.map((p, i) => ({ x: xAt(i), y: p.avgAdScriptResourceDurationMs, tip: p }))
+  const hitData = points.map((p, i) => ({
+    x: xAt(i),
     y: Math.max(p.approxTbtMs, p.avgAdScriptResourceDurationMs, 0.001),
     tip: p,
   }))
 
-  const yMax = Math.max(
+  const dataMax = Math.max(
     1,
     ...points.map((p) => Math.max(p.approxTbtMs, p.avgAdScriptResourceDurationMs)),
+  )
+  const yMax = Math.max(
+    dataMax * 1.12,
+    TBT_THRESHOLD_POOR_MIN_MS * 1.12,
+    TBT_THRESHOLD_GOOD_MAX_MS * 1.15,
   )
 
   const chartHeight = Math.min(360, Math.max(240, 220))
   const tiltTicks = dayKeys.length > 6
+  const xDomain: [number, number] = n === 1 ? [0, 1] : [0, Math.max(0, n - 1)]
+  const xTickValues = n === 1 ? [0.5] : dayKeys.map((_, i) => i)
 
   return (
     <div className="adIssueMonthlyChartBlock">
@@ -98,12 +131,12 @@ function HistoryPerformanceLineChart({
           width={chartWidth}
           height={chartHeight}
           domainPadding={{ x: 8 }}
-          domain={{ y: [0, yMax * 1.12] }}
+          domain={{ x: xDomain, y: [0, yMax] }}
           padding={{ left: 52, right: 24, top: 28, bottom: tiltTicks ? 76 : 48 }}
           containerComponent={
             <VictoryVoronoiContainer
               voronoiDimension="x"
-              voronoiBlacklist={['perf-tbt', 'perf-script']}
+              voronoiBlacklist={['perf-tbt', 'perf-script', 'perf-threshold-good', 'perf-threshold-poor']}
               labels={({ datum }) =>
                 formatPerfTooltip(datum as { tip?: PerformanceHistoryBucketPoint }, formatDayKeyShortLabel)
               }
@@ -129,8 +162,12 @@ function HistoryPerformanceLineChart({
           }
         >
           <VictoryAxis
-            tickValues={dayKeys}
-            tickFormat={(k) => formatDayKeyShortLabel(String(k))}
+            tickValues={xTickValues}
+            tickFormat={(v) => {
+              const idx = n === 1 ? 0 : Math.round(Number(v))
+              const key = dayKeys[idx]
+              return key ? formatDayKeyShortLabel(key) : ''
+            }}
             style={{
               ...axisStyle,
               tickLabels: {
@@ -146,6 +183,30 @@ function HistoryPerformanceLineChart({
             style={{
               ...axisStyle,
               axisLabel: { padding: 38, fill: 'var(--muted)', fontSize: 11 },
+            }}
+          />
+          <VictoryLine
+            name="perf-threshold-good"
+            data={thresholdSegment(TBT_THRESHOLD_GOOD_MAX_MS)}
+            style={{
+              data: {
+                stroke: 'var(--ok)',
+                strokeWidth: 1.75,
+                strokeDasharray: '7,5',
+                strokeLinecap: 'round',
+              },
+            }}
+          />
+          <VictoryLine
+            name="perf-threshold-poor"
+            data={thresholdSegment(TBT_THRESHOLD_POOR_MIN_MS)}
+            style={{
+              data: {
+                stroke: '#f97316',
+                strokeWidth: 1.75,
+                strokeDasharray: '4,4',
+                strokeLinecap: 'round',
+              },
             }}
           />
           <VictoryLine
@@ -192,7 +253,9 @@ export function HistoryPerformanceSection({
   activeMonthFilterLabel,
 }: HistoryPerformanceSectionProps) {
   const wrapRef = useRef<HTMLDivElement>(null)
-  const [chartWidth, setChartWidth] = useState(560)
+  const [chartWidth, setChartWidth] = useState(() =>
+    typeof window === 'undefined' ? 300 : Math.max(240, Math.min(560, Math.floor(window.innerWidth - 40))),
+  )
 
   useLayoutEffect(() => {
     const el = wrapRef.current
@@ -248,17 +311,16 @@ export function HistoryPerformanceSection({
           </p>
         ) : null}
         <p className="adIssueMonthlyNote">
-          <strong>TBT(근사)</strong>는 Long Task(50ms 초과)마다 <code>duration − 50ms</code>를 합산한 값으로, 메인 스레드
-          점유를 가늠합니다. Lighthouse TBT와 측정 구간·정의가 다를 수 있습니다.{' '}
-          <strong>광고 스크립트 평균(ms)</strong>은 URL 패턴으로 잡은 <code>script</code> 리소스의 Performance{' '}
-          <code>duration</code> 평균(다운로드·파싱·실행에 가까운 구간)입니다.{' '}
-          <strong>CLS</strong>(콘텐츠 밀림)은 이 그래프에 포함되지 않으니, 광고 슬롯{' '}
-          <strong>placeholder</strong> 확보 여부는 별도로 확인하세요. 일별 점은 해당 날짜 실행들의 산술 평균이며, 기본 최근{' '}
-          <strong>90일</strong>입니다.
+          <strong>TBT(근사)</strong>는 Long Task(50ms 초과)마다 <code>duration − 50ms</code>를 더한 값(ms)으로, 메인 스레드
+          블로킹을 대략 나타냅니다. Lighthouse TBT·필드 INP와 정의·구간이 다릅니다.
+        </p>
+        <p className="adIssueMonthlyNote historyPerfNoteSub">
+          광고 스크립트 곡선은 <code>script</code> 리소스 <code>duration</code>{' '}
+          일 평균이며, 최근 90일·해당 일 실행 산술 평균입니다.
         </p>
         <PerfLineLegend />
         <HistoryPerformanceLineChart
-          title="일별 TBT(근사) · 광고 스크립트 평균(ms)"
+          title="일별 TBT(근사) · 광고 스크립트 평균(ms) — 녹색·주황 점선은 TBT(근사) 기준만 해당"
           points={model.points}
           dayKeys={model.dayKeys}
           chartWidth={chartWidth}

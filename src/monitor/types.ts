@@ -8,15 +8,18 @@ export type DomainLatencyRankRow = {
 }
 
 /**
- * 에러율 = 해당 호스트의 에러 건수 ÷ Performance에 잡힌 동일 호스트 리소스 건수.
+ * 에러율 = 해당 호스트의 에러 건수 ÷ Performance Resource Timing에 잡힌 동일 호스트 서브리소스 건수.
+ * resourceCount: `getEntriesByType('resource')`에서 navigation 제외 후 hostname별 개수(모니터 스크립트와 동일).
  * 에러 건수는 페이지 오류·페이지 콘솔 오류·요청 실패만 포함(헤드리스 devtools 네트워크 로그 제외).
- * 리소스가 0이면 1로 두고 순위만 사용(에러는 있음).
+ * 리소스가 0이면 분모 없음 → 표시상 에러율은 —, 순위 계산은 별도(스크립트는 1로 둠).
  */
 export type DomainErrorRateRankRow = {
   hostname: string
   errorCount: number
   resourceCount: number
   errorRate: number
+  /** 해당 호스트로 잡힌 Resource Timing의 고유 요청 URL(알파벳 순, 모니터 리포트에 포함) */
+  resourceUrls?: string[]
 }
 
 export type DomainInsights = {
@@ -30,6 +33,10 @@ export type ScriptIssueTop10Row = {
   errors: number
   warnings: number
   total: number
+  /** 해당 출처에서 잡힌 고유 오류 메시지(모니터·집계 시 합집합) */
+  errorMessages?: string[]
+  /** 해당 출처에서 잡힌 고유 경고 메시지 */
+  warningMessages?: string[]
 }
 
 export type MonitorPerformanceMetrics = {

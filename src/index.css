@@ -75,17 +75,22 @@ body {
   display: block;
   min-width: 320px;
   min-height: 100vh;
+  padding-left: max(0px, env(safe-area-inset-left, 0px));
+  padding-right: max(0px, env(safe-area-inset-right, 0px));
+  padding-bottom: max(0px, env(safe-area-inset-bottom, 0px));
   background:
     radial-gradient(900px 520px at 10% -10%, rgba(124, 136, 255, 0.28), transparent 60%),
     radial-gradient(820px 540px at 105% 10%, rgba(82, 209, 255, 0.22), transparent 55%),
     radial-gradient(680px 520px at 40% 110%, rgba(239, 68, 68, 0.14), transparent 60%),
     linear-gradient(180deg, var(--bg0), var(--bg1));
-  overflow-x: hidden;
 }
 
 #root {
   width: 100%;
-  overflow-x: clip;
+  max-width: 100%;
+  min-width: 0;
+  /* clip/hidden 은 자식 absolute 툴팁을 뷰포트 밖으로 잘라낼 수 있음 */
+  overflow-x: visible;
 }
 
 img,
@@ -135,6 +140,18 @@ button:disabled {
 button:focus,
 button:focus-visible {
   outline: 4px auto -webkit-focus-ring-color;
+}
+
+/* 모바일: 더블탭 줌 지연 완화(버튼·링크) */
+a,
+button {
+  touch-action: manipulation;
+}
+
+@media (max-width: 640px) {
+  :root {
+    font-size: 16px;
+  }
 }
 
 @media (prefers-color-scheme: light) {

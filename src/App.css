@@ -115,6 +115,7 @@
 .main {
   display: grid;
   gap: 24px;
+  min-width: 0;
 }
 
 .targetPicker {
@@ -364,6 +365,7 @@
 
 .domainTop5Root {
   min-width: 0;
+  overflow: visible;
 }
 
 .domainTop5Grid {
@@ -393,8 +395,34 @@
 }
 
 .domainTop5TableWrap {
-  overflow-x: auto;
+  /* overflow-x: auto 는 툴팁(absolute)을 잘라내므로 쓰지 않음 — 테이블은 table-layout:fixed 로 폭 내에 맞춤 */
+  overflow: visible;
   max-width: 100%;
+  min-width: 0;
+}
+
+.domainTop5Table {
+  table-layout: fixed;
+  width: 100%;
+  max-width: 100%;
+}
+
+.domainTop5Table thead th:first-child,
+.domainTop5Table tbody td:first-child {
+  width: 2.5rem;
+  white-space: nowrap;
+}
+
+.domainTop5Table thead th:nth-child(n + 3),
+.domainTop5Table tbody td:nth-child(n + 3) {
+  white-space: nowrap;
+  width: 4.25rem;
+}
+
+/* 에러율 5열: 마지막 열(에러율)은 내용에 맞게 */
+.domainTop5Table thead th:nth-child(5),
+.domainTop5Table tbody td:nth-child(5) {
+  width: 5rem;
 }
 
 .domainTop5Table th.domainTop5Host,
@@ -402,7 +430,128 @@
   text-align: left;
   font-weight: 600;
   word-break: break-all;
-  max-width: 200px;
+  min-width: 0;
+}
+
+.domainTop5HostLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  vertical-align: middle;
+}
+
+.cspReportHintWrap {
+  flex-shrink: 0;
+}
+
+.cspReportHintButton {
+  color: color-mix(in srgb, var(--accent2) 75%, var(--muted));
+}
+
+.cspReportHintButton:hover,
+.cspReportHintButton:focus-visible {
+  color: var(--accent2);
+}
+
+.domainTop5ThWithHint {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.domainTop5ResourceCountBtn {
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--accent2) 88%, var(--text));
+  background: transparent;
+  border: 0;
+  padding: 2px 4px;
+  margin: -2px -4px;
+  border-radius: 4px;
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+
+.domainTop5ResourceCountBtn:hover,
+.domainTop5ResourceCountBtn:focus-visible {
+  color: var(--accent2);
+  background: color-mix(in srgb, var(--accent2) 12%, transparent);
+  text-decoration: underline;
+}
+
+/* 리소스 숫자 — Floating UI로 위치·폭 처리, 내부는 링크 클릭 가능 */
+.domainTop5ResourceUrlWrap .domainTop5ResourceUrlsTooltip {
+  max-height: min(52vh, 400px);
+  padding: 10px 12px;
+  white-space: normal;
+  pointer-events: auto;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+}
+
+.domainTop5ResourceUrlsTooltipHost {
+  display: block;
+  font-weight: 700;
+  font-size: 13px;
+  word-break: break-all;
+  margin-bottom: 6px;
+  flex-shrink: 0;
+}
+
+.domainTop5ResourceUrlsTooltipMeta {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.domainTop5ResourceUrlsTooltipEmpty {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+  flex-shrink: 0;
+}
+
+.domainTop5UrlList {
+  margin: 0;
+  padding: 8px 10px 8px 22px;
+  min-height: 0;
+  max-height: min(36vh, 260px);
+  overflow: auto;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg0) 55%, var(--panel));
+  font-size: 12px;
+  line-height: 1.45;
+  word-break: break-all;
+  flex: 1 1 auto;
+}
+
+.domainTop5UrlList li {
+  margin-bottom: 6px;
+}
+
+.domainTop5UrlList li:last-child {
+  margin-bottom: 0;
+}
+
+.domainTop5UrlLink {
+  color: color-mix(in srgb, var(--accent2) 90%, var(--text));
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.domainTop5UrlLink:hover {
+  color: var(--accent2);
 }
 
 .domainTop5Empty {
@@ -483,6 +632,31 @@
 
 .historyPerfLineSwatchScript {
   background: var(--accent2);
+}
+
+.historyPerfLegendThreshold {
+  font-size: 12px;
+}
+
+.historyPerfLineSwatchThGood {
+  background: transparent;
+  height: 0;
+  border-top: 3px dashed var(--ok);
+}
+
+.historyPerfLineSwatchThPoor {
+  background: transparent;
+  height: 0;
+  border-top: 3px dashed #f97316;
+}
+
+.historyPerfNoteSub {
+  margin-top: 8px;
+}
+
+.historyPerfGoalEm {
+  color: color-mix(in srgb, var(--ok) 88%, var(--text));
+  font-weight: 700;
 }
 
 .diagPerfList {
@@ -566,6 +740,10 @@
   width: 100%;
   max-width: 100%;
   min-width: 0;
+  /* 툴팁(absolute)이 잘리지 않도록 — .adIssueTableWrap 의 overflow-x:auto 를 이 블록에서 무효화 */
+  overflow: visible;
+  position: relative;
+  z-index: 1;
 }
 
 .scriptIssueTopTable {
@@ -605,6 +783,10 @@
 .scriptIssueTopThUrl {
   padding-left: 12px;
   padding-right: 12px;
+}
+
+.scriptIssueTopHeadUrlMobile {
+  display: none;
 }
 
 /* .adIssueTable thead th 가 center를 주므로 이 테이블만 덮어씀 */
@@ -660,8 +842,107 @@
   font-size: 14px;
 }
 
+.scriptIssueCountBtn {
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--accent2) 88%, var(--text));
+  background: transparent;
+  border: 0;
+  padding: 2px 6px;
+  margin: -2px -6px;
+  border-radius: 4px;
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+
+.scriptIssueCountBtn:hover,
+.scriptIssueCountBtn:focus-visible {
+  color: var(--accent2);
+  background: color-mix(in srgb, var(--accent2) 12%, transparent);
+  text-decoration: underline;
+}
+
+/* 스크립트 메시지 툴팁 — Floating UI로 뷰포트 안 배치 */
+.scriptIssueMsgTooltipWrap .scriptIssueMsgTooltip {
+  padding: 10px 12px;
+  white-space: normal;
+  pointer-events: auto;
+  overflow: auto;
+  display: block;
+  text-align: left;
+}
+
+.scriptIssueMsgTooltipTitle {
+  display: block;
+  font-weight: 700;
+  font-size: 13px;
+  margin-bottom: 6px;
+  flex-shrink: 0;
+}
+
+.scriptIssueMsgTooltipCode {
+  display: block;
+  font-size: 11px;
+  word-break: break-all;
+  margin-bottom: 8px;
+  color: color-mix(in srgb, var(--accent2) 85%, var(--text));
+}
+
+.scriptIssueMsgTooltipMeta {
+  margin: 0 0 8px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.scriptIssueMsgTooltipList {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  max-height: none;
+  overflow: visible;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg0) 55%, var(--panel));
+}
+
+.scriptIssueMsgTooltipItem {
+  padding: 8px 10px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+.scriptIssueMsgTooltipItem:last-child {
+  border-bottom: 0;
+}
+
+.scriptIssueMsgTooltipPre {
+  margin: 0;
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: color-mix(in srgb, var(--text) 94%, var(--muted));
+}
+
+.scriptIssueMsgTooltipEmpty {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
 .adIssueTableWrap {
   overflow-x: auto;
+}
+
+/* 스크립트 Top10만: 가로 스크롤 없이 표 전체 표시 + 자식 툴팁 클리핑 방지 */
+.adIssueTableWrap.scriptIssueTopWrap {
+  overflow: visible;
 }
 
 .adIssueTable {
@@ -975,49 +1256,35 @@
 }
 
 .inlineHelpTooltip {
-  position: absolute;
-  left: -10px;
-  bottom: calc(100% + 8px);
-  transform: translateY(4px);
-  width: min(320px, calc(100vw - 40px));
+  box-sizing: border-box;
   padding: 10px 12px;
   border-radius: 4px;
   border: 1px solid color-mix(in srgb, var(--accent2) 24%, var(--border));
   background: var(--bg0);
   color: var(--text);
-  font-weight:400;
+  font-weight: 400;
   font-size: 13px;
   line-height: 1.45;
   white-space: pre-line;
+  overflow-wrap: break-word;
+  word-break: keep-all;
   box-shadow: 0 16px 30px rgba(6, 10, 25, 0.24);
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  transition:
-    opacity 140ms ease,
-    transform 140ms ease,
-    visibility 140ms ease;
-  z-index: 80;
 }
 
-.inlineHelpTooltip::after {
-  content: '';
-  position: absolute;
-  left: 10px;
-  bottom: -7px;
-  width: 12px;
-  height: 12px;
-  transform: rotate(45deg);
-  border-right: 1px solid color-mix(in srgb, var(--accent2) 24%, var(--border));
-  border-bottom: 1px solid color-mix(in srgb, var(--accent2) 24%, var(--border));
-  background: var(--bg0);
+/* @floating-ui/react — 위치는 인라인, 뷰포트 안에 shift/flip */
+.inlineHelpTooltipViewport {
+  pointer-events: auto;
+  overflow: auto;
 }
 
-.inlineHelpWrap:hover .inlineHelpTooltip,
-.inlineHelpWrap:focus-within .inlineHelpTooltip {
-  opacity: 1;
-  visibility: visible;
-  transform: translateY(0);
+.inlineHelpTooltipViewport::after {
+  display: none;
+}
+
+@media (min-width: 641px) {
+  .inlineHelpTooltip.inlineHelpTooltipViewport {
+    max-width: min(236px, calc(100vw - 32px)) !important;
+  }
 }
 
 .diagItem {
@@ -1141,7 +1408,8 @@
   left: 0;
   top: calc(100% + 8px);
   z-index: 21;
-  width: min(100vw - 48px, 520px);
+  width: min(100%, min(400px, calc(100vw - 28px)));
+  box-sizing: border-box;
   padding: 12px;
   border-radius: 4px;
   border: 1px solid color-mix(in srgb, var(--accent2) 24%, var(--border));
@@ -1525,9 +1793,27 @@ details[open].historyItem .historyChevron {
   overflow: visible;
 }
 
-@media (max-width: 560px) {
+@media (max-width: 640px) {
+  .app {
+    padding: 20px max(14px, env(safe-area-inset-right, 0px)) 28px
+      max(14px, env(safe-area-inset-left, 0px));
+  }
+
+  .main {
+    gap: 18px;
+  }
+
+  .title {
+    font-size: 24px;
+  }
+
+  .subtitle {
+    font-size: 14px;
+  }
+
   .top {
     align-items: flex-start;
+    padding: 12px 12px;
   }
 
   .heroCopy {
@@ -1537,6 +1823,18 @@ details[open].historyItem .historyChevron {
   .mascot {
     justify-items: end;
     width: 100%;
+  }
+
+  .mascotImg,
+  .mascotFallback {
+    width: 112px;
+    height: 112px;
+  }
+
+  .mascotCaption {
+    font-size: 12px;
+    max-width: 160px;
+    text-align:right;
   }
 
   .targetPicker {
@@ -1557,13 +1855,256 @@ details[open].historyItem .historyChevron {
     font-size: 13px;
   }
 
+  .panelHeader {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 14px;
+  }
+
+  .panelActions .refreshIconButton {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 10px;
+    box-sizing: border-box;
+  }
+
+  .panelBody {
+    padding: 12px;
+  }
+
+  .adIssueMonthlyNote,
+  .diagRankingsDesc {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .adIssueMonthlyNote code {
+    word-break: break-all;
+  }
+
   .kv > div {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .kv .kvRow {
+    flex-direction: column;
+  }
+
+  .kv .kvRow > div {
+    flex: none;
+    width: 100%;
     grid-template-columns: 1fr;
     gap: 4px;
   }
 
   .kv dt {
     font-size: 13px;
+  }
+
+  .adIssueSection {
+    padding: 10px;
+  }
+
+  .adIssueChartWrap {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .adIssueMonthlyLegend {
+    gap: 8px 10px;
+    font-size: 12px;
+  }
+
+  .historyPerfLegendThreshold {
+    font-size: 11px;
+  }
+
+  .adIssueTableWrap:not(.scriptIssueTopWrap) {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .adIssueTable {
+    font-size: 13px;
+  }
+
+  .adIssueTable th,
+  .adIssueTable td {
+    padding: 8px;
+  }
+
+  .domainTop5Table {
+    font-size: 13px;
+  }
+
+  .inlineHelpButton {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 12px;
+    margin: -12px;
+  }
+
+  .inlineHelpButton svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .scriptIssueCountBtn {
+    padding: 8px 10px;
+    margin: -4px -6px;
+    min-height: 40px;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .domainTop5ResourceCountBtn {
+    padding: 8px 10px;
+    margin: -6px -4px;
+    min-height: 40px;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .historyMonthBar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .historyMonthSelect {
+    max-width: none;
+    width: 100%;
+    min-height: 44px;
+  }
+
+  .btnBackHome {
+    min-height: 44px;
+    padding: 12px 18px;
+  }
+
+  .btnGhost {
+    min-height: 44px;
+    padding: 10px 16px;
+  }
+
+  /* 스크립트 Top10: 출처 말줄임 + 좁은 화면 레이아웃 */
+  .scriptIssueTopHeadUrlDesktop {
+    display: none;
+  }
+
+  .scriptIssueTopHeadUrlMobile {
+    display: inline;
+  }
+
+  .adIssueTableWrap.scriptIssueTopWrap {
+    margin-left: 0;
+    margin-right: 0;
+    max-width: 100%;
+    border-radius: 10px;
+    border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+    background: color-mix(in srgb, var(--panel2) 45%, var(--panel));
+    box-shadow: 0 1px 0 color-mix(in srgb, var(--border) 35%, transparent);
+  }
+
+  .scriptIssueTopTable {
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 13px;
+  }
+
+  .scriptIssueTopTable col.scriptIssueTopColRank {
+    width: 1.85rem;
+  }
+
+  .scriptIssueTopTable col.scriptIssueTopColNum {
+    width: 2.85rem;
+  }
+
+  .scriptIssueTopTable col.scriptIssueTopColTotal {
+    width: 2.85rem;
+  }
+
+  .scriptIssueTopTable thead th {
+    padding: 8px 4px;
+    font-size: 11px;
+    letter-spacing: -0.02em;
+    vertical-align: middle;
+    background: color-mix(in srgb, var(--panel2) 72%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  }
+
+  .scriptIssueTopTable thead th:first-child {
+    border-top-left-radius: 9px;
+  }
+
+  .scriptIssueTopTable thead th:last-child {
+    border-top-right-radius: 9px;
+  }
+
+  .scriptIssueTopThUrl {
+    padding-left: 8px;
+    padding-right: 4px;
+    text-align: left;
+  }
+
+  .scriptIssueTopTdRank,
+  .scriptIssueTopTdNum {
+    padding: 8px 4px;
+  }
+
+  .scriptIssueTopTable tbody th,
+  .scriptIssueTopTable tbody td {
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+  }
+
+  .scriptIssueTopTable tbody tr:nth-child(even) th,
+  .scriptIssueTopTable tbody tr:nth-child(even) td {
+    background: color-mix(in srgb, var(--bg0) 38%, transparent);
+  }
+
+  .scriptIssueTopTable tbody tr:last-child th,
+  .scriptIssueTopTable tbody tr:last-child td {
+    border-bottom: 0;
+  }
+
+  .scriptIssueTopTable tbody tr:last-child td:first-child {
+    border-bottom-left-radius: 9px;
+  }
+
+  .scriptIssueTopTable tbody tr:last-child td:last-child {
+    border-bottom-right-radius: 9px;
+  }
+
+  .scriptIssueTopUrlCell {
+    word-break: normal;
+    overflow-wrap: normal;
+    overflow: hidden;
+    max-width: 0;
+    padding: 8px 8px 8px 6px;
+    vertical-align: middle;
+  }
+
+  .scriptIssueTopUrlLink {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-decoration: none;
+    border-bottom: 1px dotted color-mix(in srgb, var(--accent2) 55%, transparent);
+    padding-bottom: 1px;
+  }
+
+  .scriptIssueTopUrlLink:active {
+    opacity: 0.85;
+  }
+
+  .scriptIssueTopTdTotal {
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 400px) {
+  .targetPicker {
+    grid-template-columns: 1fr;
   }
 }
 

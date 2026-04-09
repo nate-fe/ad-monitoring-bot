@@ -200,10 +200,16 @@ async function main() {
   const historyMax = toInt(getEnv('HISTORY_MAX', { defaultValue: '26280' }), 26280)
 
   const report = (await readJsonFile(reportPath)) ?? buildFallbackReport(targetScope)
-  const previous = await fetchJsonArray(historySourceUrl)
+
+  /** 원격 URL이 있으면 그 배열 + 항상 로컬 history.json — 둘 다 합쳐 이전 데이터를 지우지 않음(중복은 dedupe) */
+  const remote = historySourceUrl ? await fetchJsonArray(historySourceUrl) : []
+  const localFile = await readJsonFile(historyPath)
+  const local = Array.isArray(localFile) ? localFile : []
+  const previous = [...remote, ...local]
+
   const entry = summarize(report)
 
-  // Most recent first.
+  // 새 항목을 맨 앞에 두고, 동일 runId/checkedAt 키는 첫 항목만 유지(새 실행이 우선).
   const merged = dedupeAndTrim([entry, ...previous], historyMax)
   await ensureParentDir(historyPath)
   await writeFile(historyPath, JSON.stringify(merged, null, 2), 'utf8')

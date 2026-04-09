@@ -1,3 +1,5 @@
+import { ViewportInlineHelp } from './ViewportInlineHelp'
+
 export function InfoIcon() {
   return (
     <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
@@ -10,13 +12,12 @@ export function InfoIcon() {
 
 export function InlineHelpTooltip({ text }: { text: string }) {
   return (
-    <span className="inlineHelpWrap">
-      <button type="button" className="inlineHelpButton" aria-label={text}>
-        <InfoIcon />
-      </button>
-      <span className="inlineHelpTooltip" role="tooltip">
-        {text}
-      </span>
-    </span>
+    <ViewportInlineHelp
+      triggerClassName="inlineHelpButton"
+      ariaLabel={text}
+      trigger={<InfoIcon />}
+    >
+      {text}
+    </ViewportInlineHelp>
   )
 }
