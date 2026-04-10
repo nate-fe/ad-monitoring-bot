@@ -5,7 +5,6 @@ import {
   buildClassifiedIssues,
   classifyHistoryEntry,
   extractHttpUrlFromText,
-  shouldHideConsoleWarning,
   type ClassifiedIssue,
   type IssueSourceCandidate,
 } from '../monitor/issueSources'
@@ -575,9 +574,7 @@ export function MonitorReportPanel({
 
   const currentConsoleWarnings = useMemo(() => {
     if (state.kind !== 'loaded') return []
-    return (state.report.diagnostics?.consoleMessages ?? []).filter(
-      (m) => m.type === 'warning' && !shouldHideConsoleWarning(m.text),
-    )
+    return (state.report.diagnostics?.consoleMessages ?? []).filter((m) => m.type === 'warning')
   }, [state])
 
   const currentRequestFailures = useMemo(() => {
@@ -713,9 +710,7 @@ export function MonitorReportPanel({
                                           const s = summarizeFailures(it.failures, 5)
                                           const pageErrorSample = it.pageErrorSample ?? []
                                           const consoleErrorSample = it.consoleErrorSample ?? []
-                                          const consoleWarningSample = (it.consoleWarningSample ?? []).filter(
-                                            (m) => !shouldHideConsoleWarning(m.text),
-                                          )
+                                          const consoleWarningSample = it.consoleWarningSample ?? []
                                           const consoleLogSample = it.consoleLogSample ?? []
                                           const devToolsConsoleSample = it.devToolsConsoleSample ?? []
                                           const requestFailureSample = it.requestFailureSample ?? []

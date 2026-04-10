@@ -164,10 +164,6 @@ function buildDomainInsights(resourceByHost, pageErrors, consoleMessages, reques
   return { latencyTop5, errorRateTop5 }
 }
 
-function shouldHideConsoleWarningText(text) {
-  return String(text ?? '').includes('automatically upgraded to HTTPS')
-}
-
 /** 출처 URL을 스크립트(파일) 단위로 묶기 — 쿼리는 제외해 동일 경로를 한 줄로 집계 */
 function normalizeScriptSourceKey(url) {
   if (!url || typeof url !== 'string') return null
@@ -214,7 +210,6 @@ function buildScriptIssueTop10(pageErrors, consoleMessages) {
   for (const m of consoleMessages) {
     if (m?.source === 'devtools') continue
     if (m?.type !== 'error' && m?.type !== 'warning') continue
-    if (m?.type === 'warning' && shouldHideConsoleWarningText(m?.text)) continue
     const key = normalizeScriptSourceKey(m?.sourceUrl)
     const cur = ensure(key)
     if (!cur) continue

@@ -35,10 +35,6 @@ export function extractHttpUrlFromText(text: string): string | undefined {
   return m ? m[0] : undefined
 }
 
-export function shouldHideConsoleWarning(text: string) {
-  return text.includes('automatically upgraded to HTTPS')
-}
-
 export function classifyIssueText(candidate: IssueSourceCandidate) {
   const lower =
     typeof candidate === 'string'
@@ -151,7 +147,7 @@ export function getAdIssueBreakdown(report: MonitorReport): AdIssueBreakdownRow[
         'errors',
       )
     }
-    if (m.type === 'warning' && !shouldHideConsoleWarning(m.text)) {
+    if (m.type === 'warning') {
       bump(map, { text: m.text, url: m.url, sourceUrl: m.sourceUrl }, 'warnings')
     }
   }
@@ -286,7 +282,6 @@ function buildConsoleAdChartByBucket(
       bumpMsg(bk, { text: m.text, url: m.url ?? extractHttpUrlFromText(m.text), sourceUrl: m.sourceUrl }, 'errors')
     }
     for (const m of entry.consoleWarningSample ?? []) {
-      if (shouldHideConsoleWarning(m.text)) continue
       bumpMsg(bk, { text: m.text, url: m.url, sourceUrl: m.sourceUrl }, 'warnings')
     }
   }
