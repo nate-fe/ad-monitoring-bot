@@ -7,7 +7,7 @@ type ScriptIssueMessagesTooltipProps = {
   messages?: string[]
 }
 
-export function ScriptIssueMessagesTooltip({ kind, count, sourceUrl, messages }: ScriptIssueMessagesTooltipProps) {
+export function ScriptIssueMessagesTooltip({ kind, count, messages }: ScriptIssueMessagesTooltipProps) {
   const list = messages ?? []
   const title = kind === 'error' ? '오류' : '경고'
   const ariaLabel =
@@ -26,9 +26,9 @@ export function ScriptIssueMessagesTooltip({ kind, count, sourceUrl, messages }:
       triggerClassName="scriptIssueCountBtn"
       ariaLabel={ariaLabel}
       zIndex={120}
+      stayOpenOnClick
       trigger={count}
     >
-      {kind === 'error' ? <code className="scriptIssueMsgTooltipCode">{sourceUrl}</code> : null}
       {list.length > 0 && list.length !== count ? (
         <p className="scriptIssueMsgTooltipMeta">
           집계 {count}건 — 아래는 <strong>중복을 제외한 고유 메시지</strong>입니다.

@@ -27,6 +27,7 @@ export function DomainErrorRateResourceUrlTooltip({
       triggerClassName="domainTop5ResourceCountBtn"
       ariaLabel={ariaLabel}
       zIndex={90}
+      stayOpenOnClick
       trigger={resourceCount}
     >
       <span className="domainTop5ResourceUrlsTooltipHost">{hostname}</span>

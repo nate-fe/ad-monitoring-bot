@@ -380,6 +380,7 @@ const CONSOLE_CAPTURE_SCRIPT = `
   wrap('warn', 'warning');
   wrap('log', 'log');
   wrap('info', 'info');
+  wrap('debug', 'log');
 })();
 `
 
@@ -455,6 +456,9 @@ async function main() {
   const consoleMessages = []
   /** @type {{ type: string, text: string, url?: string, source?: string }[]} */
   const devToolsConsoleMessages = []
+  /** Playwright가 잡는 일반 콘솔(네트워크 한 줄 제외). 인페이지 훅보다 출처(loader.js:줄)가 정확한 경우가 많음 */
+  /** @type {{ type: string, text: string, url?: string, sourceUrl?: string, line?: number, column?: number, source?: string }[]} */
+  const playwrightPageConsoleMessages = []
   /** @type {{ url: string, method: string, resourceType: string, errorText: string }[]} */
   const requestFailures = []
   /** @type {Map<string, number>} */
@@ -512,12 +516,46 @@ async function main() {
           /failed to load resource/i.test(text) ||
           /\bGET\s+https?:\/\//i.test(text) ||
           /\bPOST\s+https?:\/\//i.test(text)
-        if (!looksNetwork) return
 
-        const allowedDevToolsTypes = new Set(['error', 'warning', 'log', 'info', 'debug'])
-        if (!allowedDevToolsTypes.has(t)) return
+        if (looksNetwork) {
+          const allowedDevToolsTypes = new Set(['error', 'warning', 'log', 'info', 'debug'])
+          if (!allowedDevToolsTypes.has(t)) return
 
-        const requestUrl = extractHttpUrlFromText(text)
+          const requestUrl = extractHttpUrlFromText(text)
+          let sourceUrl
+          let line
+          let column
+          try {
+            const loc = msg.location()
+            if (loc?.url) sourceUrl = loc.url
+            if (Number.isFinite(loc.lineNumber)) line = loc.lineNumber + 1
+            if (Number.isFinite(loc.columnNumber)) column = loc.columnNumber
+          } catch {
+            /* ignore */
+          }
+
+          devToolsConsoleMessages.push({
+            type: 'error',
+            text,
+            url: requestUrl,
+            sourceUrl,
+            line,
+            column,
+            source: 'devtools',
+          })
+          return
+        }
+
+        const allowedPageTypes = new Set(['error', 'warning', 'log', 'info', 'debug', 'verbose'])
+        if (!allowedPageTypes.has(t)) return
+
+        const normalizePlaywrightType = (pt) => {
+          if (pt === 'verbose') return 'info'
+          if (pt === 'debug') return 'log'
+          return pt
+        }
+        const typeNorm = normalizePlaywrightType(t)
+
         let sourceUrl
         let line
         let column
@@ -530,14 +568,21 @@ async function main() {
           /* ignore */
         }
 
-        devToolsConsoleMessages.push({
-          type: 'error',
+        let pageUrl
+        try {
+          pageUrl = page.url()
+        } catch {
+          /* ignore */
+        }
+
+        playwrightPageConsoleMessages.push({
+          type: typeNorm,
           text,
-          url: requestUrl,
+          url: pageUrl,
           sourceUrl,
           line,
           column,
-          source: 'devtools',
+          source: 'page',
         })
       })
 
@@ -589,6 +634,20 @@ async function main() {
       const fromPage = capturedConsoleMessages.filter((item) => item && !shouldIgnore(String(item.text ?? '')))
       consoleMessages.push(...fromPage)
       const pageTexts = new Set(fromPage.map((m) => String(m.text ?? '')))
+
+      for (const m of playwrightPageConsoleMessages) {
+        const tx = String(m.text ?? '')
+        if (pageTexts.has(tx)) {
+          const idx = consoleMessages.findIndex((x) => String(x.text ?? '') === tx)
+          if (idx >= 0 && m.sourceUrl) {
+            const cur = consoleMessages[idx]
+            if (!cur?.sourceUrl || cur.line == null) consoleMessages[idx] = m
+          }
+          continue
+        }
+        pageTexts.add(tx)
+        consoleMessages.push(m)
+      }
 
       const devToolsFiltered = devToolsConsoleMessages.filter((m) => {
         const text = String(m.text ?? '')
