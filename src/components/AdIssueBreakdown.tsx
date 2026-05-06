@@ -29,6 +29,8 @@ export function AdIssueBreakdown({ report }: AdIssueBreakdownProps) {
 
   const errorData = useMemo(() => rows.map((r) => ({ x: r.label, y: r.errors })), [rows])
   const warnData = useMemo(() => rows.map((r) => ({ x: r.label, y: r.warnings })), [rows])
+  const hasAnyErrors = useMemo(() => rows.some((r) => r.errors > 0), [rows])
+  const hasAnyWarnings = useMemo(() => rows.some((r) => r.warnings > 0), [rows])
 
   const axisStyle = useMemo(
     () => ({
@@ -51,7 +53,7 @@ export function AdIssueBreakdown({ report }: AdIssueBreakdownProps) {
     return (
       <div className="adIssueBreakdownRoot" ref={wrapRef}>
         <p className="muted">
-          이번 실행에서 집계할 콘솔 오류·경고, 페이지 오류, 요청 실패가 없습니다.
+          이번 실행에서 집계할 콘솔 오류·경고, 페이지 오류가 없습니다.
         </p>
       </div>
     )
@@ -60,12 +62,16 @@ export function AdIssueBreakdown({ report }: AdIssueBreakdownProps) {
   return (
     <div className="adIssueBreakdownRoot" ref={wrapRef}>
       <div className="adIssueBreakdownLegend" aria-hidden="true">
-        <span className="adIssueBreakdownLegendItem">
-          <span className="adIssueBreakdownSwatch adIssueBreakdownSwatchError" /> 오류
-        </span>
-        <span className="adIssueBreakdownLegendItem">
-          <span className="adIssueBreakdownSwatch adIssueBreakdownSwatchWarn" /> 경고
-        </span>
+        {hasAnyErrors ? (
+          <span className="adIssueBreakdownLegendItem">
+            <span className="adIssueBreakdownSwatch adIssueBreakdownSwatchError" /> 오류
+          </span>
+        ) : null}
+        {hasAnyWarnings ? (
+          <span className="adIssueBreakdownLegendItem">
+            <span className="adIssueBreakdownSwatch adIssueBreakdownSwatchWarn" /> 경고
+          </span>
+        ) : null}
       </div>
 
       <div className="adIssueChartWrap" role="img" aria-label="광고·영역별 오류 및 경고 건수 막대 그래프">
@@ -79,24 +85,28 @@ export function AdIssueBreakdown({ report }: AdIssueBreakdownProps) {
           <VictoryAxis style={axisStyle} />
           <VictoryAxis dependentAxis tickFormat={(v) => (Number.isInteger(v) ? `${v}` : '')} style={axisStyle} />
           <VictoryStack>
-            <VictoryBar
-              data={errorData}
-              style={{
-                data: {
-                  fill: 'var(--fail)',
-                  width: 18,
-                },
-              }}
-            />
-            <VictoryBar
-              data={warnData}
-              style={{
-                data: {
-                  fill: 'var(--warn)',
-                  width: 18,
-                },
-              }}
-            />
+            {hasAnyErrors ? (
+              <VictoryBar
+                data={errorData}
+                style={{
+                  data: {
+                    fill: 'var(--fail)',
+                    width: 18,
+                  },
+                }}
+              />
+            ) : null}
+            {hasAnyWarnings ? (
+              <VictoryBar
+                data={warnData}
+                style={{
+                  data: {
+                    fill: 'var(--warn)',
+                    width: 18,
+                  },
+                }}
+              />
+            ) : null}
           </VictoryStack>
         </VictoryChart>
       </div>

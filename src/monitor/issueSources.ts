@@ -130,7 +130,7 @@ function bump(
   }
 }
 
-/** 콘솔 오류·경고(헤드리스 source 제외), 페이지 오류, 요청 실패를 광고/영역 규칙으로 묶어 집계합니다. */
+/** 콘솔 오류·경고(헤드리스 source 제외), 페이지 오류를 광고/영역 규칙으로 묶어 집계합니다. 요청 실패는 포함하지 않습니다. */
 export function getAdIssueBreakdown(report: MonitorReport): AdIssueBreakdownRow[] {
   const map = new Map<string, AdIssueBreakdownRow>()
 
@@ -154,10 +154,6 @@ export function getAdIssueBreakdown(report: MonitorReport): AdIssueBreakdownRow[
 
   for (const e of report.diagnostics?.pageErrors ?? []) {
     bump(map, { text: e.message, sourceUrl: e.sourceUrl }, 'errors')
-  }
-
-  for (const r of report.diagnostics?.requestFailures ?? []) {
-    bump(map, { url: r.url }, 'errors')
   }
 
   return Array.from(map.values())

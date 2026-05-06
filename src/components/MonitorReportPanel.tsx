@@ -938,7 +938,8 @@ export function MonitorReportPanel({
           <div className="adIssueSection">
             <h2 className="adIssueSectionTitle">광고·영역별 오류 / 경고</h2>
             <p className="adIssueSectionDesc">
-              콘솔·페이지·요청 실패 메시지와 URL을 키워드로 묶어, 어떤 광고/플랫폼 쪽 이슈가 많은지 보여 줍니다.
+              페이지 스크립트 콘솔의 오류·경고와 페이지 오류 메시지·URL을 키워드로 묶어, 어떤 광고/플랫폼 쪽 이슈가 많은지 보여
+              줍니다. 요청 실패는 여기에 포함하지 않습니다.
             </p>
             <AdIssueBreakdown report={state.report} />
           </div>
