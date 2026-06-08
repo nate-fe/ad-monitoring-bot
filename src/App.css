@@ -26,7 +26,7 @@
 
 .title {
   margin: 0;
-  font-size: 31px;
+  font-size: 32px;
   line-height: 1.2;
   letter-spacing: -0.02em;
   font-family: 'A2z', sans-serif;
@@ -65,7 +65,7 @@
   place-items: center;
   font-weight: 700;
   letter-spacing: 0.12em;
-  font-size: 15px;
+  font-size: 16px;
   color: var(--muted);
   border: 1px dashed color-mix(in srgb, var(--border) 80%, transparent);
   background: var(--panel);
@@ -75,7 +75,7 @@
 }
 
 .mascotCaption {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--muted);
   text-align: center;
   max-width: 180px;
@@ -85,7 +85,7 @@
 .subtitle {
   margin: 6px 0 0;
   color: var(--muted);
-  font-size: 15px;
+  font-size: 16px;
 }
 
 .heroReportMeta {
@@ -96,7 +96,7 @@
 .heroReportMetaStatus {
   margin: 0;
   color: var(--muted);
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.45;
 }
 
@@ -148,7 +148,7 @@
     background 160ms ease;
 }
 .targetTitle {
-  font-size: 18px;
+  font-size: 19px;
   font-weight: 700;
   color: var(--text);
 }
@@ -161,7 +161,7 @@
 
 .targetDescription {
   color: var(--muted);
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.45;
 }
 
@@ -207,7 +207,7 @@
 
 .panelHeaderSub {
   margin: 0;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 400;
   line-height: 1.45;
   color: var(--muted);
@@ -271,7 +271,7 @@
   padding: 4px 10px;
   border-radius: 999px;
   font-weight: 700;
-  font-size: 13px;
+  font-size: 14px;
   letter-spacing: 0.04em;
   margin-bottom: 12px;
   position: relative;
@@ -344,7 +344,7 @@
 
 .adIssueSectionTitle {
   margin: 0 0 6px;
-  font-size: 16px;
+  font-size: 17px;
   font-weight: 700;
   letter-spacing: -0.02em;
 }
@@ -356,9 +356,62 @@
   gap: 6px;
 }
 
+.issueOccurrencePage .panelBody {
+  min-width: 0;
+}
+
+.issueOccurrenceLog {
+  margin-top: 4px;
+  min-width: 0;
+}
+
+/* 발생 일시: URL·긴 문장이 좁은 화면에서 잘리지 않도록 */
+.issueOccurrenceUrlSummary,
+.issueOccurrenceCoopIntro,
+.issueOccurrenceSummaryLine,
+.issueOccurrenceTierDesc,
+.issueOccurrenceCalendarDayDetailSummary,
+.issueOccurrenceNoUrlSamples,
+.issueOccurrenceMonthMediaEmpty,
+.issueOccurrenceEmpty {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.issueOccurrenceEmpty {
+  margin: 0;
+}
+
+.issueOccurrenceTable tbody th {
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.issueOccurrenceTable tbody th time {
+  font-variant-numeric: tabular-nums;
+}
+
+.issueOccurrenceCurrentBadge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.08);
+  vertical-align: middle;
+}
+
+.issueOccurrenceRowCurrent {
+  background: rgba(255, 255, 255, 0.03);
+}
+
 .adIssueSectionDesc {
   margin: 0 0 12px;
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.45;
   color: var(--muted);
 }
@@ -382,7 +435,7 @@
 
 .domainTop5BlockTitle {
   margin: 0 0 6px;
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 700;
   color: color-mix(in srgb, var(--text) 82%, var(--muted));
 }
@@ -475,6 +528,7 @@
   cursor: pointer;
   text-decoration: underline dotted;
   text-underline-offset: 3px;
+  box-shadow:none;
 }
 
 .domainTop5ResourceCountBtn:hover,
@@ -500,7 +554,7 @@
 .domainTop5ResourceUrlsTooltipHost {
   display: block;
   font-weight: 700;
-  font-size: 13px;
+  font-size: 14px;
   word-break: break-all;
   margin-bottom: 6px;
   flex-shrink: 0;
@@ -508,14 +562,14 @@
 
 .domainTop5ResourceUrlsTooltipMeta {
   margin: 0 0 8px;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--muted);
   flex-shrink: 0;
 }
 
 .domainTop5ResourceUrlsTooltipEmpty {
   margin: 0;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--muted);
   line-height: 1.5;
   flex-shrink: 0;
@@ -530,7 +584,7 @@
   border-radius: 6px;
   border: 1px solid var(--border);
   background: color-mix(in srgb, var(--bg0) 55%, var(--panel));
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.45;
   word-break: break-all;
   flex: 1 1 auto;
@@ -557,7 +611,7 @@
 
 .domainTop5Empty {
   margin: 0;
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .adIssueBreakdownRoot {
@@ -568,14 +622,14 @@
 
 .adIssueSubTitle {
   margin: 0 0 8px;
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 700;
   letter-spacing: -0.02em;
 }
 
 .adIssueMonthlyNote {
   margin: 0 0 12px;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.5;
   color: var(--muted);
 }
@@ -590,7 +644,7 @@
   flex-wrap: wrap;
   gap: 10px 16px;
   margin: 0 0 14px;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--muted);
 }
 
@@ -635,7 +689,7 @@
 }
 
 .historyPerfLegendThreshold {
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .historyPerfLineSwatchThGood {
@@ -669,11 +723,12 @@
 
 .diagPerfLabel {
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .adIssueMonthlyChartBlock {
   margin-bottom: 18px;
+  min-width: 0;
 }
 
 .adIssueMonthlyChartBlock:last-child {
@@ -681,7 +736,7 @@
 }
 
 .adIssueMonthlyChartTitle {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
   color: var(--muted);
   margin: 0 0 6px;
@@ -689,7 +744,7 @@
 
 .adIssueMonthlyEmpty {
   margin: 0;
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .adIssueBreakdown {
@@ -701,7 +756,7 @@
   flex-wrap: wrap;
   gap: 14px 18px;
   margin-bottom: 8px;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--muted);
 }
 
@@ -730,9 +785,24 @@
 .adIssueChartWrap {
   width: 100%;
   max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   overflow-x: auto;
   overflow-y: hidden;
   margin-bottom: 14px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.adIssueChartWrap .VictoryContainer {
+  max-width: 100%;
+  margin: 0 auto;
+  position: relative;
+}
+
+.adIssueChartWrap .VictoryContainer > svg {
+  display: block;
+  max-width: 100%;
+  overflow: visible;
 }
 
 .scriptIssueTopWrap {
@@ -839,7 +909,7 @@
 
 .scriptIssueTopEmpty {
   margin: 0;
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .scriptIssueCountBtn {
@@ -855,6 +925,7 @@
   cursor: pointer;
   text-decoration: underline dotted;
   text-underline-offset: 3px;
+  box-shadow: none;
 }
 
 .scriptIssueCountBtn:hover,
@@ -877,14 +948,14 @@
 .scriptIssueMsgTooltipTitle {
   display: block;
   font-weight: 700;
-  font-size: 13px;
+  font-size: 14px;
   margin-bottom: 6px;
   flex-shrink: 0;
 }
 
 .scriptIssueMsgTooltipCode {
   display: block;
-  font-size: 11px;
+  font-size: 12px;
   word-break: break-all;
   margin-bottom: 8px;
   color: color-mix(in srgb, var(--accent2) 85%, var(--text));
@@ -892,7 +963,8 @@
 
 .scriptIssueMsgTooltipMeta {
   margin: 0 0 8px;
-  font-size: 12px;
+  font-size: 13px;
+  font-weight:400;
   line-height: 1.45;
   color: var(--muted);
   flex-shrink: 0;
@@ -921,7 +993,7 @@
 .scriptIssueMsgTooltipPre {
   margin: 0;
   font-family: ui-monospace, monospace;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.45;
   white-space: pre-wrap;
   word-break: break-word;
@@ -930,7 +1002,7 @@
 
 .scriptIssueMsgTooltipEmpty {
   margin: 0;
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.5;
   color: var(--muted);
   flex-shrink: 0;
@@ -948,7 +1020,7 @@
 .adIssueTable {
   width: 100%;
   border-collapse: collapse;
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .adIssueTable th,
@@ -961,7 +1033,7 @@
 .adIssueTable thead th {
   color: var(--muted);
   font-weight: 700;
-  font-size: 13px;
+  font-size: 14px;
   text-align:center;
 }
 
@@ -991,20 +1063,20 @@
 
 .issueSourceTitle {
   margin-bottom: 8px;
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 700;
   color: var(--muted);
 }
 
 .failTitle {
   font-weight: 700;
-  font-size:15px;
+  font-size: 16px;
   margin-bottom: 8px;
 }
 
 .failList {
   margin: 0;
-  font-size:14px;
+  font-size: 15px;
   padding-left: 18px;
 }
 .failList > li:nth-child(2) {
@@ -1125,12 +1197,12 @@
 .networkCauseUrlMissing {
   margin-top: 6px;
   margin-bottom: 0;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .sourceLocationText {
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
   overflow-wrap: anywhere;
 }
 
@@ -1142,14 +1214,14 @@
 
 .diagRankingsTitle {
   margin: 0 0 6px;
-  font-size: 16px;
+  font-size: 17px;
   font-weight: 700;
   letter-spacing: -0.02em;
 }
 
 .diagRankingsDesc {
   margin: 0 0 12px;
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.45;
   color: var(--muted);
 }
@@ -1176,7 +1248,7 @@
   border: 1px solid var(--border);
   background: color-mix(in srgb, var(--panel2) 65%, transparent);
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .chip b {
@@ -1195,7 +1267,7 @@
   font-weight: 700;
   margin-bottom: 6px;
   color: var(--muted);
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .diagSectionTitleWithHelp {
@@ -1208,7 +1280,7 @@
 .diagSectionHint {
   margin: 0 0 8px;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.45;
 }
 
@@ -1263,7 +1335,7 @@
   background: var(--bg0);
   color: var(--text);
   font-weight: 400;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.45;
   white-space: pre-line;
   overflow-wrap: break-word;
@@ -1304,7 +1376,7 @@
   column-gap: 10px;
   padding: 6px 0;
   user-select: none;
-  font-size:15px;
+  font-size: 16px;
 }
 
 .diagHeader {
@@ -1315,7 +1387,7 @@
   gap: 8px 10px;
   padding: 6px 0 10px;
   margin: 0 0 4px;
-  font-size: 15px;
+  font-size: 16px;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
 }
 
@@ -1328,7 +1400,7 @@
   height: 22px;
   padding: 0 8px;
   border-radius: 999px;
-  font-size: 13px;
+  font-size: 14px;
   background: color-mix(in srgb, var(--panel2) 70%, transparent);
   border: 1px solid var(--border);
 }
@@ -1338,7 +1410,7 @@
   padding-left: 18px;
   display: grid;
   gap: 8px;
-  font-size:14px;
+  font-size: 15px;
   overflow: visible;
 }
 .diagList li {
@@ -1355,7 +1427,7 @@
   display: grid;
   gap: 6px;
   color: var(--muted);
-  font-size: 14px;
+  font-size: 15px;
   overflow: visible;
 }
 
@@ -1387,7 +1459,7 @@
   border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
   background: color-mix(in srgb, var(--panel2) 62%, transparent);
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
   text-align: left;
   white-space: nowrap;
   overflow: hidden;
@@ -1442,7 +1514,7 @@
 
 .diagUrlTooltipText {
   color: var(--text);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.45;
   display: -webkit-box;
   line-clamp: 3;
@@ -1464,7 +1536,7 @@
   border: 1px solid color-mix(in srgb, var(--accent2) 34%, var(--border));
   background: color-mix(in srgb, var(--panel2) 70%, transparent);
   color: var(--text);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
 }
 
@@ -1472,7 +1544,7 @@
   display: inline-block;
   margin-top: 10px;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
 }
 
@@ -1491,7 +1563,7 @@
   overflow-wrap: anywhere;
   background: rgba(0, 0, 0, 0.28);
   border: 1px solid var(--border);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.4;
 }
 
@@ -1502,7 +1574,7 @@
   padding: 2px 8px;
   border-radius: 999px;
   font-weight: 700;
-  font-size: 12px;
+  font-size: 13px;
   letter-spacing: 0.02em;
   margin-right: 6px;
   border: 1px solid color-mix(in srgb, var(--border) 92%, transparent);
@@ -1536,11 +1608,12 @@
 
 .btnBackHome,
 .btnGhost {
+  font-size: 15px;
   display: inline-flex;
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  border-radius: 999px;
+  border-radius: 4px;
   border: 1px solid color-mix(in srgb, var(--border) 92%, transparent);
   background: color-mix(in srgb, var(--panel2) 40%, transparent);
   color: var(--text);
@@ -1549,6 +1622,7 @@
 }
 
 .refreshGhostButton {
+  font-size: 15px;
   margin: 0 auto 20px;
 }
 
@@ -1588,6 +1662,832 @@
   transform: none;
 }
 
+.btnOccurrenceLog {
+  font-size: 15px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, #7b8cff 48%, var(--border));
+  background:
+    linear-gradient(135deg, rgba(124, 108, 255, 0.3), rgba(79, 124, 255, 0.18)),
+    color-mix(in srgb, #10182a 40%, var(--panel2));
+  color: #fff;
+  font-weight: 700;
+  box-shadow:
+    0 8px 20px rgba(72, 88, 210, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease,
+    box-shadow 160ms ease,
+    color 160ms ease;
+}
+
+.btnOccurrenceLog:hover {
+  border-color: color-mix(in srgb, #9aaeff 55%, var(--border));
+  background:
+    linear-gradient(135deg, rgba(124, 108, 255, 0.4), rgba(79, 124, 255, 0.26)),
+    color-mix(in srgb, var(--panel2) 58%, transparent);
+  color: #f2f5ff;
+  box-shadow:
+    0 12px 26px rgba(72, 88, 210, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.09);
+  transform: translateY(-1px);
+}
+
+.btnOccurrenceLog:active {
+  transform: translateY(0px);
+}
+
+.issueOccurrenceLink {
+  font-size: 15px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent2) 30%, var(--border));
+  background:
+    linear-gradient(135deg, rgba(124, 136, 255, 0.16), rgba(82, 209, 255, 0.1)),
+    color-mix(in srgb, var(--panel2) 54%, transparent);
+  color: var(--text);
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: 0 8px 18px rgba(6, 10, 25, 0.12);
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease;
+}
+
+.issueOccurrenceLink:hover {
+  border-color: color-mix(in srgb, var(--accent2) 45%, var(--border));
+  background:
+    linear-gradient(135deg, rgba(124, 136, 255, 0.22), rgba(82, 209, 255, 0.14)),
+    color-mix(in srgb, var(--panel2) 65%, transparent);
+  transform: translateY(-1px);
+}
+
+.issueOccurrenceLink:active {
+  transform: translateY(0px);
+}
+
+.issueOccurrenceMonthBar {
+  margin-bottom: 14px;
+}
+
+.issueOccurrenceCount {
+  margin-left: auto;
+  font-size: 14px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.issueOccurrenceReportError {
+  margin-bottom: 14px;
+}
+
+.issueOccurrenceOverview {
+  margin-bottom: 18px;
+  padding: 12px 14px;
+  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  background: color-mix(in srgb, var(--panel2) 55%, transparent);
+}
+
+.issueOccurrenceOverviewTitle {
+  margin: 0 0 6px;
+  font-size: 16px;
+}
+
+.issueOccurrenceSummaryLine {
+  margin: 0;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.issueOccurrenceMediaList {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.issueOccurrenceMediaCard {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--panel2) 35%, transparent);
+  overflow: hidden;
+  min-width: 0;
+}
+
+.issueOccurrenceMediaSummary {
+  cursor: pointer;
+  list-style: none;
+  padding: 12px 14px;
+  font-weight: 700;
+}
+
+.issueOccurrenceMediaSummary::-webkit-details-marker {
+  display: none;
+}
+
+.issueOccurrenceMediaTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.issueOccurrenceMediaCount {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.issueOccurrenceMediaBody {
+  padding: 0 14px 14px;
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.issueOccurrenceUrlList {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.issueOccurrenceUrlCard {
+  position: relative;
+  padding: 10px 12px;
+  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  min-width: 0;
+}
+
+.issueOccurrenceUrlCard > .issueOccurrencePatternBadge {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  z-index: 1;
+}
+
+.issueOccurrenceUrlSummary {
+  margin: 0 0 10px;
+  padding-right: 5.75rem;
+  line-height: 1.55;
+  font-size: 15px;
+}
+
+.issueOccurrenceUrlMetaRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.urlOccurrenceMsgInlineRoot {
+  min-width: 0;
+}
+
+.urlOccurrenceMsgTrigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 13px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent2) 28%, var(--border));
+  background:
+    linear-gradient(135deg, rgba(124, 136, 255, 0.14), rgba(82, 209, 255, 0.08)),
+    color-mix(in srgb, var(--panel2) 58%, transparent);
+  color: color-mix(in srgb, var(--accent2) 82%, var(--text));
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.2;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(6, 10, 25, 0.1);
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.urlOccurrenceMsgTrigger:hover,
+.urlOccurrenceMsgTrigger:focus-visible {
+  border-color: color-mix(in srgb, var(--accent2) 48%, var(--border));
+  color: var(--text);
+  background:
+    linear-gradient(135deg, rgba(124, 136, 255, 0.22), rgba(82, 209, 255, 0.12)),
+    color-mix(in srgb, var(--panel2) 72%, transparent);
+  box-shadow: 0 6px 16px rgba(6, 10, 25, 0.14);
+  transform: translateY(-1px);
+}
+
+.urlOccurrenceMsgTriggerOpen {
+  border-color: color-mix(in srgb, var(--accent2) 55%, var(--border));
+  color: var(--text);
+  background:
+    linear-gradient(135deg, rgba(124, 136, 255, 0.26), rgba(82, 209, 255, 0.14)),
+    color-mix(in srgb, var(--panel2) 78%, transparent);
+  box-shadow: 0 2px 8px rgba(6, 10, 25, 0.12);
+  transform: translateY(0);
+}
+
+.urlOccurrenceMsgTrigger:active {
+  transform: translateY(0);
+}
+
+.urlOccurrenceMsgTriggerLabel {
+  white-space: nowrap;
+}
+
+.urlOccurrenceMsgTriggerIcon {
+  flex-shrink: 0;
+  opacity: 0.88;
+  transition: transform 180ms ease;
+}
+
+.urlOccurrenceMsgTriggerOpen .urlOccurrenceMsgTriggerIcon {
+  transform: rotate(180deg);
+}
+
+.urlOccurrenceMsgPanelInline {
+  position: relative;
+  box-sizing: border-box;
+  margin-top: 8px;
+  padding: 10px 12px 16px;
+  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, var(--accent2) 24%, var(--border));
+  background: color-mix(in srgb, var(--bg0) 92%, var(--panel));
+  color: var(--text);
+  text-align: left;
+}
+
+.urlOccurrenceMsgPanelInline--resizing {
+  user-select: none;
+}
+
+.urlOccurrenceMsgPanelInline .scriptIssueMsgTooltipMeta {
+  margin-bottom: 8px;
+}
+
+.urlOccurrenceMsgPanelScroll {
+  --url-occ-msg-line: 1.45;
+  --url-occ-msg-size: 13px;
+  overflow-y: auto;
+  font-size: var(--url-occ-msg-size);
+  line-height: var(--url-occ-msg-line);
+  overscroll-behavior: contain;
+}
+
+.urlOccurrenceMsgPanelResizeHandle {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 0 0 4px 0;
+  background: transparent;
+  cursor: ns-resize;
+  touch-action: none;
+}
+
+.urlOccurrenceMsgPanelResizeHandle::before {
+  content: '';
+  position: absolute;
+  right: 5px;
+  bottom: 5px;
+  width: 9px;
+  height: 9px;
+  border-right: 2px solid color-mix(in srgb, var(--muted) 72%, transparent);
+  border-bottom: 2px solid color-mix(in srgb, var(--muted) 72%, transparent);
+  border-radius: 0 0 2px 0;
+  transition: border-color 160ms ease;
+}
+
+.urlOccurrenceMsgPanelResizeHandle:hover::before,
+.urlOccurrenceMsgPanelResizeHandle:focus-visible::before {
+  border-color: color-mix(in srgb, var(--accent2) 75%, var(--muted));
+}
+
+.urlOccurrenceMsgPanelInline--resizing .urlOccurrenceMsgPanelResizeHandle::before {
+  border-color: var(--accent2);
+}
+
+body.urlOccurrenceMsgPanelResizing {
+  cursor: ns-resize;
+  user-select: none;
+}
+
+.urlOccurrenceMsgSection + .urlOccurrenceMsgSection {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+.urlOccurrenceMsgSectionTitle {
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.issueOccurrenceUrlText {
+  font-weight: 700;
+  font-size: 14px;
+  white-space: normal;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+}
+
+.issueOccurrenceUrlMeta {
+  margin-left: auto;
+  font-size: 13px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  flex: 0 0 auto;
+}
+
+.issueOccurrenceUrlGroupNote {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.issueOccurrenceMemberUrls {
+  margin-top:8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.issueOccurrenceMemberUrls summary {
+  cursor: pointer;
+}
+
+.issueOccurrenceMemberUrls ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+}
+
+.issueOccurrenceMemberUrls code {
+  display: block;
+  max-width: 100%;
+  font-size: 13px;
+  white-space: normal;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+}
+
+.issueOccurrencePatternBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.issueOccurrencePatternNew {
+  color: color-mix(in srgb, var(--accent2) 80%, white);
+  background: color-mix(in srgb, var(--accent2) 18%, transparent);
+}
+
+.issueOccurrencePatternRecurring {
+  color: color-mix(in srgb, #937002 85%, white);
+  background: color-mix(in srgb, var(--warn) 16%, transparent);
+}
+
+.issueOccurrenceTier {
+  margin-bottom: 20px;
+  padding: 14px;
+  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  background: color-mix(in srgb, var(--panel2) 38%, transparent);
+  min-width: 0;
+}
+
+.issueOccurrenceTierMedia {
+  background: color-mix(in srgb, var(--panel2) 52%, transparent);
+}
+
+.issueOccurrenceTierHead {
+  margin-bottom: 12px;
+}
+
+.issueOccurrenceTierTitle {
+  margin: 0 0 6px;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.issueOccurrenceTierDesc {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.issueOccurrenceSubsectionTitle {
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.issueOccurrenceMonthMediaBlock {
+  margin-bottom: 16px;
+}
+
+.issueOccurrenceMediaChartRoot {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.issueOccurrenceMonthMediaBarList {
+  border-top: 0;
+  padding-top: 0;
+  gap: 14px;
+}
+
+.issueOccurrenceMonthMediaBarList .issueOccurrenceCalendarMediaBar {
+  height: 21px;
+}
+
+.issueOccurrenceMediaChartLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.issueOccurrenceMediaChartLegendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.issueOccurrenceMediaChartSwatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.issueOccurrenceMediaChartSwatchDetect {
+  background: var(--accent2);
+}
+
+.issueOccurrenceMediaChartSwatchTotal {
+  background: color-mix(in srgb, var(--border) 55%, transparent);
+}
+
+.issueOccurrenceMonthMediaList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 8px;
+}
+
+.issueOccurrenceMonthMediaRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+  background: color-mix(in srgb, var(--panel) 90%, transparent);
+}
+
+.issueOccurrenceMonthMediaLabel {
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.issueOccurrenceMonthMediaStats {
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.issueOccurrenceMonthMediaEmpty {
+  margin: 0;
+  font-size: 15px;
+}
+
+.issueOccurrenceCoopBlock {
+  padding-top: 16px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  min-width: 0;
+}
+
+.issueOccurrenceCoopIntro {
+  margin: 0 0 12px;
+  font-size: 14px;
+}
+
+.issueOccurrenceCalendar {
+  margin-bottom: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
+.issueOccurrenceCalendarInner {
+  display: grid;
+  gap: 10px;
+}
+
+.issueOccurrenceCalendarHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.issueOccurrenceCalendarTitle {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.issueOccurrenceCalendarSummary {
+  margin: 0;
+  font-size: 15px;
+  color: var(--muted);
+}
+
+.issueOccurrenceCalendarEmpty {
+  margin: 0;
+}
+
+.issueOccurrenceCalendarLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  margin-bottom: 10px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.issueOccurrenceCalendarLegendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.issueOccurrenceCalendarSwatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+}
+
+.issueOccurrenceCalendarSwatchInspection {
+  background: color-mix(in srgb, var(--accent2) 18%, transparent);
+}
+
+.issueOccurrenceCalendarSwatchDetection {
+  background: color-mix(in srgb, var(--warn) 22%, transparent);
+}
+
+.issueOccurrenceCalendarGrid {
+  display: grid;
+  gap: 4px;
+}
+
+.issueOccurrenceCalendarWeekdays,
+.issueOccurrenceCalendarWeek {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.issueOccurrenceCalendarWeekday {
+  text-align: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+  padding: 4px 0;
+}
+
+.issueOccurrenceCalendarCell {
+  min-height: 58px;
+  padding: 6px 4px;
+  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+  background: color-mix(in srgb, var(--panel) 90%, transparent);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 4px;
+  text-align: center;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.issueOccurrenceCalendarCell:hover {
+  border-color: color-mix(in srgb, var(--accent2) 35%, var(--border));
+}
+
+.issueOccurrenceCalendarCellSelected {
+  border-color: color-mix(in srgb, var(--accent2) 55%, var(--border));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent2) 35%, transparent);
+}
+
+.issueOccurrenceCalendarCellPad {
+  visibility: hidden;
+  border-color: transparent;
+  background: transparent;
+}
+
+.issueOccurrenceCalendarCellHasInspection {
+  background: color-mix(in srgb, var(--accent2) 10%, var(--panel));
+}
+
+.issueOccurrenceCalendarCellHasDetection {
+  border-color: color-mix(in srgb, var(--warn) 42%, var(--border));
+  background: color-mix(in srgb, var(--warn) 12%, var(--panel));
+}
+
+.issueOccurrenceCalendarDayNum {
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.issueOccurrenceCalendarStats {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 1px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.issueOccurrenceCalendarDetections {
+  font-weight: 700;
+  color: color-mix(in srgb, var(--warn) 80%, var(--text));
+}
+
+.issueOccurrenceCalendarStatsSep {
+  color: var(--muted);
+}
+
+.issueOccurrenceCalendarInspections {
+  color: var(--muted);
+}
+
+.issueOccurrenceCalendarFootnote {
+  margin: 10px 0 0;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.issueOccurrenceCalendarStatsMuted {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.issueOccurrenceCalendarDayDetailHint {
+  margin: 12px 0 0;
+  font-size: 14px;
+}
+
+.issueOccurrenceCalendarDayDetail {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, var(--accent2) 28%, var(--border));
+  background: color-mix(in srgb, var(--accent2) 6%, var(--panel));
+}
+
+.issueOccurrenceCalendarDayDetailHead {
+  margin-bottom: 10px;
+}
+
+.issueOccurrenceCalendarDayDetailTitle {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.issueOccurrenceCalendarDayDetailSummary {
+  margin: 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.issueOccurrenceCalendarDayDetailEmpty {
+  margin: 0;
+  font-size: 14px;
+}
+
+.issueOccurrenceCalendarMediaList {
+  margin: 0;
+  padding: 10px 0 0;
+  list-style: none;
+  display: grid;
+  gap: 12px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+}
+
+.issueOccurrenceCalendarMediaRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 10px 14px;
+}
+
+.issueOccurrenceCalendarMediaRowMain {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.issueOccurrenceCalendarMediaLabel {
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 1.3;
+}
+
+.issueOccurrenceCalendarMediaBar {
+  height: 6px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--border) 55%, transparent);
+  overflow: hidden;
+}
+
+.issueOccurrenceCalendarMediaBarFill {
+  height: 100%;
+  min-width: 0;
+  width: 0;
+  border-radius: inherit;
+  background: var(--accent2);
+}
+
+.issueOccurrenceCalendarMediaListAnimated .issueOccurrenceCalendarMediaBarFill {
+  width: var(--bar-fill-pct, 0%);
+  transition: width 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: var(--bar-fill-delay, 0ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .issueOccurrenceCalendarMediaBarFill {
+    width: var(--bar-fill-pct, 0%);
+  }
+
+  .issueOccurrenceCalendarMediaListAnimated .issueOccurrenceCalendarMediaBarFill {
+    transition: none;
+  }
+}
+
+.issueOccurrenceCalendarMediaStats {
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--muted);
+}
+
+.issueOccurrenceCalendarMediaStats strong {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.issueOccurrenceNoUrlSamples {
+  margin-top: 4px;
+}
+
 .btnIcon {
   width: 18px;
   height: 18px;
@@ -1612,7 +2512,7 @@
 
 .historyMonthlyFilterHint {
   margin: 0 0 10px;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.45;
   color: var(--muted);
 }
@@ -1631,7 +2531,7 @@
 }
 
 .historyMonthLabel {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
   color: var(--muted);
 }
@@ -1642,7 +2542,7 @@
   max-width: 320px;
   padding: 8px 12px;
   font: inherit;
-  font-size: 15px;
+  font-size: 16px;
   color: var(--text);
   background: color-mix(in srgb, var(--panel2) 85%, transparent);
   border: 1px solid var(--border);
@@ -1658,7 +2558,7 @@
 .historyMonthFilterHint {
   font-weight: 500;
   color: var(--muted);
-  font-size: calc(0.92em + 1px);
+  font-size: calc(0.92em + 2px);
 }
 
 .historyDateGroup {
@@ -1735,7 +2635,7 @@
 
 .historyMeta {
   color: var(--muted);
-  font-size: 14px;
+  font-size: 15px;
   overflow-wrap: anywhere;
 }
 
@@ -1752,7 +2652,7 @@
   justify-content: center;
   padding: 4px 10px;
   border-radius: 999px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   border: 1px solid color-mix(in srgb, var(--border) 92%, transparent);
   background: color-mix(in srgb, var(--panel2) 55%, transparent);
@@ -1804,11 +2704,11 @@ details[open].historyItem .historyChevron {
   }
 
   .title {
-    font-size: 24px;
+    font-size: 25px;
   }
 
   .subtitle {
-    font-size: 14px;
+    font-size: 15px;
   }
 
   .top {
@@ -1832,7 +2732,7 @@ details[open].historyItem .historyChevron {
   }
 
   .mascotCaption {
-    font-size: 12px;
+    font-size: 13px;
     max-width: 160px;
     text-align:right;
   }
@@ -1848,11 +2748,11 @@ details[open].historyItem .historyChevron {
   }
 
   .targetTitle {
-    font-size: 16px;
+    font-size: 17px;
   }
 
   .targetDescription {
-    font-size: 13px;
+    font-size: 14px;
   }
 
   .panelHeader {
@@ -1900,24 +2800,20 @@ details[open].historyItem .historyChevron {
   }
 
   .kv dt {
-    font-size: 13px;
+    font-size: 14px;
   }
 
   .adIssueSection {
     padding: 10px;
   }
 
-  .adIssueChartWrap {
-    -webkit-overflow-scrolling: touch;
-  }
-
   .adIssueMonthlyLegend {
     gap: 8px 10px;
-    font-size: 12px;
+    font-size: 13px;
   }
 
   .historyPerfLegendThreshold {
-    font-size: 11px;
+    font-size: 12px;
   }
 
   .adIssueTableWrap:not(.scriptIssueTopWrap) {
@@ -1925,7 +2821,7 @@ details[open].historyItem .historyChevron {
   }
 
   .adIssueTable {
-    font-size: 13px;
+    font-size: 14px;
   }
 
   .adIssueTable th,
@@ -1934,7 +2830,7 @@ details[open].historyItem .historyChevron {
   }
 
   .domainTop5Table {
-    font-size: 13px;
+    font-size: 14px;
   }
 
   .inlineHelpButton {
@@ -2008,7 +2904,7 @@ details[open].historyItem .historyChevron {
   .scriptIssueTopTable {
     border-collapse: separate;
     border-spacing: 0;
-    font-size: 13px;
+    font-size: 14px;
   }
 
   .scriptIssueTopTable col.scriptIssueTopColRank {
@@ -2025,7 +2921,7 @@ details[open].historyItem .historyChevron {
 
   .scriptIssueTopTable thead th {
     padding: 8px 4px;
-    font-size: 11px;
+    font-size: 12px;
     letter-spacing: -0.02em;
     vertical-align: middle;
     background: color-mix(in srgb, var(--panel2) 72%, transparent);
@@ -2098,7 +2994,7 @@ details[open].historyItem .historyChevron {
   }
 
   .scriptIssueTopTdTotal {
-    font-size: 13px;
+    font-size: 14px;
   }
 }
 

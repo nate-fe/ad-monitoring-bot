@@ -9,11 +9,13 @@ import {
   type IssueSourceCandidate,
 } from '../monitor/issueSources'
 import { AdIssueBreakdown } from './AdIssueBreakdown'
+import { RefreshIcon } from './RefreshIcon'
 import { DomainSourceTop5 } from './DomainSourceTop5'
 import { ScriptIssueTop10, SCRIPT_ISSUE_TOP10_HELP_TEXT } from './ScriptIssueTop10'
 import { InlineHelpTooltip } from './InlineHelpTooltip'
 import { HistoryMonthlyConsoleSection } from './HistoryMonthlyConsoleSection'
 import { HistoryPerformanceSection } from './HistoryPerformanceSection'
+import { fetchJsonFromPaths } from '../monitor/fetchJsonFromPaths'
 
 type LoadState =
   | { kind: 'idle' | 'loading' }
@@ -33,6 +35,7 @@ export type HeroReportMetaPayload =
 type MonitorReportPanelProps = {
   reportPaths?: string[]
   historyPaths?: string[]
+  occurrenceRoute?: string
   onHeroReportMeta?: (meta: HeroReportMetaPayload) => void
 }
 
@@ -125,27 +128,6 @@ function formatTimeOnly(iso: string) {
   })
 }
 
-async function fetchJsonFromPaths<T>(paths: string[]) {
-  let lastError = '리포트를 불러오지 못했습니다.'
-
-  for (const path of paths) {
-    try {
-      const cacheBust = Date.now()
-      const url = `${import.meta.env.BASE_URL}${path}?ts=${cacheBust}`
-      const res = await fetch(url, { headers: { accept: 'application/json' } })
-      if (!res.ok) {
-        lastError = `${path} 불러오기 실패 (HTTP ${res.status})`
-        continue
-      }
-      return (await res.json()) as T
-    } catch (e) {
-      lastError = e instanceof Error ? e.message : String(e)
-    }
-  }
-
-  throw new Error(lastError)
-}
-
 function getFailureBuckets(failures: string[] | undefined) {
   const items = failures ?? []
   let actionableCount = 0
@@ -199,29 +181,6 @@ function classifyCurrentReportAll(report: MonitorReport): ClassifiedIssue[] {
     .filter((m) => m.type === 'warning')
     .map((m) => ({ text: m.text, url: m.url, sourceUrl: m.sourceUrl }))
   return buildClassifiedIssues(items)
-}
-
-function RefreshIcon() {
-  return (
-    <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-      <path
-        d="M16.85 10a6.85 6.85 0 1 1-2.007-4.844"
-        fill="none"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.8"
-      />
-      <path
-        d="M13.6 2.95h3.45V6.4"
-        fill="none"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.8"
-      />
-    </svg>
-  )
 }
 
 type DiagCopyableFieldProps = {
@@ -343,6 +302,7 @@ function FailureSourceUrl({ url }: { url: string }) {
 export function MonitorReportPanel({
   reportPaths = ['monitor-report.json'],
   historyPaths = ['history.json'],
+  occurrenceRoute,
   onHeroReportMeta,
 }: MonitorReportPanelProps) {
   const [state, setState] = useState<LoadState>({ kind: 'idle' })
@@ -943,7 +903,6 @@ export function MonitorReportPanel({
             </p>
             <AdIssueBreakdown report={state.report} />
           </div>
-
 
           {state.report.diagnostics ? (
             <div className="diag">

@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useMemo } from 'react'
 import {
   VictoryAxis,
   VictoryBar,
@@ -7,6 +7,7 @@ import {
   VictoryTooltip,
   VictoryVoronoiContainer,
 } from 'victory'
+import { useChartWrapWidth } from '../hooks/useChartWrapWidth'
 import type { MonitorHistoryEntry } from '../monitor/types'
 import {
   buildDailyPerformanceChartModel,
@@ -63,19 +64,18 @@ function HistoryPerformanceLineChart({
   title,
   points,
   dayKeys,
-  chartWidth,
   axisStyle,
 }: {
   title: string
   points: PerformanceHistoryBucketPoint[]
   dayKeys: string[]
-  chartWidth: number
   axisStyle: {
     axis: { stroke: string }
     tickLabels: { fontSize: number; fill: string; fontFamily: string; angle?: number; textAnchor?: string }
     grid: { stroke: string }
   }
 }) {
+  const { wrapRef, chartWidth } = useChartWrapWidth()
   const hasData = points.length > 0
   if (!hasData || !dayKeys.length) {
     return (
@@ -126,15 +126,16 @@ function HistoryPerformanceLineChart({
   return (
     <div className="adIssueMonthlyChartBlock">
       <div className="adIssueMonthlyChartTitle">{title}</div>
-      <div className="adIssueChartWrap" role="img" aria-label={title}>
+      <div className="adIssueChartWrap" ref={wrapRef} role="img" aria-label={title}>
         <VictoryChart
           width={chartWidth}
           height={chartHeight}
-          domainPadding={{ x: 8 }}
+          domainPadding={{ x: [20, 20] }}
           domain={{ x: xDomain, y: [0, yMax] }}
-          padding={{ left: 52, right: 24, top: 28, bottom: tiltTicks ? 76 : 48 }}
+          padding={{ left: 58, right: 36, top: 28, bottom: tiltTicks ? 76 : 48 }}
           containerComponent={
             <VictoryVoronoiContainer
+              responsive={false}
               voronoiDimension="x"
               voronoiBlacklist={['perf-tbt', 'perf-script', 'perf-threshold-good', 'perf-threshold-poor']}
               labels={({ datum }) =>
@@ -150,7 +151,7 @@ function HistoryPerformanceLineChart({
                   }}
                   style={{
                     fill: 'var(--text)',
-                    fontSize: 11,
+                    fontSize: 12,
                     fontFamily: 'inherit',
                     textAnchor: 'start',
                   }}
@@ -182,7 +183,7 @@ function HistoryPerformanceLineChart({
             label="ms"
             style={{
               ...axisStyle,
-              axisLabel: { padding: 38, fill: 'var(--muted)', fontSize: 11 },
+              axisLabel: { padding: 38, fill: 'var(--muted)', fontSize: 12 },
             }}
           />
           <VictoryLine
@@ -252,25 +253,10 @@ export function HistoryPerformanceSection({
   historyStatus,
   activeMonthFilterLabel,
 }: HistoryPerformanceSectionProps) {
-  const wrapRef = useRef<HTMLDivElement>(null)
-  const [chartWidth, setChartWidth] = useState(() =>
-    typeof window === 'undefined' ? 300 : Math.max(240, Math.min(560, Math.floor(window.innerWidth - 40))),
-  )
-
-  useLayoutEffect(() => {
-    const el = wrapRef.current
-    if (!el) return
-    const apply = () => setChartWidth(Math.max(280, Math.floor(el.getBoundingClientRect().width)))
-    apply()
-    const ro = new ResizeObserver(() => apply())
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
-
   const axisStyle = useMemo(
     () => ({
       axis: { stroke: 'var(--border)' },
-      tickLabels: { fontSize: 12, fill: 'var(--muted)', fontFamily: 'inherit' },
+      tickLabels: { fontSize: 13, fill: 'var(--muted)', fontFamily: 'inherit' },
       grid: { stroke: 'rgba(255, 255, 255, 0.08)' },
     }),
     [],
@@ -323,7 +309,6 @@ export function HistoryPerformanceSection({
           title="일별 TBT(근사) · 광고 스크립트 평균(ms) — 녹색·주황 점선은 TBT(근사) 기준만 해당"
           points={model.points}
           dayKeys={model.dayKeys}
-          chartWidth={chartWidth}
           axisStyle={axisStyle}
         />
       </>
@@ -331,7 +316,7 @@ export function HistoryPerformanceSection({
   })()
 
   return (
-    <div className="historyPerformance" ref={wrapRef}>
+    <div className="historyPerformance">
       <h3 className="adIssueSubTitle">메인 스레드·광고 스크립트 (히스토리)</h3>
       {body}
     </div>

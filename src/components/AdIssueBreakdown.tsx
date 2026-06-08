@@ -1,5 +1,6 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useMemo } from 'react'
 import { VictoryAxis, VictoryBar, VictoryChart, VictoryStack } from 'victory'
+import { useChartWrapWidth } from '../hooks/useChartWrapWidth'
 import type { MonitorReport } from '../monitor/types'
 import { getAdIssueBreakdown } from '../monitor/issueSources'
 
@@ -8,20 +9,7 @@ type AdIssueBreakdownProps = {
 }
 
 export function AdIssueBreakdown({ report }: AdIssueBreakdownProps) {
-  const wrapRef = useRef<HTMLDivElement>(null)
-  const [chartWidth, setChartWidth] = useState(() =>
-    typeof window === 'undefined' ? 300 : Math.max(240, Math.min(560, Math.floor(window.innerWidth - 40))),
-  )
-
-  useLayoutEffect(() => {
-    const el = wrapRef.current
-    if (!el) return
-    const apply = () => setChartWidth(Math.max(280, Math.floor(el.getBoundingClientRect().width)))
-    apply()
-    const ro = new ResizeObserver(() => apply())
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
+  const { wrapRef: chartWrapRef, chartWidth } = useChartWrapWidth()
 
   const rows = useMemo(() => (report.diagnostics ? getAdIssueBreakdown(report) : []), [report])
 
@@ -32,10 +20,15 @@ export function AdIssueBreakdown({ report }: AdIssueBreakdownProps) {
   const hasAnyErrors = useMemo(() => rows.some((r) => r.errors > 0), [rows])
   const hasAnyWarnings = useMemo(() => rows.some((r) => r.warnings > 0), [rows])
 
+  const leftPadding = useMemo(() => {
+    const longest = rows.reduce((max, row) => Math.max(max, row.label.length), 0)
+    return Math.min(200, Math.max(96, longest * 7 + 24))
+  }, [rows])
+
   const axisStyle = useMemo(
     () => ({
       axis: { stroke: 'var(--border)' },
-      tickLabels: { fontSize: 12, fill: 'var(--muted)', fontFamily: 'inherit' },
+      tickLabels: { fontSize: 13, fill: 'var(--muted)', fontFamily: 'inherit' },
       grid: { stroke: 'rgba(255, 255, 255, 0.08)' },
     }),
     [],
@@ -43,7 +36,7 @@ export function AdIssueBreakdown({ report }: AdIssueBreakdownProps) {
 
   if (!report.diagnostics) {
     return (
-      <div className="adIssueBreakdownRoot" ref={wrapRef}>
+      <div className="adIssueBreakdownRoot">
         <p className="muted">진단 정보가 없어 이번 실행의 광고·영역별 집계를 할 수 없습니다.</p>
       </div>
     )
@@ -51,7 +44,7 @@ export function AdIssueBreakdown({ report }: AdIssueBreakdownProps) {
 
   if (!rows.length) {
     return (
-      <div className="adIssueBreakdownRoot" ref={wrapRef}>
+      <div className="adIssueBreakdownRoot">
         <p className="muted">
           이번 실행에서 집계할 콘솔 오류·경고, 페이지 오류가 없습니다.
         </p>
@@ -60,7 +53,7 @@ export function AdIssueBreakdown({ report }: AdIssueBreakdownProps) {
   }
 
   return (
-    <div className="adIssueBreakdownRoot" ref={wrapRef}>
+    <div className="adIssueBreakdownRoot">
       <div className="adIssueBreakdownLegend" aria-hidden="true">
         {hasAnyErrors ? (
           <span className="adIssueBreakdownLegendItem">
@@ -74,13 +67,18 @@ export function AdIssueBreakdown({ report }: AdIssueBreakdownProps) {
         ) : null}
       </div>
 
-      <div className="adIssueChartWrap" role="img" aria-label="광고·영역별 오류 및 경고 건수 막대 그래프">
+      <div
+        className="adIssueChartWrap"
+        ref={chartWrapRef}
+        role="img"
+        aria-label="광고·영역별 오류 및 경고 건수 막대 그래프"
+      >
         <VictoryChart
           horizontal
           width={chartWidth}
           height={chartHeight}
-          domainPadding={{ y: 12, x: 8 }}
-          padding={{ left: 132, right: 28, top: 8, bottom: 32 }}
+          domainPadding={{ y: 12, x: [12, 20] }}
+          padding={{ left: leftPadding, right: 40, top: 8, bottom: 32 }}
         >
           <VictoryAxis style={axisStyle} />
           <VictoryAxis dependentAxis tickFormat={(v) => (Number.isInteger(v) ? `${v}` : '')} style={axisStyle} />

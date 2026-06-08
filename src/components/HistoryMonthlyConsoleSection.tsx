@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useMemo } from 'react'
 import {
   VictoryAxis,
   VictoryBar,
@@ -7,6 +7,7 @@ import {
   VictoryTooltip,
   VictoryVoronoiContainer,
 } from 'victory'
+import { useChartWrapWidth } from '../hooks/useChartWrapWidth'
 import type { MonitorHistoryEntry } from '../monitor/types'
 import {
   buildDailyConsoleAdChartModel,
@@ -60,20 +61,19 @@ function ConsoleHistoryErrorWarnChart({
   points,
   bucketKeys,
   formatBucketLabel,
-  chartWidth,
   axisStyle,
 }: {
   title: string
   points: ConsoleHistoryBucketPoint[]
   bucketKeys: string[]
   formatBucketLabel: (key: string) => string
-  chartWidth: number
   axisStyle: {
     axis: { stroke: string }
     tickLabels: { fontSize: number; fill: string; fontFamily: string; angle?: number; textAnchor?: string }
     grid: { stroke: string }
   }
 }) {
+  const { wrapRef, chartWidth } = useChartWrapWidth()
   const hasData = points.some((p) => p.errors > 0 || p.warnings > 0)
   if (!hasData || !bucketKeys.length) {
     return (
@@ -99,19 +99,24 @@ function ConsoleHistoryErrorWarnChart({
 
   const chartHeight = Math.min(400, Math.max(260, 240))
   const tiltTicks = bucketKeys.length > 6
+  const bucketCount = bucketKeys.length
+  const xDomainPadding: [number, number] =
+    bucketCount <= 1 ? [72, 72] : bucketCount <= 3 ? [36, 36] : [24, 24]
+  const barWidth = bucketCount <= 1 ? 56 : bucketCount <= 3 ? 40 : undefined
 
   return (
     <div className="adIssueMonthlyChartBlock">
       <div className="adIssueMonthlyChartTitle">{title}</div>
-      <div className="adIssueChartWrap" role="img" aria-label={title}>
+      <div className="adIssueChartWrap" ref={wrapRef} role="img" aria-label={title}>
         <VictoryChart
           width={chartWidth}
           height={chartHeight}
-          domainPadding={{ x: 24 }}
+          domainPadding={{ x: xDomainPadding }}
           domain={{ y: [0, yMax * 1.08] }}
-          padding={{ left: 52, right: 24, top: 28, bottom: tiltTicks ? 76 : 48 }}
+          padding={{ left: 68, right: 40, top: 28, bottom: tiltTicks ? 76 : 48 }}
           containerComponent={
             <VictoryVoronoiContainer
+              responsive={false}
               voronoiDimension="x"
               voronoiBlacklist={['console-hist-errors', 'console-hist-warns']}
               labels={({ datum }) =>
@@ -130,7 +135,7 @@ function ConsoleHistoryErrorWarnChart({
                   }}
                   style={{
                     fill: 'var(--text)',
-                    fontSize: 11,
+                    fontSize: 12,
                     fontFamily: 'inherit',
                     textAnchor: 'start',
                   }}
@@ -155,7 +160,10 @@ function ConsoleHistoryErrorWarnChart({
           <VictoryAxis
             dependentAxis
             tickFormat={(v) => (Number.isInteger(v) ? `${v}` : '')}
-            style={axisStyle}
+            style={{
+              ...axisStyle,
+              tickLabels: { ...axisStyle.tickLabels, padding: 6 },
+            }}
           />
           <VictoryStack>
             <VictoryBar
@@ -164,6 +172,7 @@ function ConsoleHistoryErrorWarnChart({
               style={{
                 data: {
                   fill: 'var(--fail)',
+                  ...(barWidth != null ? { width: barWidth } : {}),
                 },
               }}
             />
@@ -173,6 +182,7 @@ function ConsoleHistoryErrorWarnChart({
               style={{
                 data: {
                   fill: 'var(--warn)',
+                  ...(barWidth != null ? { width: barWidth } : {}),
                 },
               }}
             />
@@ -184,6 +194,7 @@ function ConsoleHistoryErrorWarnChart({
               data: {
                 fill: 'transparent',
                 pointerEvents: 'all',
+                ...(barWidth != null ? { width: barWidth } : {}),
               },
             }}
           />
@@ -198,25 +209,10 @@ export function HistoryMonthlyConsoleSection({
   historyStatus,
   activeMonthFilterLabel,
 }: HistoryMonthlyConsoleSectionProps) {
-  const wrapRef = useRef<HTMLDivElement>(null)
-  const [chartWidth, setChartWidth] = useState(() =>
-    typeof window === 'undefined' ? 300 : Math.max(240, Math.min(560, Math.floor(window.innerWidth - 40))),
-  )
-
-  useLayoutEffect(() => {
-    const el = wrapRef.current
-    if (!el) return
-    const apply = () => setChartWidth(Math.max(280, Math.floor(el.getBoundingClientRect().width)))
-    apply()
-    const ro = new ResizeObserver(() => apply())
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
-
   const axisStyle = useMemo(
     () => ({
       axis: { stroke: 'var(--border)' },
-      tickLabels: { fontSize: 12, fill: 'var(--muted)', fontFamily: 'inherit' },
+      tickLabels: { fontSize: 13, fill: 'var(--muted)', fontFamily: 'inherit' },
       grid: { stroke: 'rgba(255, 255, 255, 0.08)' },
     }),
     [],
@@ -279,7 +275,6 @@ export function HistoryMonthlyConsoleSection({
             points={dailyModel.points}
             bucketKeys={dailyModel.dayKeys}
             formatBucketLabel={formatDayKeyShortLabel}
-            chartWidth={chartWidth}
             axisStyle={axisStyle}
           />
         ) : null}
@@ -289,7 +284,6 @@ export function HistoryMonthlyConsoleSection({
             points={monthlyModel.points}
             bucketKeys={monthlyModel.monthKeys}
             formatBucketLabel={formatMonthKeyShortLabel}
-            chartWidth={chartWidth}
             axisStyle={axisStyle}
           />
         ) : null}
@@ -298,7 +292,7 @@ export function HistoryMonthlyConsoleSection({
   })()
 
   return (
-    <div className="historyMonthlyConsole" ref={wrapRef}>
+    <div className="historyMonthlyConsole">
       <h3 className="adIssueSubTitle">일별·월별 콘솔 오류·경고 (히스토리)</h3>
       {body}
     </div>
