@@ -82,13 +82,16 @@ jobs:
           ls -la dist/pann/home | sed -n '1,160p'
 
       - name: Deploy to Vercel (optional)
-        if: ${{ secrets.VERCEL_TOKEN != '' }}
         continue-on-error: true
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: |
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "VERCEL_TOKEN not set — skipping Vercel deploy."
+            exit 0
+          fi
           npm install -g vercel@latest
           VITE_BASE="/" npm run build
           mkdir -p dist/news dist/pann

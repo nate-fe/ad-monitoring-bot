@@ -1,13 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
-  "installCommand": "npm ci && npx playwright install --with-deps chromium",
+  "installCommand": "npm ci",
   "buildCommand": "node ./scripts/prepare-vercel-build.js",
-  "outputDirectory": "dist",
-  "crons": [
-    {
-      "path": "/api/cron/redeploy",
-      "schedule": "0 * * * *"
-    }
-  ]
+  "outputDirectory": "dist"
 }

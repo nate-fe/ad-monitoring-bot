@@ -1,6 +1,6 @@
 /**
- * Vercel Cron이 매시간 호출해 프로덕션 재배포(Deploy Hook)를 트리거합니다.
- * 빌드 단계에서 monitor/history 가 실행되므로 JSON이 함께 갱신됩니다.
+ * 외부 스케줄러(cron-job.org 등) 또는 수동 호출로 프로덕션 재배포(Deploy Hook)를 트리거합니다.
+ * Authorization: Bearer <CRON_SECRET> 헤더로 보호합니다.
  */
 export default async function handler(request) {
   const cronSecret = process.env.CRON_SECRET
