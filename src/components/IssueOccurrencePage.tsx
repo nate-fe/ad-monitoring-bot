@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { MonitorHistoryEntry, MonitorReport } from '../monitor/types'
 import { fetchJsonFromPaths } from '../monitor/fetchJsonFromPaths'
 import { listMonthsWithMonitorActivity } from '../monitor/issueOccurrenceAnalysis'
-import { IssueOccurrenceLog, ISSUE_OCCURRENCE_LOG_HELP_TEXT } from './IssueOccurrenceLog'
+import { ISSUE_OCCURRENCE_LOG_HELP_TEXT } from './issueOccurrenceLogHelp'
+import { IssueOccurrenceLog } from './IssueOccurrenceLog'
 import { InlineHelpTooltip } from './InlineHelpTooltip'
 import { RefreshIcon } from './RefreshIcon'
 
@@ -79,7 +80,10 @@ export function IssueOccurrencePage({
     void loadAll()
   }, [loadAll])
 
-  const historyItems = history.kind === 'loaded' ? history.items : []
+  const historyItems = useMemo(
+    () => (history.kind === 'loaded' ? history.items : []),
+    [history],
+  )
   const currentReport = state.kind === 'loaded' ? state.report : null
 
   const monthOptions = useMemo(

@@ -302,7 +302,6 @@ function FailureSourceUrl({ url }: { url: string }) {
 export function MonitorReportPanel({
   reportPaths = ['monitor-report.json'],
   historyPaths = ['history.json'],
-  occurrenceRoute,
   onHeroReportMeta,
 }: MonitorReportPanelProps) {
   const [state, setState] = useState<LoadState>({ kind: 'idle' })

@@ -26,11 +26,13 @@ export function useInView<T extends Element>(options: UseInViewOptions = {}) {
   const ref = useRef<T | null>(null)
   const [inView, setInView] = useState(false)
   const [hasEntered, setHasEntered] = useState(false)
+  const [prevResetKey, setPrevResetKey] = useState(resetKey)
 
-  useEffect(() => {
-    setHasEntered(false)
+  if (resetKey !== prevResetKey) {
+    setPrevResetKey(resetKey)
     setInView(false)
-  }, [resetKey])
+    setHasEntered(false)
+  }
 
   useEffect(() => {
     const el = ref.current
@@ -39,7 +41,9 @@ export function useInView<T extends Element>(options: UseInViewOptions = {}) {
     const observer = new IntersectionObserver(
       ([entry]) => {
         setInView(entry.isIntersecting)
-        if (entry.isIntersecting) setHasEntered(true)
+        if (entry.isIntersecting) {
+          setHasEntered(true)
+        }
       },
       { threshold, rootMargin },
     )
@@ -47,10 +51,6 @@ export function useInView<T extends Element>(options: UseInViewOptions = {}) {
     observer.observe(el)
     return () => observer.disconnect()
   }, [threshold, rootMargin, resetKey])
-
-  useEffect(() => {
-    if (inView) setHasEntered(true)
-  }, [inView, resetKey])
 
   return { ref, inView, hasEntered }
 }

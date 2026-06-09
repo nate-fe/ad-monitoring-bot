@@ -1,5 +1,4 @@
 import { useCallback, useId, useState, type ReactNode } from 'react'
-import type { MediaUrlOccurrence } from '../monitor/issueOccurrenceAnalysis'
 
 const URL_OCC_MSG_LINE_HEIGHT = 1.45
 const URL_OCC_MSG_FONT_SIZE = 12
@@ -32,17 +31,23 @@ function MessageSection({
 }) {
   if (sampleCount < 1) return null
 
+  const countLabel =
+    messages.length > 0
+      ? messages.length !== sampleCount
+        ? `집계 ${sampleCount}건 · 고유 ${messages.length}건`
+        : `고유 ${messages.length}건`
+      : `샘플 ${sampleCount}건`
 
   return (
     <div className="urlOccurrenceMsgSection">
       <div className="urlOccurrenceMsgSectionTitle">
-        {title} {messages.length > 0 && messages.length !== sampleCount ? (
-        <span className="scriptIssueMsgTooltipMeta">
-          집계 {sampleCount}건 — 아래는 <strong>중복을 제외한 고유 메시지</strong>입니다.
-        </span>
-      ) : null}
+        {title} <span className="urlOccurrenceMsgSectionCount">{countLabel}</span>
       </div>
-      
+      {messages.length > 0 && messages.length !== sampleCount ? (
+        <p className="scriptIssueMsgTooltipMeta">
+          집계 {sampleCount}건 — 아래는 <strong>중복을 제외한 고유 메시지</strong>입니다.
+        </p>
+      ) : null}
       {messages.length ? (
         <ul className="scriptIssueMsgTooltipList">
           {messages.map((msg) => (
@@ -172,11 +177,4 @@ export function UrlOccurrenceMessagesTooltip({
       ) : null}
     </div>
   )
-}
-
-export function hasUrlOccurrenceMessages(urlItem: Pick<
-  MediaUrlOccurrence,
-  'errorSampleCount' | 'warningSampleCount' | 'pageErrorSampleCount'
->): boolean {
-  return urlItem.errorSampleCount + urlItem.warningSampleCount + urlItem.pageErrorSampleCount > 0
 }

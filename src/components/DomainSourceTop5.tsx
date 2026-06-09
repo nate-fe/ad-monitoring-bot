@@ -1,5 +1,6 @@
 import type { DomainErrorRateRankRow, DomainInsights, DomainLatencyRankRow } from '../monitor/types'
-import { CspReportHostHint, isLikelyCspReportHost } from './CspReportHostHint'
+import { isLikelyCspReportHost } from '../monitor/cspReportHost'
+import { CspReportHostHint } from './CspReportHostHint'
 import { DomainErrorRateResourceUrlTooltip } from './DomainErrorRateResourceUrlTooltip'
 import { InlineHelpTooltip } from './InlineHelpTooltip'
 

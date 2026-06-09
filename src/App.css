@@ -2161,37 +2161,6 @@ body.urlOccurrenceMsgPanelResizing {
   background: color-mix(in srgb, var(--border) 55%, transparent);
 }
 
-.issueOccurrenceMonthMediaList {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 8px;
-}
-
-.issueOccurrenceMonthMediaRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: 4px;
-  border: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
-  background: color-mix(in srgb, var(--panel) 90%, transparent);
-}
-
-.issueOccurrenceMonthMediaLabel {
-  font-weight: 600;
-  font-size: 15px;
-}
-
-.issueOccurrenceMonthMediaStats {
-  font-size: 16px;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
 .issueOccurrenceMonthMediaEmpty {
   margin: 0;
   font-size: 15px;

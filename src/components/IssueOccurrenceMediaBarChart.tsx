@@ -13,7 +13,7 @@ export function IssueOccurrenceMediaBarChart({ model }: IssueOccurrenceMediaBarC
   })
   const animateMediaBars = mediaListEntered && !prefersReducedMotion
 
-  const { monthMediaBreakdown, monthInspectionTotal, monthLabel } = model
+  const { monthMediaBreakdown, monthInspectionTotal } = model
 
   const chartData = useMemo(
     () =>
