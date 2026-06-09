@@ -9,6 +9,21 @@ variables:
   npm_config_fund: "false"
   npm_config_audit: "false"
 
+stages:
+- deploy
+
+deploy_to_vercel:
+  stage: deploy
+  image: node:20 # 프로젝트 빌드 환경에 맞춰 설정
+  script:
+    - npm install
+    - npm install -g vercel
+    - vercel pull --yes --environment=production --token=$VERCEL_TOKEN
+    - vercel build --prod --token=$VERCEL_TOKEN
+    - vercel deploy --prebuilt --prod --token=$VERCEL_TOKEN
+  only:
+    - main # 배포할 브랜치 설정
+
 pages:
   stage: deploy
   timeout: 10m  # 이 작업이 최대 10분까지 돌 수 있게 허용
