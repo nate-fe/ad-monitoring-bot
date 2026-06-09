@@ -20,6 +20,7 @@
     "history:update:pann-home": "node ./scripts/check-node.cjs && node ./scripts/run-history-target.js pann-home",
     "history:update:all": "node ./scripts/check-node.cjs && node ./scripts/run-history-all.js",
     "aliases:flat": "node ./scripts/check-node.cjs && node ./scripts/write-legacy-flat-aliases.js",
+    "build:vercel": "node ./scripts/check-node.cjs && node ./scripts/prepare-vercel-build.js",
     "preview": "node ./scripts/check-node.cjs && vite preview",
     "test:local": "npm run monitor:all && npm run history:update:all && npm run aliases:flat && npm run dev"
   },

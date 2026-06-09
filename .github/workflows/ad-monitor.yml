@@ -81,6 +81,21 @@ jobs:
           ls -la dist/pann/view | sed -n '1,160p'
           ls -la dist/pann/home | sed -n '1,160p'
 
+      - name: Deploy to Vercel (optional)
+        if: ${{ secrets.VERCEL_TOKEN != '' }}
+        continue-on-error: true
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          npm install -g vercel@latest
+          VITE_BASE="/" npm run build
+          mkdir -p dist/news dist/pann
+          cp -r public/news dist/
+          cp -r public/pann dist/
+          vercel deploy dist --prod --yes --token="$VERCEL_TOKEN"
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
