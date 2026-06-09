@@ -18,6 +18,10 @@ deploy_to_vercel:
   script:
     - npm install
     - npm install -g vercel
+    - npm run build
+    - npm run monitor
+    - npm run history:update:all
+    - npm run aliases:flat
     - vercel pull --yes --environment=production --token=$VERCEL_TOKEN
     - vercel build --prod --token=$VERCEL_TOKEN
     - vercel deploy --prebuilt --prod --token=$VERCEL_TOKEN
