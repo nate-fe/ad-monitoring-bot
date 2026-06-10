@@ -46,7 +46,7 @@ jobs:
           cache: npm
 
       - name: Install
-        run: npm ci
+        run: npm ci --include=dev
 
       - name: Install Playwright browsers (Chromium)
         if: env.MONITOR_TARGET_URL_NEWS_VIEW != '' || env.MONITOR_TARGET_URL_NEWS_HOME != '' || env.MONITOR_TARGET_URL_PANN_VIEW != '' || env.MONITOR_TARGET_URL_PANN_HOME != ''
@@ -111,9 +111,9 @@ jobs:
           cp -r public/news dist/
           cp -r public/pann dist/
           npx --yes vercel@latest pull --yes --environment=production --token="$VERCEL_TOKEN"
-          # dist 내용을 정적 루트로 배포 (Vercel 서버에서 vite build 재실행 방지)
-          cd dist
-          npx --yes vercel@latest deploy --prod --yes --token="$VERCEL_TOKEN"
+          node ./scripts/prepare-vercel-prebuilt.js
+          # --prebuilt: Actions에서 만든 dist를 그대로 올림 (Vercel 원격 vite build 방지)
+          npx --yes vercel@latest deploy --prebuilt --prod --yes --token="$VERCEL_TOKEN"
           echo "Vercel production deploy completed."
 
       - name: Setup Pages
