@@ -2,8 +2,8 @@ name: ad-monitor
 
 on:
   schedule:
-    # Runs every hour (UTC). GitHub schedules can drift slightly.
-    - cron: '0 * * * *'
+    # Runs every hour (UTC). GitHub may delay 5–15 min; re-register after workflow fixes.
+    - cron: '5 * * * *'
   workflow_dispatch: {}
 
 concurrency:
