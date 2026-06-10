@@ -87,6 +87,8 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_GIT_AUTHOR_EMAIL: ${{ secrets.VERCEL_GIT_AUTHOR_EMAIL }}
+          VERCEL_GIT_AUTHOR_NAME: ${{ secrets.VERCEL_GIT_AUTHOR_NAME || github.repository_owner }}
         run: |
           if [ -z "$VERCEL_TOKEN" ]; then
             echo "VERCEL_TOKEN not set — skipping Vercel deploy."
@@ -95,6 +97,14 @@ jobs:
           if [ -z "$VERCEL_ORG_ID" ] || [ -z "$VERCEL_PROJECT_ID" ]; then
             echo "VERCEL_ORG_ID or VERCEL_PROJECT_ID not set — skipping Vercel deploy."
             exit 0
+          fi
+          if [ -z "$VERCEL_GIT_AUTHOR_EMAIL" ]; then
+            echo "VERCEL_GIT_AUTHOR_EMAIL not set — Vercel may block deploy (commit author mismatch)."
+          else
+            git config user.email "$VERCEL_GIT_AUTHOR_EMAIL"
+            git config user.name "$VERCEL_GIT_AUTHOR_NAME"
+            git commit --amend --no-edit --reset-author
+            echo "Git author set for Vercel: $VERCEL_GIT_AUTHOR_NAME <$VERCEL_GIT_AUTHOR_EMAIL>"
           fi
           VITE_BASE="/" npm run build
           mkdir -p dist/news dist/pann
