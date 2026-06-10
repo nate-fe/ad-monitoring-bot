@@ -2,12 +2,13 @@ name: ad-monitor
 
 on:
   schedule:
-    # Runs every hour (UTC). GitHub may delay 5–15 min; re-register after workflow fixes.
-    - cron: '5 * * * *'
+    # Re-registered 2026-06-10: hourly at :07 UTC (GitHub may delay 5–15 min).
+    - cron: '7 * * * *'
   workflow_dispatch: {}
 
 concurrency:
-  group: ad-monitor
+  # schedule / manual 을 같은 그룹으로 두면 Run workflow가 cron 실행을 취소함
+  group: ad-monitor-${{ github.event_name }}
   cancel-in-progress: true
 
 env:
