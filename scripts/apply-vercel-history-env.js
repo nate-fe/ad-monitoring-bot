@@ -1,6 +1,6 @@
 /**
- * Vercel 빌드/배포 시 이전 배포의 history.json URL을 HISTORY_SOURCE_URL_* 에 주입합니다.
- * SITE_URL(권장) 또는 VERCEL_PROJECT_PRODUCTION_URL 이 없으면 히스토리는 새로 시작합니다.
+ * history.json 원격 소스 URL을 HISTORY_SOURCE_URL_* 에 주입합니다.
+ * 우선순위: 이미 설정된 값 > SITE_URL(Vercel 등) > GitHub Pages URL
  */
 const HISTORY_PATHS = {
   HISTORY_SOURCE_URL_NEWS_VIEW: 'news/view/history.json',
@@ -31,10 +31,17 @@ export function resolveVercelSiteBase() {
   return ''
 }
 
+function resolveGitHubPagesBase() {
+  const owner = process.env.GITHUB_REPOSITORY_OWNER
+  const repo = process.env.GITHUB_REPOSITORY?.split('/')?.[1]
+  if (!owner || !repo) return ''
+  return `https://${owner}.github.io/${repo}`
+}
+
 export function applyVercelHistoryEnv() {
-  const base = resolveVercelSiteBase()
+  const base = resolveVercelSiteBase() || resolveGitHubPagesBase()
   if (!base) {
-    console.log('[vercel-history] SITE_URL not set; history will start fresh on this deploy.')
+    console.log('[history] No SITE_URL or GitHub Pages base; history will start fresh on this run.')
     return { base: '', applied: [] }
   }
 
@@ -46,9 +53,9 @@ export function applyVercelHistoryEnv() {
   }
 
   if (applied.length > 0) {
-    console.log(`[vercel-history] Using ${base} as history source base.`)
+    console.log(`[history] Using ${base} as history source base.`)
     for (const envName of applied) {
-      console.log(`[vercel-history] ${envName}=${process.env[envName]}`)
+      console.log(`[history] ${envName}=${process.env[envName]}`)
     }
   }
 

@@ -29,10 +29,7 @@ jobs:
       MONITOR_TARGET_URL_NEWS_HOME: ${{ vars.MONITOR_TARGET_URL_NEWS_HOME || secrets.MONITOR_TARGET_URL_NEWS_HOME || 'https://m.news.nate.com/' }}
       MONITOR_TARGET_URL_PANN_VIEW: ${{ vars.MONITOR_TARGET_URL_PANN_VIEW || vars.MONITOR_TARGET_URL_PANN || secrets.MONITOR_TARGET_URL_PANN_VIEW || secrets.MONITOR_TARGET_URL_PANN }}
       MONITOR_TARGET_URL_PANN_HOME: ${{ vars.MONITOR_TARGET_URL_PANN_HOME || secrets.MONITOR_TARGET_URL_PANN_HOME || 'https://m.pann.nate.com/' }}
-      HISTORY_SOURCE_URL_NEWS_VIEW: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/news/view/history.json
-      HISTORY_SOURCE_URL_NEWS_HOME: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/news/home/history.json
-      HISTORY_SOURCE_URL_PANN_VIEW: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/pann/view/history.json
-      HISTORY_SOURCE_URL_PANN_HOME: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/pann/home/history.json
+      SITE_URL: ${{ vars.SITE_URL }}
       MONITOR_IGNORE_ERROR_PATTERNS: ${{ vars.MONITOR_IGNORE_ERROR_PATTERNS || secrets.MONITOR_IGNORE_ERROR_PATTERNS }}
       MONITOR_TIMEOUT_MS: '20000'
       MONITOR_USER_AGENT: 'ad-monitoring-bot/1.0 (github-actions)'
