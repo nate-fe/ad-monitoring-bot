@@ -99,20 +99,22 @@ jobs:
             exit 0
           fi
           if [ -z "$VERCEL_GIT_AUTHOR_EMAIL" ]; then
-            echo "VERCEL_GIT_AUTHOR_EMAIL not set — Vercel may block deploy (commit author mismatch)."
-          else
-            git config user.email "$VERCEL_GIT_AUTHOR_EMAIL"
-            git config user.name "$VERCEL_GIT_AUTHOR_NAME"
-            git commit --amend --no-edit --reset-author
-            echo "Git author set for Vercel: $VERCEL_GIT_AUTHOR_NAME <$VERCEL_GIT_AUTHOR_EMAIL>"
+            echo "ERROR: VERCEL_GIT_AUTHOR_EMAIL is required (Vercel Hobby/Team blocks unknown commit authors)."
+            exit 1
           fi
+          git config user.email "$VERCEL_GIT_AUTHOR_EMAIL"
+          git config user.name "$VERCEL_GIT_AUTHOR_NAME"
+          git commit --amend --no-edit --reset-author
+          echo "Git author for Vercel: $VERCEL_GIT_AUTHOR_NAME <$VERCEL_GIT_AUTHOR_EMAIL>"
           VITE_BASE="/" npm run build
           mkdir -p dist/news dist/pann
           cp -r public/news dist/
           cp -r public/pann dist/
-          # --no-wait: 배포 완료 대기 없이 업로드만 하고 종료 (job timeout 방지)
-          npx --yes vercel@latest deploy dist --prod --yes --no-wait --token="$VERCEL_TOKEN"
-          echo "Vercel production deploy triggered."
+          npx --yes vercel@latest pull --yes --environment=production --token="$VERCEL_TOKEN"
+          # dist 내용을 정적 루트로 배포 (Vercel 서버에서 vite build 재실행 방지)
+          cd dist
+          npx --yes vercel@latest deploy --prod --yes --token="$VERCEL_TOKEN"
+          echo "Vercel production deploy completed."
 
       - name: Setup Pages
         id: pages
