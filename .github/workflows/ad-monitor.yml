@@ -16,7 +16,7 @@ env:
 jobs:
   monitor:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     outputs:
       pages_ready: ${{ steps.pages.outcome == 'success' }}
     permissions:
@@ -81,6 +81,7 @@ jobs:
           ls -la dist/pann/home | sed -n '1,160p'
 
       - name: Deploy to Vercel (optional)
+        timeout-minutes: 5
         continue-on-error: true
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
@@ -91,12 +92,17 @@ jobs:
             echo "VERCEL_TOKEN not set — skipping Vercel deploy."
             exit 0
           fi
-          npm install -g vercel@latest
+          if [ -z "$VERCEL_ORG_ID" ] || [ -z "$VERCEL_PROJECT_ID" ]; then
+            echo "VERCEL_ORG_ID or VERCEL_PROJECT_ID not set — skipping Vercel deploy."
+            exit 0
+          fi
           VITE_BASE="/" npm run build
           mkdir -p dist/news dist/pann
           cp -r public/news dist/
           cp -r public/pann dist/
-          vercel deploy dist --prod --yes --token="$VERCEL_TOKEN"
+          # --no-wait: 배포 완료 대기 없이 업로드만 하고 종료 (job timeout 방지)
+          npx --yes vercel@latest deploy dist --prod --yes --no-wait --token="$VERCEL_TOKEN"
+          echo "Vercel production deploy triggered."
 
       - name: Setup Pages
         id: pages
