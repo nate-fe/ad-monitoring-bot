@@ -17,6 +17,8 @@ jobs:
   monitor:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    outputs:
+      pages_ready: ${{ steps.pages.outcome == 'success' }}
     permissions:
       contents: read
       issues: write
@@ -100,9 +102,12 @@ jobs:
           vercel deploy dist --prod --yes --token="$VERCEL_TOKEN"
 
       - name: Setup Pages
+        id: pages
+        continue-on-error: true
         uses: actions/configure-pages@v5
 
       - name: Upload Pages artifact
+        if: steps.pages.outcome == 'success'
         uses: actions/upload-pages-artifact@v3
         with:
           path: dist
@@ -142,6 +147,7 @@ jobs:
 
   deploy:
     needs: monitor
+    if: needs.monitor.outputs.pages_ready == 'true'
     runs-on: ubuntu-latest
     permissions:
       pages: write
