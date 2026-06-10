@@ -30,6 +30,8 @@ jobs:
       MONITOR_TARGET_URL_PANN_VIEW: ${{ vars.MONITOR_TARGET_URL_PANN_VIEW || vars.MONITOR_TARGET_URL_PANN || secrets.MONITOR_TARGET_URL_PANN_VIEW || secrets.MONITOR_TARGET_URL_PANN }}
       MONITOR_TARGET_URL_PANN_HOME: ${{ vars.MONITOR_TARGET_URL_PANN_HOME || secrets.MONITOR_TARGET_URL_PANN_HOME || 'https://m.pann.nate.com/' }}
       SITE_URL: ${{ vars.SITE_URL }}
+      JSON_SYNC_BASE_URL: ${{ vars.JSON_SYNC_BASE_URL }}
+      HISTORY_SOURCE_BASE_URL: ${{ vars.HISTORY_SOURCE_BASE_URL }}
       MONITOR_IGNORE_ERROR_PATTERNS: ${{ vars.MONITOR_IGNORE_ERROR_PATTERNS || secrets.MONITOR_IGNORE_ERROR_PATTERNS }}
       MONITOR_TIMEOUT_MS: '20000'
       MONITOR_USER_AGENT: 'ad-monitoring-bot/1.0 (github-actions)'
@@ -47,6 +49,9 @@ jobs:
 
       - name: Install
         run: npm ci --include=dev
+
+      - name: Sync JSON from remote (yoonzeen Pages → public)
+        run: npm run json:sync
 
       - name: Install Playwright browsers (Chromium)
         if: env.MONITOR_TARGET_URL_NEWS_VIEW != '' || env.MONITOR_TARGET_URL_NEWS_HOME != '' || env.MONITOR_TARGET_URL_PANN_VIEW != '' || env.MONITOR_TARGET_URL_PANN_HOME != ''

@@ -1,7 +1,8 @@
 /**
  * history.json 원격 소스 URL을 HISTORY_SOURCE_URL_* 에 주입합니다.
- * 우선순위: 이미 설정된 값 > SITE_URL(Vercel 등) > GitHub Pages URL
+ * 우선순위: 이미 설정된 값 > HISTORY_SOURCE_BASE_URL / JSON_SYNC_BASE_URL > SITE_URL > GitHub Pages URL
  */
+import { resolveJsonSyncBaseUrl } from './sync-public-json.js'
 const HISTORY_PATHS = {
   HISTORY_SOURCE_URL_NEWS_VIEW: 'news/view/history.json',
   HISTORY_SOURCE_URL_NEWS_HOME: 'news/home/history.json',
@@ -38,10 +39,16 @@ function resolveGitHubPagesBase() {
   return `https://${owner}.github.io/${repo}`
 }
 
+export function resolveHistorySourceBase() {
+  const explicit = normalizeBaseUrl(process.env.HISTORY_SOURCE_BASE_URL) || resolveJsonSyncBaseUrl()
+  if (explicit) return explicit
+  return resolveVercelSiteBase() || resolveGitHubPagesBase()
+}
+
 export function applyVercelHistoryEnv() {
-  const base = resolveVercelSiteBase() || resolveGitHubPagesBase()
+  const base = resolveHistorySourceBase()
   if (!base) {
-    console.log('[history] No SITE_URL or GitHub Pages base; history will start fresh on this run.')
+    console.log('[history] No history source base; history will start fresh on this run.')
     return { base: '', applied: [] }
   }
 
