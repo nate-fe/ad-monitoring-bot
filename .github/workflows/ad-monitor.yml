@@ -6,7 +6,8 @@ on:
   workflow_dispatch: {}
 
 concurrency:
-  group: ad-monitor-${{ github.event_name }}
+  # schedule + manual 동시 실행 시 Pages configure/deploy 충돌 방지
+  group: ad-monitor-${{ github.repository }}
   cancel-in-progress: true
 
 env:
@@ -80,9 +81,11 @@ jobs:
 
       - name: Setup Pages
         id: pages
+        continue-on-error: ${{ github.repository_owner == 'nate-fe' }}
         uses: actions/configure-pages@v5
 
       - name: Upload Pages artifact
+        if: steps.pages.outcome == 'success'
         uses: actions/upload-pages-artifact@v3
         with:
           path: dist
