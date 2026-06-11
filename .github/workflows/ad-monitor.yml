@@ -2,7 +2,8 @@ name: ad-monitor
 
 on:
   schedule:
-    - cron: '12 * * * *'
+    # Re-registered 2026-06-11: hourly at :17 UTC (GitHub may delay 5–15 min)
+    - cron: '17 * * * *'
   workflow_dispatch:
     inputs:
       sync_until:
