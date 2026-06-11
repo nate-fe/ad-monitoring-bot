@@ -23,9 +23,17 @@ function resolveGitHubPagesBase() {
   return `https://${owner}.github.io/${repo}`
 }
 
+const YOONZEEN_PAGES_BASE = 'https://yoonzeen.github.io/ad-monitoring-bot'
+
 export function resolveHistorySourceBase() {
   const explicit = normalizeBaseUrl(process.env.HISTORY_SOURCE_BASE_URL)
   if (explicit) return explicit
+
+  // nate-fe: yoonzeen Pages가 canonical history — 자체 Pages는 아직 누적이 적음
+  if (process.env.GITHUB_REPOSITORY_OWNER === 'nate-fe') {
+    return YOONZEEN_PAGES_BASE
+  }
+
   return resolveGitHubPagesBase()
 }
 

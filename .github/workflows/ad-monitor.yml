@@ -47,6 +47,10 @@ jobs:
       - name: Install
         run: npm ci --include=dev
 
+      - name: Seed JSON from yoonzeen Pages (nate-fe only)
+        if: github.repository_owner == 'nate-fe'
+        run: npm run json:sync
+
       - name: Install Playwright browsers (Chromium)
         if: env.MONITOR_TARGET_URL_NEWS_VIEW != '' || env.MONITOR_TARGET_URL_NEWS_HOME != '' || env.MONITOR_TARGET_URL_PANN_VIEW != '' || env.MONITOR_TARGET_URL_PANN_HOME != ''
         run: npx playwright install --with-deps chromium
