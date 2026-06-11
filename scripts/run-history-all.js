@@ -1,9 +1,9 @@
 import { spawn } from 'node:child_process'
 import path from 'node:path'
 import process from 'node:process'
-import { applyVercelHistoryEnv } from './apply-vercel-history-env.js'
+import { applyHistoryEnv } from './apply-history-env.js'
 
-applyVercelHistoryEnv()
+applyHistoryEnv()
 
 function runScope(scope) {
   return new Promise((resolve) => {

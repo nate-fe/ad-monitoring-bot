@@ -9,24 +9,6 @@ variables:
 stages:
   - deploy
 
-deploy_to_vercel:
-  stage: deploy
-  timeout: 15m
-  script:
-    - node --version
-    - npm --version
-    - npm ci
-    - npm run monitor:all || true
-    - npm run history:update:all
-    - npm run aliases:flat
-    - npm run build
-    - npm install -g vercel
-    - vercel pull --yes --environment=production --token=$VERCEL_TOKEN
-    - vercel build --prod --token=$VERCEL_TOKEN
-    - vercel deploy --prebuilt --prod --token=$VERCEL_TOKEN
-  only:
-    - main
-
 pages:
   stage: deploy
   timeout: 10m
