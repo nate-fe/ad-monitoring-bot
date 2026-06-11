@@ -6,9 +6,9 @@ on:
   workflow_dispatch: {}
 
 concurrency:
-  # schedule + manual 동시 실행 시 Pages configure/deploy 충돌 방지
+  # 동시 실행 대신 대기열 — cancel 시 Pages deploy가 중간에 끊기며 충돌함
   group: ad-monitor-${{ github.repository }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     outputs:
-      pages_ready: ${{ steps.pages.outcome == 'success' }}
+      pages_ready: ${{ steps.pages.outcome == 'success' || steps.pages_retry.outcome == 'success' }}
     permissions:
       contents: read
       issues: write
@@ -126,6 +126,9 @@ jobs:
   deploy:
     needs: monitor
     if: needs.monitor.outputs.pages_ready == 'true'
+    concurrency:
+      group: pages-deploy-${{ github.repository }}
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     permissions:
       pages: write
