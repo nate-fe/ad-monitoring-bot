@@ -84,8 +84,17 @@ jobs:
         continue-on-error: ${{ github.repository_owner == 'nate-fe' }}
         uses: actions/configure-pages@v5
 
+      - name: Wait before Pages retry
+        if: steps.pages.outcome != 'success' && github.repository_owner == 'nate-fe'
+        run: sleep 60
+
+      - name: Setup Pages (retry)
+        if: steps.pages.outcome != 'success' && github.repository_owner == 'nate-fe'
+        id: pages_retry
+        uses: actions/configure-pages@v5
+
       - name: Upload Pages artifact
-        if: steps.pages.outcome == 'success'
+        if: steps.pages.outcome == 'success' || steps.pages_retry.outcome == 'success'
         uses: actions/upload-pages-artifact@v3
         with:
           path: dist
