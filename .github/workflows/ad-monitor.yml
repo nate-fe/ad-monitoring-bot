@@ -3,7 +3,17 @@ name: ad-monitor
 on:
   schedule:
     - cron: '12 * * * *'
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      sync_until:
+        description: 'History includes through this date (YYYY-MM-DD). Example 2026-06-10'
+        required: false
+        type: string
+      backfill_only:
+        description: 'Deploy synced JSON only (skip monitor and history update)'
+        required: false
+        type: boolean
+        default: false
 
 concurrency:
   # 동시 실행 대신 대기열 — cancel 시 Pages deploy가 중간에 끊기며 충돌함
@@ -33,6 +43,7 @@ jobs:
       MONITOR_TIMEOUT_MS: '20000'
       MONITOR_USER_AGENT: 'ad-monitoring-bot/1.0 (github-actions)'
       GITHUB_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      JSON_SYNC_UNTIL: ${{ inputs.sync_until || vars.JSON_SYNC_UNTIL || '' }}
 
     steps:
       - name: Checkout
@@ -52,7 +63,7 @@ jobs:
         run: npm run json:sync
 
       - name: Install Playwright browsers (Chromium)
-        if: env.MONITOR_TARGET_URL_NEWS_VIEW != '' || env.MONITOR_TARGET_URL_NEWS_HOME != '' || env.MONITOR_TARGET_URL_PANN_VIEW != '' || env.MONITOR_TARGET_URL_PANN_HOME != ''
+        if: (github.event_name != 'workflow_dispatch' || inputs.backfill_only != true) && (env.MONITOR_TARGET_URL_NEWS_VIEW != '' || env.MONITOR_TARGET_URL_NEWS_HOME != '' || env.MONITOR_TARGET_URL_PANN_VIEW != '' || env.MONITOR_TARGET_URL_PANN_HOME != '')
         run: npx playwright install --with-deps chromium
 
       - name: Build site (for GitHub Pages)
@@ -61,10 +72,12 @@ jobs:
         run: npm run build
 
       - name: Run monitor targets
+        if: github.event_name != 'workflow_dispatch' || inputs.backfill_only != true
         continue-on-error: true
         run: npm run monitor:all
 
       - name: Update history files
+        if: github.event_name != 'workflow_dispatch' || inputs.backfill_only != true
         run: npm run history:update:all
 
       - name: Write legacy flat aliases

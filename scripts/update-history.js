@@ -1,5 +1,6 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import { parseJsonSyncUntilMs } from './json-sync-until.js'
 
 function getEnv(name, { defaultValue = '' } = {}) {
   const v = process.env[name]
@@ -167,6 +168,14 @@ function buildFallbackReport(targetScope) {
   }
 }
 
+function filterByUntil(items, untilMs) {
+  if (!untilMs) return items
+  return items.filter((item) => {
+    const checkedAt = Date.parse(String(item?.checkedAt ?? ''))
+    return Number.isFinite(checkedAt) && checkedAt <= untilMs
+  })
+}
+
 function dedupeAndTrim(items, max) {
   const seen = new Set()
   /** @type {any[]} */
@@ -198,13 +207,14 @@ async function main() {
   const historySourceUrl = getEnv('HISTORY_SOURCE_URL', { defaultValue: '' })
   // 기본 ~약 3년치(시간당 1회 기준). 오래된 항목은 오래될수록 잘림 — 더 늘리려면 HISTORY_MAX 환경 변수 사용.
   const historyMax = toInt(getEnv('HISTORY_MAX', { defaultValue: '26280' }), 26280)
+  const untilMs = parseJsonSyncUntilMs()
 
   const report = (await readJsonFile(reportPath)) ?? buildFallbackReport(targetScope)
 
   /** 원격 URL이 있으면 그 배열 + 항상 로컬 history.json — 둘 다 합쳐 이전 데이터를 지우지 않음(중복은 dedupe) */
-  const remote = historySourceUrl ? await fetchJsonArray(historySourceUrl) : []
+  const remote = filterByUntil(historySourceUrl ? await fetchJsonArray(historySourceUrl) : [], untilMs)
   const localFile = await readJsonFile(historyPath)
-  const local = Array.isArray(localFile) ? localFile : []
+  const local = filterByUntil(Array.isArray(localFile) ? localFile : [], untilMs)
   const previous = [...remote, ...local]
 
   const entry = summarize(report)

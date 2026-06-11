@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { filterHistoryJsonByUntil, parseJsonSyncUntilMs } from './json-sync-until.js'
 
 const PUBLIC_JSON_PATHS = [
   'news/view/monitor-report.json',
@@ -48,8 +49,16 @@ async function downloadJsonOverwrite(baseUrl, relativePath) {
     return { relativePath, status: 'skipped', reason: `HTTP ${res.status}` }
   }
 
-  const raw = await res.text()
+  let raw = await res.text()
   JSON.parse(raw)
+
+  const untilMs = parseJsonSyncUntilMs()
+  if (untilMs && relativePath.endsWith('history.json')) {
+    const before = JSON.parse(raw).length
+    raw = filterHistoryJsonByUntil(raw, untilMs)
+    const after = JSON.parse(raw).length
+    console.log(`[json-sync] filtered ${relativePath} by until=${process.env.JSON_SYNC_UNTIL} (${before} → ${after})`)
+  }
 
   await mkdir(path.dirname(destPath), { recursive: true })
   await writeFile(destPath, raw, 'utf8')
@@ -64,7 +73,8 @@ async function main() {
     return
   }
 
-  console.log(`[json-sync] Syncing from ${baseUrl} → public/ (overwrite when remote exists)`)
+  const untilLabel = process.env.JSON_SYNC_UNTIL ? `, until=${process.env.JSON_SYNC_UNTIL}` : ''
+  console.log(`[json-sync] Syncing from ${baseUrl} → public/ (overwrite when remote exists${untilLabel})`)
 
   let written = 0
   let skipped = 0
