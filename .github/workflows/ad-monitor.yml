@@ -40,6 +40,10 @@ jobs:
       MONITOR_TARGET_URL_NEWS_HOME: ${{ vars.MONITOR_TARGET_URL_NEWS_HOME || secrets.MONITOR_TARGET_URL_NEWS_HOME || 'https://m.news.nate.com/' }}
       MONITOR_TARGET_URL_PANN_VIEW: ${{ vars.MONITOR_TARGET_URL_PANN_VIEW || vars.MONITOR_TARGET_URL_PANN || secrets.MONITOR_TARGET_URL_PANN_VIEW || secrets.MONITOR_TARGET_URL_PANN }}
       MONITOR_TARGET_URL_PANN_HOME: ${{ vars.MONITOR_TARGET_URL_PANN_HOME || secrets.MONITOR_TARGET_URL_PANN_HOME || 'https://m.pann.nate.com/' }}
+      MONITOR_TARGET_URL_NEWS_PC_VIEW: ${{ vars.MONITOR_TARGET_URL_NEWS_PC_VIEW || vars.MONITOR_TARGET_URL_NEWS_PC || secrets.MONITOR_TARGET_URL_NEWS_PC_VIEW || secrets.MONITOR_TARGET_URL_NEWS_PC || 'https://news.nate.com/view/20260615n08067' }}
+      MONITOR_TARGET_URL_NEWS_PC_HOME: ${{ vars.MONITOR_TARGET_URL_NEWS_PC_HOME || secrets.MONITOR_TARGET_URL_NEWS_PC_HOME || 'https://news.nate.com/' }}
+      MONITOR_TARGET_URL_PANN_PC_VIEW: ${{ vars.MONITOR_TARGET_URL_PANN_PC_VIEW || vars.MONITOR_TARGET_URL_PANN_PC || secrets.MONITOR_TARGET_URL_PANN_PC_VIEW || secrets.MONITOR_TARGET_URL_PANN_PC || 'https://pann.nate.com/talk/375431569' }}
+      MONITOR_TARGET_URL_PANN_PC_HOME: ${{ vars.MONITOR_TARGET_URL_PANN_PC_HOME || secrets.MONITOR_TARGET_URL_PANN_PC_HOME || 'https://pann.nate.com/' }}
       MONITOR_IGNORE_ERROR_PATTERNS: ${{ vars.MONITOR_IGNORE_ERROR_PATTERNS || secrets.MONITOR_IGNORE_ERROR_PATTERNS }}
       MONITOR_TIMEOUT_MS: '20000'
       MONITOR_USER_AGENT: 'ad-monitoring-bot/1.0 (github-actions)'
@@ -64,7 +68,7 @@ jobs:
         run: npm run json:sync
 
       - name: Install Playwright browsers (Chromium)
-        if: (github.event_name != 'workflow_dispatch' || inputs.backfill_only != true) && (env.MONITOR_TARGET_URL_NEWS_VIEW != '' || env.MONITOR_TARGET_URL_NEWS_HOME != '' || env.MONITOR_TARGET_URL_PANN_VIEW != '' || env.MONITOR_TARGET_URL_PANN_HOME != '')
+        if: (github.event_name != 'workflow_dispatch' || inputs.backfill_only != true) && (env.MONITOR_TARGET_URL_NEWS_VIEW != '' || env.MONITOR_TARGET_URL_NEWS_HOME != '' || env.MONITOR_TARGET_URL_PANN_VIEW != '' || env.MONITOR_TARGET_URL_PANN_HOME != '' || env.MONITOR_TARGET_URL_NEWS_PC_VIEW != '' || env.MONITOR_TARGET_URL_NEWS_PC_HOME != '' || env.MONITOR_TARGET_URL_PANN_PC_VIEW != '' || env.MONITOR_TARGET_URL_PANN_PC_HOME != '')
         run: npx playwright install --with-deps chromium
 
       - name: Build site (for GitHub Pages)
@@ -93,9 +97,13 @@ jobs:
           ls -la dist/news | sed -n '1,160p'
           ls -la dist/news/view | sed -n '1,160p'
           ls -la dist/news/home | sed -n '1,160p'
+          ls -la dist/news/pc/view | sed -n '1,160p'
+          ls -la dist/news/pc/home | sed -n '1,160p'
           ls -la dist/pann | sed -n '1,160p'
           ls -la dist/pann/view | sed -n '1,160p'
           ls -la dist/pann/home | sed -n '1,160p'
+          ls -la dist/pann/pc/view | sed -n '1,160p'
+          ls -la dist/pann/pc/home | sed -n '1,160p'
 
       - name: Setup Pages
         id: pages
@@ -115,8 +123,12 @@ jobs:
           path: |
             public/news/view/monitor-report.json
             public/news/home/monitor-report.json
+            public/news/pc/view/monitor-report.json
+            public/news/pc/home/monitor-report.json
             public/pann/view/monitor-report.json
             public/pann/home/monitor-report.json
+            public/pann/pc/view/monitor-report.json
+            public/pann/pc/home/monitor-report.json
           if-no-files-found: ignore
 
       - name: Create issue on failure
@@ -135,6 +147,10 @@ jobs:
               `- News home target: ${(process.env.MONITOR_TARGET_URL_NEWS_HOME && '(configured)') || '(missing MONITOR_TARGET_URL_NEWS_HOME variable/secret)'}`,
               `- Pann view target: ${(process.env.MONITOR_TARGET_URL_PANN_VIEW && '(configured)') || '(missing MONITOR_TARGET_URL_PANN_VIEW variable/secret)'}`,
               `- Pann home target: ${(process.env.MONITOR_TARGET_URL_PANN_HOME && '(configured)') || '(missing MONITOR_TARGET_URL_PANN_HOME variable/secret)'}`,
+              `- News PC view target: ${(process.env.MONITOR_TARGET_URL_NEWS_PC_VIEW && '(configured)') || '(missing MONITOR_TARGET_URL_NEWS_PC_VIEW variable/secret)'}`,
+              `- News PC home target: ${(process.env.MONITOR_TARGET_URL_NEWS_PC_HOME && '(configured)') || '(missing MONITOR_TARGET_URL_NEWS_PC_HOME variable/secret)'}`,
+              `- Pann PC view target: ${(process.env.MONITOR_TARGET_URL_PANN_PC_VIEW && '(configured)') || '(missing MONITOR_TARGET_URL_PANN_PC_VIEW variable/secret)'}`,
+              `- Pann PC home target: ${(process.env.MONITOR_TARGET_URL_PANN_PC_HOME && '(configured)') || '(missing MONITOR_TARGET_URL_PANN_PC_HOME variable/secret)'}`,
               '',
               'Check the workflow logs and the uploaded artifact `monitor-report` for details.',
             ].join('\n');

@@ -10,7 +10,6 @@ const TARGETS = {
     description: '네이트 모바일 뉴스 뷰 페이지의 광고 스크립트 상태를 확인합니다.',
     reportPaths: ['news/view/monitor-report.json'],
     historyPaths: ['news/view/history.json'],
-    icon: 'MN',
   },
   'news-home': {
     id: 'news-home',
@@ -18,7 +17,6 @@ const TARGETS = {
     description: '네이트 모바일 뉴스 홈의 광고 스크립트 상태를 확인합니다.',
     reportPaths: ['news/home/monitor-report.json'],
     historyPaths: ['news/home/history.json'],
-    icon: 'NH',
   },
   pann: {
     id: 'pann',
@@ -26,7 +24,6 @@ const TARGETS = {
     description: '네이트 판 뷰 페이지의 광고/콘솔 경고 및 에러를 확인합니다.',
     reportPaths: ['pann/view/monitor-report.json'],
     historyPaths: ['pann/view/history.json'],
-    icon: 'PN',
   },
   'pann-home': {
     id: 'pann-home',
@@ -34,11 +31,51 @@ const TARGETS = {
     description: '네이트 모바일 판 홈의 광고/콘솔 경고 및 에러를 확인합니다.',
     reportPaths: ['pann/home/monitor-report.json'],
     historyPaths: ['pann/home/history.json'],
-    icon: 'PH',
+  },
+  'news-pc': {
+    id: 'news-pc',
+    label: 'PC 뉴스 기사뷰',
+    description: '네이트 PC 뉴스 기사뷰 페이지의 광고 스크립트 상태를 확인합니다.',
+    reportPaths: ['news/pc/view/monitor-report.json'],
+    historyPaths: ['news/pc/view/history.json'],
+  },
+  'news-pc-home': {
+    id: 'news-pc-home',
+    label: 'PC 뉴스 홈',
+    description: '네이트 PC 뉴스 홈의 광고 스크립트 상태를 확인합니다.',
+    reportPaths: ['news/pc/home/monitor-report.json'],
+    historyPaths: ['news/pc/home/history.json'],
+  },
+  'pann-pc': {
+    id: 'pann-pc',
+    label: 'PC 판 뷰',
+    description: '네이트 PC 판 뷰 페이지의 광고/콘솔 경고 및 에러를 확인합니다.',
+    reportPaths: ['pann/pc/view/monitor-report.json'],
+    historyPaths: ['pann/pc/view/history.json'],
+  },
+  'pann-pc-home': {
+    id: 'pann-pc-home',
+    label: 'PC 판 홈',
+    description: '네이트 PC 판 홈의 광고/콘솔 경고 및 에러를 확인합니다.',
+    reportPaths: ['pann/pc/home/monitor-report.json'],
+    historyPaths: ['pann/pc/home/history.json'],
   },
 } as const
 
 type TargetId = keyof typeof TARGETS
+
+const TARGET_GROUPS: { id: string; title: string; targetIds: TargetId[] }[] = [
+  {
+    id: 'news',
+    title: '뉴스',
+    targetIds: ['news', 'news-home', 'news-pc', 'news-pc-home'],
+  },
+  {
+    id: 'pann',
+    title: '판',
+    targetIds: ['pann', 'pann-home', 'pann-pc', 'pann-pc-home'],
+  },
+]
 
 type AppView =
   | { kind: 'home' }
@@ -78,7 +115,6 @@ function App() {
     typeof window === 'undefined' ? { kind: 'home' } : parseAppView(),
   )
   const [heroReportMeta, setHeroReportMeta] = useState<HeroReportMetaPayload | null>(null)
-  const targets = Object.values(TARGETS)
 
   const target = useMemo(() => {
     if (appView.kind === 'home') return null
@@ -223,7 +259,6 @@ function App() {
           <MonitorReportPanel
             reportPaths={target.reportPaths as unknown as string[]}
             historyPaths={target.historyPaths as unknown as string[]}
-            occurrenceRoute={`${target.id}/occurrence`}
             onHeroReportMeta={handleHeroReportMeta}
           />
         ) : appView.kind === 'occurrence' && target ? (
@@ -234,13 +269,25 @@ function App() {
           />
         ) : (
           <section className="targetPicker">
-            {targets.map((item) => (
-              <button type="button" className="targetCard" key={item.id} onClick={() => moveToTarget(item.id)}>
-                <span className="targetCardText">
-                  <span className="targetTitle">{item.label}</span>
-                  <span className="targetDescription">{item.description}</span>
-                </span>
-              </button>
+            {TARGET_GROUPS.map((group) => (
+              <section className="targetServiceRow" key={group.id} aria-labelledby={`target-service-${group.id}`}>
+                <h2 className="targetServiceTitle" id={`target-service-${group.id}`}>
+                  {group.title}
+                </h2>
+                <div className="targetServiceCards">
+                  {group.targetIds.map((targetId) => {
+                    const item = TARGETS[targetId]
+                    return (
+                      <button type="button" className="targetCard" key={item.id} onClick={() => moveToTarget(item.id)}>
+                        <span className="targetCardText">
+                          <span className="targetTitle">{item.label}</span>
+                          <span className="targetDescription">{item.description}</span>
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </section>
             ))}
           </section>
         )}

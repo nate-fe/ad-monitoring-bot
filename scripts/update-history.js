@@ -41,8 +41,12 @@ async function ensureParentDir(filePath) {
 
 function inferTargetScopeFromReportPath(filePath) {
   const normalized = filePath.replaceAll('\\', '/').toLowerCase()
+  if (normalized.includes('/news/pc/home/monitor-report.json')) return 'news-pc-home'
+  if (normalized.includes('/news/pc/view/monitor-report.json')) return 'news-pc'
   if (normalized.includes('/news/home/monitor-report.json')) return 'news-home'
   if (normalized.includes('/news/view/monitor-report.json')) return 'news'
+  if (normalized.includes('/pann/pc/home/monitor-report.json')) return 'pann-pc-home'
+  if (normalized.includes('/pann/pc/view/monitor-report.json')) return 'pann-pc'
   if (normalized.includes('/pann/home/monitor-report.json')) return 'pann-home'
   if (normalized.includes('/pann/view/monitor-report.json')) return 'pann'
   return ''

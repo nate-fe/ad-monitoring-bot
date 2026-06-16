@@ -4,7 +4,7 @@ import path from 'node:path'
 import process from 'node:process'
 
 const scope = process.argv[2]
-const validScopes = ['news', 'news-home', 'pann', 'pann-home']
+const validScopes = ['news', 'news-home', 'pann', 'pann-home', 'news-pc', 'news-pc-home', 'pann-pc', 'pann-pc-home']
 
 const SCOPE_CONFIG = {
   news: {
@@ -23,10 +23,26 @@ const SCOPE_CONFIG = {
     envNames: ['MONITOR_TARGET_URL_PANN_HOME'],
     reportPath: path.join('public', 'pann', 'home', 'monitor-report.json'),
   },
+  'news-pc': {
+    envNames: ['MONITOR_TARGET_URL_NEWS_PC_VIEW', 'MONITOR_TARGET_URL_NEWS_PC'],
+    reportPath: path.join('public', 'news', 'pc', 'view', 'monitor-report.json'),
+  },
+  'news-pc-home': {
+    envNames: ['MONITOR_TARGET_URL_NEWS_PC_HOME'],
+    reportPath: path.join('public', 'news', 'pc', 'home', 'monitor-report.json'),
+  },
+  'pann-pc': {
+    envNames: ['MONITOR_TARGET_URL_PANN_PC_VIEW', 'MONITOR_TARGET_URL_PANN_PC'],
+    reportPath: path.join('public', 'pann', 'pc', 'view', 'monitor-report.json'),
+  },
+  'pann-pc-home': {
+    envNames: ['MONITOR_TARGET_URL_PANN_PC_HOME'],
+    reportPath: path.join('public', 'pann', 'pc', 'home', 'monitor-report.json'),
+  },
 }
 
 if (!validScopes.includes(scope)) {
-  console.error('Usage: node ./scripts/run-monitor-target.js <news|news-home|pann|pann-home>')
+  console.error('Usage: node ./scripts/run-monitor-target.js <news|news-home|pann|pann-home|news-pc|news-pc-home|pann-pc|pann-pc-home>')
   process.exit(1)
 }
 

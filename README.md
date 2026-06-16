@@ -5,7 +5,7 @@
 
 - **모니터 실행기**: `scripts/monitor.js` (`npm run monitor`)
 - **대시보드**: Vite + React (`npm run dev` / `npm run build`)
-- **결과 파일**: `public/news/view/monitor-report.json`, `public/news/home/monitor-report.json`, `public/pann/view/monitor-report.json`, `public/pann/home/monitor-report.json`
+- **결과 파일**: `public/news/view/monitor-report.json`, `public/news/home/monitor-report.json`, `public/pann/view/monitor-report.json`, `public/pann/home/monitor-report.json` 및 PC용 `public/news/pc/*`, `public/pann/pc/*`
 - **호환 경로**: 이전 대시보드/캐시 대응용으로 `public/news/monitor-report.json`, `public/pann/monitor-report.json`도 함께 생성됨
 
 ## 무엇을 감지하나
@@ -40,9 +40,14 @@ MONITOR_TARGET_URL_NEWS_VIEW=https://m.news.nate.com/view/20260223n02867
 MONITOR_TARGET_URL_NEWS_HOME=https://m.news.nate.com/
 MONITOR_TARGET_URL_PANN_VIEW=https://m.pann.nate.com/talk/375312093
 MONITOR_TARGET_URL_PANN_HOME=https://m.pann.nate.com/
+
+MONITOR_TARGET_URL_NEWS_PC_VIEW=https://news.nate.com/view/20260615n08067
+MONITOR_TARGET_URL_NEWS_PC_HOME=https://news.nate.com/
+MONITOR_TARGET_URL_PANN_PC_VIEW=https://pann.nate.com/talk/375431569
+MONITOR_TARGET_URL_PANN_PC_HOME=https://pann.nate.com/
 ```
 
-> 참고: 뉴스 URL은 기본값(fallback)이 있지만, 판 URL은 실제 주소를 직접 넣어야 합니다.
+> 참고: GitHub Actions 기본값은 모바일 기존 URL과 PC 추가 URL을 모두 포함하며, Variables/Secrets로 언제든 덮어쓸 수 있습니다.
 
 ### 3) 모니터 실행 (리포트 생성)
 
@@ -58,7 +63,7 @@ npm run monitor:all
 npm run dev
 ```
 
-대시보드는 `news/view`, `news/home`, `pann/view`, `pann/home` 경로의 JSON을 fetch 해서 결과를 보여줍니다.  
+대시보드는 `news/view`, `news/home`, `pann/view`, `pann/home` 및 PC용 `news/pc/*`, `pann/pc/*` 경로의 JSON을 fetch 해서 결과를 보여줍니다.  
 리포트가 없으면 “리포트를 찾을 수 없습니다”로 표시됩니다.
 
 ## 환경변수
@@ -71,11 +76,15 @@ npm run dev
 - **`MONITOR_TARGET_URL_NEWS_HOME`**: 뉴스 홈 모니터링 대상 URL
 - **`MONITOR_TARGET_URL_PANN_VIEW`**: 판 뷰 모니터링 대상 URL
 - **`MONITOR_TARGET_URL_PANN_HOME`**: 판 홈 모니터링 대상 URL
+- **`MONITOR_TARGET_URL_NEWS_PC_VIEW`**: PC 뉴스 기사뷰 모니터링 대상 URL
+- **`MONITOR_TARGET_URL_NEWS_PC_HOME`**: PC 뉴스 홈 모니터링 대상 URL
+- **`MONITOR_TARGET_URL_PANN_PC_VIEW`**: PC 판 뷰 모니터링 대상 URL
+- **`MONITOR_TARGET_URL_PANN_PC_HOME`**: PC 판 홈 모니터링 대상 URL
 - **`MONITOR_TARGET_URL`**: 단일 타깃 수동 실행용 override
 
 ### 출력
 
-- **`MONITOR_TARGET_SCOPE`**: 타깃 구분값 (`news`, `news-home`, `pann`, `pann-home`, 스코프 실행 스크립트에서 자동 지정)
+- **`MONITOR_TARGET_SCOPE`**: 타깃 구분값 (`news`, `news-home`, `pann`, `pann-home`, `news-pc`, `news-pc-home`, `pann-pc`, `pann-pc-home`, 스코프 실행 스크립트에서 자동 지정)
 - **`MONITOR_REPORT_PATH`**: 리포트 저장 경로 (기본 `public/<scope>/monitor-report.json`)
   - 값이 `none`(대소문자 무관) 또는 `0`이면 파일 저장을 생략합니다.
 
@@ -132,12 +141,20 @@ npm run dev
 - 뉴스 호환 누적 기록: `https://yoonzeen.github.io/ad-monitoring-bot/news/history.json`
 - 뉴스 홈 최신 결과: `https://yoonzeen.github.io/ad-monitoring-bot/news/home/monitor-report.json`
 - 뉴스 홈 누적 기록: `https://yoonzeen.github.io/ad-monitoring-bot/news/home/history.json`
+- PC 뉴스 기사뷰 최신 결과: `https://yoonzeen.github.io/ad-monitoring-bot/news/pc/view/monitor-report.json`
+- PC 뉴스 기사뷰 누적 기록: `https://yoonzeen.github.io/ad-monitoring-bot/news/pc/view/history.json`
+- PC 뉴스 홈 최신 결과: `https://yoonzeen.github.io/ad-monitoring-bot/news/pc/home/monitor-report.json`
+- PC 뉴스 홈 누적 기록: `https://yoonzeen.github.io/ad-monitoring-bot/news/pc/home/history.json`
 - 판 뷰 최신 결과: `https://yoonzeen.github.io/ad-monitoring-bot/pann/view/monitor-report.json`
 - 판 뷰 누적 기록: `https://yoonzeen.github.io/ad-monitoring-bot/pann/view/history.json`
 - 판 호환 최신 결과: `https://yoonzeen.github.io/ad-monitoring-bot/pann/monitor-report.json`
 - 판 호환 누적 기록: `https://yoonzeen.github.io/ad-monitoring-bot/pann/history.json`
 - 판 홈 최신 결과: `https://yoonzeen.github.io/ad-monitoring-bot/pann/home/monitor-report.json`
 - 판 홈 누적 기록: `https://yoonzeen.github.io/ad-monitoring-bot/pann/home/history.json`
+- PC 판 뷰 최신 결과: `https://yoonzeen.github.io/ad-monitoring-bot/pann/pc/view/monitor-report.json`
+- PC 판 뷰 누적 기록: `https://yoonzeen.github.io/ad-monitoring-bot/pann/pc/view/history.json`
+- PC 판 홈 최신 결과: `https://yoonzeen.github.io/ad-monitoring-bot/pann/pc/home/monitor-report.json`
+- PC 판 홈 누적 기록: `https://yoonzeen.github.io/ad-monitoring-bot/pann/pc/home/history.json`
 
 대시보드 화면 하단의 **최근 실행 기록**에서 최근 N건을 바로 확인할 수 있습니다.
 
@@ -146,10 +163,10 @@ npm run dev
 워크플로 파일: `.github/workflows/ad-monitor.yml`
 
 - **스케줄**: `cron: '0 * * * *'` (UTC 기준 매시간 정각)
-- **실행 대상**: 매 실행마다 `news`, `news-home`, `pann`, `pann-home`을 모두 수집
+- **실행 대상**: 매 실행마다 모바일 `news`, `news-home`, `pann`, `pann-home`과 PC `news-pc`, `news-pc-home`, `pann-pc`, `pann-pc-home`을 모두 수집
 - **Node**: 20
 - **브라우저 설치**: `npx playwright install --with-deps chromium`
-- **리포트 업로드**: Pages용 4개 타깃 `dist/*/monitor-report.json`을 artifact로 업로드
+- **리포트 업로드**: Pages용 8개 타깃 `dist/*/monitor-report.json`을 artifact로 업로드
 - **Pages 배포(선택)**: `npm run build` 후 `dist/`를 GitHub Pages로 배포
   - 이때 `VITE_BASE`를 `/<repo-name>/`로 주입해서 경로가 맞게 동작하도록 합니다. (`vite.config.ts` 참고)
 
@@ -159,6 +176,10 @@ npm run dev
 - **`MONITOR_TARGET_URL_NEWS_HOME`**
 - **`MONITOR_TARGET_URL_PANN_VIEW`**
 - **`MONITOR_TARGET_URL_PANN_HOME`**
+- **`MONITOR_TARGET_URL_NEWS_PC_VIEW`**
+- **`MONITOR_TARGET_URL_NEWS_PC_HOME`**
+- **`MONITOR_TARGET_URL_PANN_PC_VIEW`**
+- **`MONITOR_TARGET_URL_PANN_PC_HOME`**
 
 ## GitLab CI (참고)
 
@@ -174,7 +195,7 @@ npm run dev
 - **`scripts/monitor.js`**: Playwright로 모니터링 후 타깃별 리포트 생성
 - **`scripts/run-monitor-target.js`**: 타깃 스코프별 모니터 실행 래퍼
 - **`scripts/run-history-target.js`**: 타깃 스코프별 히스토리 갱신 래퍼
-- **`public/news/view/monitor-report.json`**, **`public/news/home/monitor-report.json`**, **`public/pann/view/monitor-report.json`**, **`public/pann/home/monitor-report.json`**: 최신 리포트(자동 생성/갱신, `.gitignore` 대상)
+- **`public/news/view/monitor-report.json`**, **`public/news/home/monitor-report.json`**, **`public/news/pc/view/monitor-report.json`**, **`public/news/pc/home/monitor-report.json`**, **`public/pann/view/monitor-report.json`**, **`public/pann/home/monitor-report.json`**, **`public/pann/pc/view/monitor-report.json`**, **`public/pann/pc/home/monitor-report.json`**: 최신 리포트(자동 생성/갱신, `.gitignore` 대상)
 - **`src/components/MonitorReportPanel.tsx`**: 리포트 로딩/표시 UI
 - **`src/monitor/types.ts`**: 리포트 타입 정의
 - **`.github/workflows/ad-monitor.yml`**: 스케줄 실행 + Pages 배포

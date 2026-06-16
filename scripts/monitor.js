@@ -32,6 +32,7 @@ const DEFAULT_IGNORE_ERROR_PATTERNS = [
   'GL Driver Message',
   'GPU stall',
   'ReadPixels',
+  "Cannot read properties of null (reading 'getBoundingClientRect') https://cyad1.nate.com/js.kti/mnate/mob@pann_Middle1",
 ]
 
 function safeSnippet(s, maxLen = 120) {
@@ -249,6 +250,14 @@ function inferTargetScope(targetUrl) {
     if (parsed.hostname === 'm.pann.nate.com') {
       return pathname.startsWith('/talk/') ? 'pann' : 'pann-home'
     }
+
+    if (parsed.hostname === 'news.nate.com') {
+      return pathname.startsWith('/view/') ? 'news-pc' : 'news-pc-home'
+    }
+
+    if (parsed.hostname === 'pann.nate.com') {
+      return pathname.startsWith('/talk/') ? 'pann-pc' : 'pann-pc-home'
+    }
   } catch {
     // fall back to string heuristics below
   }
@@ -257,6 +266,10 @@ function inferTargetScope(targetUrl) {
   if (lower.includes('m.news.nate.com')) return 'news-home'
   if (lower.includes('m.pann.nate.com/talk/')) return 'pann'
   if (lower.includes('m.pann.nate.com')) return 'pann-home'
+  if (lower.includes('news.nate.com/view/')) return 'news-pc'
+  if (lower.includes('news.nate.com')) return 'news-pc-home'
+  if (lower.includes('pann.nate.com/talk/')) return 'pann-pc'
+  if (lower.includes('pann.nate.com')) return 'pann-pc-home'
   return ''
 }
 
@@ -267,6 +280,10 @@ function getScopedTargetUrl(scope) {
     'news-home': ['MONITOR_TARGET_URL_NEWS_HOME'],
     pann: ['MONITOR_TARGET_URL_PANN_VIEW', 'MONITOR_TARGET_URL_PANN'],
     'pann-home': ['MONITOR_TARGET_URL_PANN_HOME'],
+    'news-pc': ['MONITOR_TARGET_URL_NEWS_PC_VIEW', 'MONITOR_TARGET_URL_NEWS_PC'],
+    'news-pc-home': ['MONITOR_TARGET_URL_NEWS_PC_HOME'],
+    'pann-pc': ['MONITOR_TARGET_URL_PANN_PC_VIEW', 'MONITOR_TARGET_URL_PANN_PC'],
+    'pann-pc-home': ['MONITOR_TARGET_URL_PANN_PC_HOME'],
   }
   const envNames = envNamesByScope[scope] ?? []
   for (const envName of envNames) {
@@ -424,7 +441,7 @@ async function main() {
   })
 
   if (!targetScope) {
-    throw new Error('Could not infer target scope from MONITOR_TARGET_URL. Set MONITOR_TARGET_SCOPE to news, news-home, pann, or pann-home.')
+    throw new Error('Could not infer target scope from MONITOR_TARGET_URL. Set MONITOR_TARGET_SCOPE to news, news-home, pann, pann-home, news-pc, news-pc-home, pann-pc, or pann-pc-home.')
   }
 
   const reportPath = getEnv('MONITOR_REPORT_PATH', {
@@ -583,8 +600,8 @@ async function main() {
 
       page.on('pageerror', (err) => {
         const message = err instanceof Error ? err.message : String(err)
-        if (shouldIgnore(message)) return
         const location = parseLocationFromStack(err instanceof Error ? err.stack : undefined)
+        if (shouldIgnore(`${message} ${location.sourceUrl ?? ''}`)) return
         pageErrors.push({
           message,
           stack: err instanceof Error ? err.stack : undefined,

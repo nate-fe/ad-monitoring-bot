@@ -4,7 +4,7 @@ import path from 'node:path'
 import process from 'node:process'
 
 const scope = process.argv[2]
-const validScopes = ['news', 'news-home', 'pann', 'pann-home']
+const validScopes = ['news', 'news-home', 'pann', 'pann-home', 'news-pc', 'news-pc-home', 'pann-pc', 'pann-pc-home']
 
 const SCOPE_CONFIG = {
   news: {
@@ -27,10 +27,30 @@ const SCOPE_CONFIG = {
     reportPath: path.join('public', 'pann', 'home', 'monitor-report.json'),
     historyPath: path.join('public', 'pann', 'home', 'history.json'),
   },
+  'news-pc': {
+    historyEnvNames: ['HISTORY_SOURCE_URL_NEWS_PC_VIEW', 'HISTORY_SOURCE_URL_NEWS_PC'],
+    reportPath: path.join('public', 'news', 'pc', 'view', 'monitor-report.json'),
+    historyPath: path.join('public', 'news', 'pc', 'view', 'history.json'),
+  },
+  'news-pc-home': {
+    historyEnvNames: ['HISTORY_SOURCE_URL_NEWS_PC_HOME'],
+    reportPath: path.join('public', 'news', 'pc', 'home', 'monitor-report.json'),
+    historyPath: path.join('public', 'news', 'pc', 'home', 'history.json'),
+  },
+  'pann-pc': {
+    historyEnvNames: ['HISTORY_SOURCE_URL_PANN_PC_VIEW', 'HISTORY_SOURCE_URL_PANN_PC'],
+    reportPath: path.join('public', 'pann', 'pc', 'view', 'monitor-report.json'),
+    historyPath: path.join('public', 'pann', 'pc', 'view', 'history.json'),
+  },
+  'pann-pc-home': {
+    historyEnvNames: ['HISTORY_SOURCE_URL_PANN_PC_HOME'],
+    reportPath: path.join('public', 'pann', 'pc', 'home', 'monitor-report.json'),
+    historyPath: path.join('public', 'pann', 'pc', 'home', 'history.json'),
+  },
 }
 
 if (!validScopes.includes(scope)) {
-  console.error('Usage: node ./scripts/run-history-target.js <news|news-home|pann|pann-home>')
+  console.error('Usage: node ./scripts/run-history-target.js <news|news-home|pann|pann-home|news-pc|news-pc-home|pann-pc|pann-pc-home>')
   process.exit(1)
 }
 

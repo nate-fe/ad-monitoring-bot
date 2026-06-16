@@ -7,6 +7,10 @@ const HISTORY_PATHS = {
   HISTORY_SOURCE_URL_NEWS_HOME: 'news/home/history.json',
   HISTORY_SOURCE_URL_PANN_VIEW: 'pann/view/history.json',
   HISTORY_SOURCE_URL_PANN_HOME: 'pann/home/history.json',
+  HISTORY_SOURCE_URL_NEWS_PC_VIEW: 'news/pc/view/history.json',
+  HISTORY_SOURCE_URL_NEWS_PC_HOME: 'news/pc/home/history.json',
+  HISTORY_SOURCE_URL_PANN_PC_VIEW: 'pann/pc/view/history.json',
+  HISTORY_SOURCE_URL_PANN_PC_HOME: 'pann/pc/home/history.json',
 }
 
 function normalizeBaseUrl(value) {

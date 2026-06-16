@@ -22,7 +22,7 @@ function runScope(scope) {
   })
 }
 
-const scopes = ['news', 'news-home', 'pann', 'pann-home']
+const scopes = ['news', 'news-home', 'pann', 'pann-home', 'news-pc', 'news-pc-home', 'pann-pc', 'pann-pc-home']
 let hasFailure = false
 
 for (const scope of scopes) {

@@ -120,8 +120,29 @@
 
 .targetPicker {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 14px;
+  gap: 16px;
+}
+
+.targetServiceRow {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--panel2) 30%, transparent);
+}
+
+.targetServiceTitle {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: color-mix(in srgb, var(--text) 90%, var(--muted));
+}
+
+.targetServiceCards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .targetCard {
@@ -2707,6 +2728,14 @@ details[open].historyItem .historyChevron {
   }
 
   .targetPicker {
+    gap: 14px;
+  }
+
+  .targetServiceRow {
+    padding: 12px;
+  }
+
+  .targetServiceCards {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -2968,7 +2997,7 @@ details[open].historyItem .historyChevron {
 }
 
 @media (max-width: 400px) {
-  .targetPicker {
+  .targetServiceCards {
     grid-template-columns: 1fr;
   }
 }

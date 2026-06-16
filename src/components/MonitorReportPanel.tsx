@@ -35,7 +35,6 @@ export type HeroReportMetaPayload =
 type MonitorReportPanelProps = {
   reportPaths?: string[]
   historyPaths?: string[]
-  occurrenceRoute?: string
   onHeroReportMeta?: (meta: HeroReportMetaPayload) => void
 }
 
@@ -1070,7 +1069,8 @@ export function MonitorReportPanel({
             <p className="muted">
               로컬에서는 <code>npm run monitor:all</code>과 <code>npm run history:update:all</code>을 실행해
               대상별 <code>public/news/view</code>, <code>public/news/home</code>, <code>public/pann/view</code>,
-              <code>public/pann/home</code> JSON을 생성한 뒤 새로고침하세요.
+              <code>public/pann/home</code>, PC용 <code>public/news/pc</code>, <code>public/pann/pc</code> JSON을
+              생성한 뒤 새로고침하세요.
             </p>
           </div>
         </div>

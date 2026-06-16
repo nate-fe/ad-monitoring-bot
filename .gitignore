@@ -32,12 +32,20 @@ public/news/history.json
 public/news/monitor-report.json
 public/news/home/history.json
 public/news/home/monitor-report.json
+public/news/pc/home/history.json
+public/news/pc/home/monitor-report.json
+public/news/pc/view/history.json
+public/news/pc/view/monitor-report.json
 public/news/view/history.json
 public/news/view/monitor-report.json
 public/pann/history.json
 public/pann/monitor-report.json
 public/pann/home/history.json
 public/pann/home/monitor-report.json
+public/pann/pc/home/history.json
+public/pann/pc/home/monitor-report.json
+public/pann/pc/view/history.json
+public/pann/pc/view/monitor-report.json
 public/pann/view/history.json
 public/pann/view/monitor-report.json
 
