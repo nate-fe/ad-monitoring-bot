@@ -2,8 +2,9 @@ name: ad-monitor
 
 on:
   schedule:
-    # Re-registered 2026-06-11: hourly at :17 UTC (GitHub may delay 5–15 min)
-    - cron: '17 * * * *'
+    # GitHub schedule events can be delayed or dropped. Run fallback attempts
+    # within each UTC hour; `schedule_gate` skips once one scheduled run succeeds.
+    - cron: '7,22,37,52 * * * *'
   workflow_dispatch:
     inputs:
       sync_until:
@@ -31,6 +32,7 @@ jobs:
     outputs:
       pages_ready: ${{ steps.upload_pages.conclusion == 'success' }}
     permissions:
+      actions: read
       contents: read
       issues: write
       pages: write
@@ -60,35 +62,46 @@ jobs:
           node-version: 20
           cache: npm
 
+      - name: Check scheduled fallback window
+        id: schedule_gate
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_WORKFLOW_FILE: ad-monitor.yml
+        run: node ./scripts/should-run-scheduled.js
+
       - name: Install
+        if: steps.schedule_gate.outputs.should_run != 'false'
         run: npm ci --include=dev
 
       - name: Seed JSON from yoonzeen Pages (nate-fe only)
-        if: github.repository_owner == 'nate-fe'
+        if: steps.schedule_gate.outputs.should_run != 'false' && github.repository_owner == 'nate-fe'
         run: npm run json:sync
 
       - name: Install Playwright browsers (Chromium)
-        if: (github.event_name != 'workflow_dispatch' || inputs.backfill_only != true) && (env.MONITOR_TARGET_URL_NEWS_VIEW != '' || env.MONITOR_TARGET_URL_NEWS_HOME != '' || env.MONITOR_TARGET_URL_PANN_VIEW != '' || env.MONITOR_TARGET_URL_PANN_HOME != '' || env.MONITOR_TARGET_URL_NEWS_PC_VIEW != '' || env.MONITOR_TARGET_URL_NEWS_PC_HOME != '' || env.MONITOR_TARGET_URL_PANN_PC_VIEW != '' || env.MONITOR_TARGET_URL_PANN_PC_HOME != '')
+        if: steps.schedule_gate.outputs.should_run != 'false' && (github.event_name != 'workflow_dispatch' || inputs.backfill_only != true) && (env.MONITOR_TARGET_URL_NEWS_VIEW != '' || env.MONITOR_TARGET_URL_NEWS_HOME != '' || env.MONITOR_TARGET_URL_PANN_VIEW != '' || env.MONITOR_TARGET_URL_PANN_HOME != '' || env.MONITOR_TARGET_URL_NEWS_PC_VIEW != '' || env.MONITOR_TARGET_URL_NEWS_PC_HOME != '' || env.MONITOR_TARGET_URL_PANN_PC_VIEW != '' || env.MONITOR_TARGET_URL_PANN_PC_HOME != '')
         run: npx playwright install --with-deps chromium
 
       - name: Build site (for GitHub Pages)
+        if: steps.schedule_gate.outputs.should_run != 'false'
         env:
           VITE_BASE: /${{ github.event.repository.name }}/
         run: npm run build
 
       - name: Run monitor targets
-        if: github.event_name != 'workflow_dispatch' || inputs.backfill_only != true
+        if: steps.schedule_gate.outputs.should_run != 'false' && (github.event_name != 'workflow_dispatch' || inputs.backfill_only != true)
         continue-on-error: true
         run: npm run monitor:all
 
       - name: Update history files
-        if: github.event_name != 'workflow_dispatch' || inputs.backfill_only != true
+        if: steps.schedule_gate.outputs.should_run != 'false' && (github.event_name != 'workflow_dispatch' || inputs.backfill_only != true)
         run: npm run history:update:all
 
       - name: Write legacy flat aliases
+        if: steps.schedule_gate.outputs.should_run != 'false'
         run: npm run aliases:flat
 
       - name: Copy monitor outputs into dist
+        if: steps.schedule_gate.outputs.should_run != 'false'
         run: |
           mkdir -p dist/news dist/pann
           cp -r public/news dist/
@@ -106,17 +119,19 @@ jobs:
           ls -la dist/pann/pc/home | sed -n '1,160p'
 
       - name: Setup Pages
+        if: steps.schedule_gate.outputs.should_run != 'false'
         id: pages
         uses: actions/configure-pages@v5
 
       - name: Upload Pages artifact
+        if: steps.schedule_gate.outputs.should_run != 'false'
         id: upload_pages
         uses: actions/upload-pages-artifact@v3
         with:
           path: dist
 
       - name: Upload report
-        if: always()
+        if: always() && steps.schedule_gate.outputs.should_run != 'false'
         uses: actions/upload-artifact@v6
         with:
           name: monitor-report

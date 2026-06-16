@@ -162,7 +162,8 @@ npm run dev
 
 워크플로 파일: `.github/workflows/ad-monitor.yml`
 
-- **스케줄**: `cron: '0 * * * *'` (UTC 기준 매시간 정각)
+- **스케줄**: `cron: '7,22,37,52 * * * *'` (UTC 기준 시간당 여러 fallback 시도)
+  - GitHub scheduled event 누락에 대비해 한 시간에 여러 번 트리거하고, 같은 UTC 시간에 이미 성공한 scheduled run이 있으면 나머지는 자동 skip합니다.
 - **실행 대상**: 매 실행마다 모바일 `news`, `news-home`, `pann`, `pann-home`과 PC `news-pc`, `news-pc-home`, `pann-pc`, `pann-pc-home`을 모두 수집
 - **Node**: 20
 - **브라우저 설치**: `npx playwright install --with-deps chromium`
