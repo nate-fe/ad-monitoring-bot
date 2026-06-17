@@ -321,9 +321,26 @@ const CONSOLE_CAPTURE_SCRIPT = `
   const key = '__adMonitorConsoleMessages__';
   if (globalThis[key]) return;
 
+  const describeElement = (el) => {
+    const tag = String(el.tagName || 'element').toLowerCase();
+    const id = el.id ? \` id="\${el.id}"\` : '';
+    const className =
+      typeof el.className === 'string' && el.className.trim()
+        ? \` class="\${el.className.trim().replace(/\\s+/g, ' ')}"\`
+        : '';
+    return \`[HTML 태그 객체: <\${tag}\${id}\${className}>]\`;
+  };
+
   const formatArg = (value) => {
     if (typeof value === 'string') return value;
     if (value == null) return String(value);
+    try {
+      if (typeof Element !== 'undefined' && value instanceof Element) {
+        return describeElement(value);
+      }
+    } catch {
+      // ignore cross-realm checks
+    }
     try {
       return JSON.stringify(value);
     } catch {
@@ -649,6 +666,9 @@ async function main() {
 
       for (const m of playwrightPageConsoleMessages) {
         const tx = String(m.text ?? '')
+        if (tx === 'JSHandle@node' && consoleMessages.some((x) => String(x.text ?? '').includes('[HTML 태그 객체:'))) {
+          continue
+        }
         if (pageTexts.has(tx)) {
           const idx = consoleMessages.findIndex((x) => String(x.text ?? '') === tx)
           if (idx >= 0 && m.sourceUrl) {
