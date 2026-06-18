@@ -20,7 +20,8 @@ pages:
 
     - |
       mkdir -p dist
-      mkdir -p dist/news/view dist/news/home dist/pann/view dist/pann/home
+      mkdir -p dist/news/view dist/news/home dist/news/pc/view dist/news/pc/home
+      mkdir -p dist/pann/view dist/pann/home dist/pann/pc/view dist/pann/pc/home
 
       if [ -n "${MONITOR_TARGET_URL_NEWS_VIEW}" ]; then
         MONITOR_TARGET_SCOPE="news" MONITOR_TARGET_URL="${MONITOR_TARGET_URL_NEWS_VIEW}" MONITOR_REPORT_PATH="dist/news/view/monitor-report.json" npm run monitor || true
@@ -49,6 +50,38 @@ pages:
           "durationMs": 0,
           "checkedAt": "",
           "failures": ["news home monitor-report.json was not produced (missing MONITOR_TARGET_URL_NEWS_HOME)"],
+          "diagnostics": { "pageErrors": [], "consoleMessages": [], "requestFailures": [] }
+        }
+        EOF
+      fi
+
+      if [ -n "${MONITOR_TARGET_URL_NEWS_PC_VIEW}" ]; then
+        MONITOR_TARGET_SCOPE="news-pc" MONITOR_TARGET_URL="${MONITOR_TARGET_URL_NEWS_PC_VIEW}" MONITOR_REPORT_PATH="dist/news/pc/view/monitor-report.json" npm run monitor || true
+      else
+        cat > dist/news/pc/view/monitor-report.json <<'EOF'
+        {
+          "ok": false,
+          "url": "",
+          "status": 0,
+          "durationMs": 0,
+          "checkedAt": "",
+          "failures": ["news pc view monitor-report.json was not produced (missing MONITOR_TARGET_URL_NEWS_PC_VIEW)"],
+          "diagnostics": { "pageErrors": [], "consoleMessages": [], "requestFailures": [] }
+        }
+        EOF
+      fi
+
+      if [ -n "${MONITOR_TARGET_URL_NEWS_PC_HOME}" ]; then
+        MONITOR_TARGET_SCOPE="news-pc-home" MONITOR_TARGET_URL="${MONITOR_TARGET_URL_NEWS_PC_HOME}" MONITOR_REPORT_PATH="dist/news/pc/home/monitor-report.json" npm run monitor || true
+      else
+        cat > dist/news/pc/home/monitor-report.json <<'EOF'
+        {
+          "ok": false,
+          "url": "",
+          "status": 0,
+          "durationMs": 0,
+          "checkedAt": "",
+          "failures": ["news pc home monitor-report.json was not produced (missing MONITOR_TARGET_URL_NEWS_PC_HOME)"],
           "diagnostics": { "pageErrors": [], "consoleMessages": [], "requestFailures": [] }
         }
         EOF
@@ -86,6 +119,38 @@ pages:
         EOF
       fi
 
+      if [ -n "${MONITOR_TARGET_URL_PANN_PC_VIEW}" ]; then
+        MONITOR_TARGET_SCOPE="pann-pc" MONITOR_TARGET_URL="${MONITOR_TARGET_URL_PANN_PC_VIEW}" MONITOR_REPORT_PATH="dist/pann/pc/view/monitor-report.json" npm run monitor || true
+      else
+        cat > dist/pann/pc/view/monitor-report.json <<'EOF'
+        {
+          "ok": false,
+          "url": "",
+          "status": 0,
+          "durationMs": 0,
+          "checkedAt": "",
+          "failures": ["pann pc view monitor-report.json was not produced (missing MONITOR_TARGET_URL_PANN_PC_VIEW)"],
+          "diagnostics": { "pageErrors": [], "consoleMessages": [], "requestFailures": [] }
+        }
+        EOF
+      fi
+
+      if [ -n "${MONITOR_TARGET_URL_PANN_PC_HOME}" ]; then
+        MONITOR_TARGET_SCOPE="pann-pc-home" MONITOR_TARGET_URL="${MONITOR_TARGET_URL_PANN_PC_HOME}" MONITOR_REPORT_PATH="dist/pann/pc/home/monitor-report.json" npm run monitor || true
+      else
+        cat > dist/pann/pc/home/monitor-report.json <<'EOF'
+        {
+          "ok": false,
+          "url": "",
+          "status": 0,
+          "durationMs": 0,
+          "checkedAt": "",
+          "failures": ["pann pc home monitor-report.json was not produced (missing MONITOR_TARGET_URL_PANN_PC_HOME)"],
+          "diagnostics": { "pageErrors": [], "consoleMessages": [], "requestFailures": [] }
+        }
+        EOF
+      fi
+
     - |
       MONITOR_TARGET_SCOPE="news" \
       HISTORY_SOURCE_URL="${CI_PAGES_URL}/news/view/history.json" \
@@ -103,6 +168,22 @@ pages:
       GITHUB_RUN_URL="" \
       node ./scripts/update-history.js || true
     - |
+      MONITOR_TARGET_SCOPE="news-pc" \
+      HISTORY_SOURCE_URL="${CI_PAGES_URL}/news/pc/view/history.json" \
+      REPORT_PATH="dist/news/pc/view/monitor-report.json" \
+      HISTORY_PATH="dist/news/pc/view/history.json" \
+      HISTORY_MAX="26280" \
+      GITHUB_RUN_URL="" \
+      node ./scripts/update-history.js || true
+    - |
+      MONITOR_TARGET_SCOPE="news-pc-home" \
+      HISTORY_SOURCE_URL="${CI_PAGES_URL}/news/pc/home/history.json" \
+      REPORT_PATH="dist/news/pc/home/monitor-report.json" \
+      HISTORY_PATH="dist/news/pc/home/history.json" \
+      HISTORY_MAX="26280" \
+      GITHUB_RUN_URL="" \
+      node ./scripts/update-history.js || true
+    - |
       MONITOR_TARGET_SCOPE="pann" \
       HISTORY_SOURCE_URL="${CI_PAGES_URL}/pann/view/history.json" \
       REPORT_PATH="dist/pann/view/monitor-report.json" \
@@ -115,6 +196,22 @@ pages:
       HISTORY_SOURCE_URL="${CI_PAGES_URL}/pann/home/history.json" \
       REPORT_PATH="dist/pann/home/monitor-report.json" \
       HISTORY_PATH="dist/pann/home/history.json" \
+      HISTORY_MAX="26280" \
+      GITHUB_RUN_URL="" \
+      node ./scripts/update-history.js || true
+    - |
+      MONITOR_TARGET_SCOPE="pann-pc" \
+      HISTORY_SOURCE_URL="${CI_PAGES_URL}/pann/pc/view/history.json" \
+      REPORT_PATH="dist/pann/pc/view/monitor-report.json" \
+      HISTORY_PATH="dist/pann/pc/view/history.json" \
+      HISTORY_MAX="26280" \
+      GITHUB_RUN_URL="" \
+      node ./scripts/update-history.js || true
+    - |
+      MONITOR_TARGET_SCOPE="pann-pc-home" \
+      HISTORY_SOURCE_URL="${CI_PAGES_URL}/pann/pc/home/history.json" \
+      REPORT_PATH="dist/pann/pc/home/monitor-report.json" \
+      HISTORY_PATH="dist/pann/pc/home/history.json" \
       HISTORY_MAX="26280" \
       GITHUB_RUN_URL="" \
       node ./scripts/update-history.js || true
