@@ -41,9 +41,25 @@ export function resolveHistorySourceBase() {
   return resolveGitHubPagesBase()
 }
 
+function resolveHistorySourceBaseForPath(relativePath) {
+  const explicit = normalizeBaseUrl(process.env.HISTORY_SOURCE_BASE_URL)
+  if (explicit) return explicit
+
+  const repoPagesBase = resolveGitHubPagesBase()
+
+  if (process.env.GITHUB_REPOSITORY_OWNER === 'nate-fe') {
+    // yoonzeen Pages does not publish PC history paths; use this repo's Pages
+    // so PC runs can merge the previous deployment instead of starting fresh.
+    if (relativePath.includes('/pc/') && repoPagesBase) return repoPagesBase
+    return YOONZEEN_PAGES_BASE
+  }
+
+  return repoPagesBase
+}
+
 export function applyHistoryEnv() {
-  const base = resolveHistorySourceBase()
-  if (!base) {
+  const defaultBase = resolveHistorySourceBase()
+  if (!defaultBase) {
     console.log('[history] No history source base; history will start fresh on this run.')
     return { base: '', applied: [] }
   }
@@ -51,16 +67,18 @@ export function applyHistoryEnv() {
   const applied = []
   for (const [envName, relativePath] of Object.entries(HISTORY_PATHS)) {
     if (process.env[envName]) continue
+    const base = resolveHistorySourceBaseForPath(relativePath)
+    if (!base) continue
     process.env[envName] = `${base}/${relativePath}`
     applied.push(envName)
   }
 
   if (applied.length > 0) {
-    console.log(`[history] Using ${base} as history source base.`)
+    console.log('[history] Using configured history source URLs.')
     for (const envName of applied) {
       console.log(`[history] ${envName}=${process.env[envName]}`)
     }
   }
 
-  return { base, applied }
+  return { base: defaultBase, applied }
 }

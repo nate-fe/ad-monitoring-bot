@@ -26,6 +26,8 @@ const PUBLIC_JSON_PATHS = [
   'pann/history.json',
 ]
 
+const YOONZEEN_PAGES_BASE = 'https://yoonzeen.github.io/ad-monitoring-bot'
+
 function normalizeBaseUrl(value) {
   const trimmed = String(value ?? '').trim()
   if (!trimmed) return ''
@@ -38,7 +40,28 @@ export function resolveJsonSyncBaseUrl() {
   if (fromEnv) return fromEnv
 
   if (process.env.GITHUB_REPOSITORY_OWNER === 'nate-fe') {
-    return 'https://yoonzeen.github.io/ad-monitoring-bot'
+    return YOONZEEN_PAGES_BASE
+  }
+
+  return ''
+}
+
+function resolveGitHubPagesBase() {
+  const owner = process.env.GITHUB_REPOSITORY_OWNER
+  const repo = process.env.GITHUB_REPOSITORY?.split('/')?.[1]
+  if (!owner || !repo) return ''
+  return `https://${owner}.github.io/${repo}`
+}
+
+function resolveJsonSyncBaseUrlForPath(relativePath) {
+  const fromEnv = normalizeBaseUrl(process.env.JSON_SYNC_BASE_URL)
+  if (fromEnv) return fromEnv
+
+  if (process.env.GITHUB_REPOSITORY_OWNER === 'nate-fe') {
+    // yoonzeen Pages is the mobile canonical source, but PC JSON lives on
+    // this repo's Pages deployment.
+    if (relativePath.includes('/pc/')) return resolveGitHubPagesBase() || YOONZEEN_PAGES_BASE
+    return YOONZEEN_PAGES_BASE
   }
 
   return ''
@@ -82,14 +105,21 @@ async function main() {
   }
 
   const untilLabel = process.env.JSON_SYNC_UNTIL ? `, until=${process.env.JSON_SYNC_UNTIL}` : ''
-  console.log(`[json-sync] Syncing from ${baseUrl} → public/ (overwrite when remote exists${untilLabel})`)
+  console.log(`[json-sync] Syncing from configured sources → public/ (overwrite when remote exists${untilLabel})`)
 
   let written = 0
   let skipped = 0
 
   for (const relativePath of PUBLIC_JSON_PATHS) {
     try {
-      const result = await downloadJsonOverwrite(baseUrl, relativePath)
+      const sourceBaseUrl = resolveJsonSyncBaseUrlForPath(relativePath)
+      if (!sourceBaseUrl) {
+        skipped += 1
+        console.warn(`[json-sync] skip ${relativePath} (JSON_SYNC_BASE_URL not set)`)
+        continue
+      }
+
+      const result = await downloadJsonOverwrite(sourceBaseUrl, relativePath)
       if (result.status === 'written') {
         written += 1
         console.log(`[json-sync] overwrote ${result.destPath}`)
