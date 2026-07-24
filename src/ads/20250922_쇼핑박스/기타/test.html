@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="kr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <div id="ifr_main_banner"></div>
+<script type="text/javascript">
+	(function () {
+    var _script = document.createElement('script');
+    var _div = document.createElement('div');
+    var _adArea = document.getElementById('ifr_main_banner');
+    
+    _script.src = 'https://test.mobwithad.com/static/js/mobwith_shopBox.js';
+    _div.appendChild(_script);
+    _adArea.appendChild(_div);
+    _script.onload = function () {
+        MobWithShopBox({
+            zone: "10889654", //ssp발급 지면
+            width: "306",     //가로 사이즈
+            height: "702",    //세로 사이즈
+            auid: "",	        //모비위드 사용자 고유 식별 key
+            adid: "",          //사용자 고유 식별 key(모바일)
+            adType: "shopBox" //배너 형태(고정)
+        });
+    }
+})()
+</script>
+</body>
+</html>

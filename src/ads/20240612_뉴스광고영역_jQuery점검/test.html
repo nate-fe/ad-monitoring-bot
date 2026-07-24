@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="kr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+    <script
+      src="https://code.jquery.com/jquery-3.7.1.min.js"
+      integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo="
+      crossorigin="anonymous"
+    ></script>
+  </head>
+  <body>
+    <table>
+      <tr>
+        <td>
+          <ul>
+            <li id="move">
+              0번째 노드<input type="text" name="node0" value="0번째 노드" />
+            </li>
+            <li>
+              1번째 노드<input type="text" name="node1" value="1번째 노드" />
+            </li>
+            <li>
+              2번쨰 노드<input type="text" name="node2" value="2번째 노드" />
+            </li>
+            <li>
+              3번째 노드<input type="text" name="node3" value="3번째 노드" />
+            </li>
+            <li>
+              4번째 노드<input type="text" name="node4" value="4번째 노드" />
+            </li>
+            <li>
+              5번째 노드<input type="text" name="node5" value="5번째 노드" />
+            </li>
+            <li>
+              6번째 노드<input type="text" name="node6" value="6번째 노드" />
+            </li>
+            <li>
+              7번째 노드<input type="radio" name="radio" value="7번째 노드" />
+            </li>
+            <li>
+              8번째 노드<input type="radio" name="radio" value="8번째 노드" />
+            </li>
+            <li>
+              9번째 노드<input type="radio" name="radio" value="9번째 노드" />
+            </li>
+            <li>
+              10번째 노드<input
+                type="checkbox"
+                name="node10"
+                value="10번째 노드"
+              />
+            </li>
+            <li>
+              11번째 노드<input
+                type="checkbox"
+                name="node11"
+                value="11번째 노드"
+              />
+            </li>
+            <li>
+              12번째 노드<input
+                type="checkbox"
+                name="node12"
+                value="12번째 노드"
+              />
+            </li>
+            <li><h3>13번째 노드</h3></li>
+            <li lang="en-us">14번째 노드</li>
+            <li lang="euc-kr">15번째 노드</li>
+            <li>16번째 노드</li>
+            <li id="move">17번째 노드</li>
+          </ul>
+        </td>
+        <td>
+          <button id="example1">1(:animated)</button><br />
+          <button id="example2">2(:even)</button><br />
+          <button id="example3">3(:odd)</button><br />
+          <button id="example4">4(:focus)</button><br />
+          <button id="example5">5(:eq(1))</button><br />
+          <button id="example6">6(:gt(6))</button><br />
+          <button id="example7">7(:lt(4))</button><br />
+          <button id="example8">8(:first)</button><br />
+          <button id="example9">9(:last)</button><br />
+          <button id="example10">10(:root)</button><br />
+          <button id="example11">11(:header)</button><br />
+          <button id="example12">12(:lang(euc-kr))</button><br />
+          <button id="example13">13(:not(:eq(3)))</button><br />
+        </td>
+      </tr>
+    </table>
+    <script>
+      //   (function fnAnimation() {
+      //     $("#move").slideToggle("slow", fnAnimation);
+      //   })();
+      $(function () {
+        $("#example1").click(function (e) {
+          $("*").css("background-color", "");
+          $("li:animated").css("background-color", "skyblue");
+        });
+
+        $("#example2").click(function (e) {
+          $("*").css("background-color", "");
+          $("li:even").css("background-color", "skyblue");
+        });
+        $("#example3").click(function (e) {
+          $("*").css("background-color", "");
+          $("li:odd").css("background-color", "skyblue");
+        });
+        $("#example4").click(function (e) {
+          $("*").css("background-color", "");
+          $("li:eq(5) input").focus();
+          $(":focus").css("color", "red");
+        });
+        $("#example5").click(function (e) {
+          $("*").css("background-color", "");
+          $("li:eq(1)").css("background-color", "skyblue");
+        });
+        $("#example6").click(function (e) {
+          $("*").css("background-color", "");
+          $("li:gt(6)").css("background-color", "skyblue");
+        });
+        $("#example7").click(function (e) {
+          $("*").css("background-color", "");
+          $("li:lt(4)").css("background-color", "skyblue");
+        });
+        $("#example8").click(function (e) {
+          $("*").css("background-color", "");
+          $("li:first").css("background-color", "skyblue");
+        });
+        $("#example9").click(function (e) {
+          $("*").css("background-color", "");
+          $("li:last").css("background-color", "skyblue");
+        });
+        $("#example10").click(function (e) {
+          $("*").css("background-color", "");
+          $(":root").css("background-color", "skyblue");
+        });
+        $("#example11").click(function (e) {
+          $("*").css("background-color", "");
+          $(":header").css("background-color", "skyblue");
+        });
+        $("#example12").click(function (e) {
+          $("*").css("background-color", "");
+          $("li:lang(euc-kr)").css("background-color", "skyblue");
+        });
+        $("#example13").click(function (e) {
+          $("*").css("background-color", "");
+          $("input:not(:eq(3))").css("background-color", "skyblue");
+        });
+      });
+    </script>
+  </body>
+</html>

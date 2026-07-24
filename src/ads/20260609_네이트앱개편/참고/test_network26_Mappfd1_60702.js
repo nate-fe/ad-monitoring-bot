@@ -1,0 +1,27 @@
+(function () {
+    try{if(!CyadLib)var CyadLib={};CyadLib.hasOwnProperty("prefixUrl")||(CyadLib.prefixUrl=function(t){var r=location.protocol;return/^http[s]?:/.test(r)&&(t=t.replace(/http:/g,r).replace(/https:/g,r)),/^\/\/\w+?/.test(t)&&(t=r+t),/^http[s]?\/\//.test(t)&&(t=t.replace(/http\/\//g,r+"//").replace(/https\/\//g,r+"//")),t})}catch(t){}
+
+    var ad_height = '100';
+    var bgcolor     = '#f3f3f3';
+    var img_path    = CyadLib.prefixUrl('https://adimg.nate.com/img/2026/07/test/test_main_0709_320x100.png');	//이미지 소재 경로
+    var click_path  = CyadLib.prefixUrl('https://cyad1.nate.com/click.kti/%#publisher%#/%#section%#@%#location%#?ads_no=%#ads_no%#&cmp_no=%#cmp_no%#&img_no=%#img_no%#'); //랜딩
+    var alt_text    = '광고';
+
+    var adsEl = '<a href="' + click_path + '" style="margin:0 auto; display:block;background:' + bgcolor + '" target="_top" ><img alt="' + alt_text + '" src="' + img_path + '" width="320" height="'+ ad_height +'" border="0"></a>';
+
+    if( self === top ) {
+        var _currentScript = document.currentScript;
+        var _adArea = _currentScript.closest('div');
+        _adArea.innerHTML = adsEl;
+    } else {
+        document.body.insertAdjacentHTML('beforeend', adsEl); // document.write 대체
+
+        var ifm_wrap = parent.document.querySelectorAll(ad_selector);
+        ifm_wrap.forEach(v => {
+            var ifm = v.querySelector('iframe');
+            if(ifm) {
+                ifm.height = ad_height;
+            }
+        });
+    }
+})()

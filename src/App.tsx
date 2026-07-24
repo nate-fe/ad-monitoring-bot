@@ -1,7 +1,8 @@
 import './App.css'
 import { MonitorReportPanel, type HeroReportMetaPayload } from './components/MonitorReportPanel'
 import { IssueOccurrencePage } from './components/IssueOccurrencePage'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { AdDashboardPage, AdTagDetailPage } from './components/AdDashboardPage'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 const TARGETS = {
   news: {
@@ -79,6 +80,8 @@ const TARGET_GROUPS: { id: string; title: string; targetIds: TargetId[] }[] = [
 
 type AppView =
   | { kind: 'home' }
+  | { kind: 'dashboard' }
+  | { kind: 'adTagDetail'; tag: string }
   | { kind: 'report'; targetId: TargetId }
   | { kind: 'occurrence'; targetId: TargetId }
 
@@ -89,6 +92,16 @@ function isTargetId(value: string): value is TargetId {
 function parseAppView(): AppView {
   const hash = window.location.hash.replace(/^#/, '').trim()
   if (!hash) return { kind: 'home' }
+
+  if (hash === 'dashboard') return { kind: 'dashboard' }
+
+  // dashboard/ad?tag=... : 광고태그별(업체 분류) 상세 페이지
+  if (hash.startsWith('dashboard/ad?')) {
+    const query = hash.slice(hash.indexOf('?') + 1)
+    const tag = new URLSearchParams(query).get('tag')?.trim()
+    if (tag) return { kind: 'adTagDetail', tag }
+    return { kind: 'dashboard' }
+  }
 
   const occurrenceMatch = hash.match(/^(.+)\/occurrence$/)
   if (occurrenceMatch?.[1] && isTargetId(occurrenceMatch[1])) {
@@ -104,8 +117,16 @@ function parseAppView(): AppView {
 
 function hashForView(view: AppView): string {
   if (view.kind === 'home') return ''
+  if (view.kind === 'dashboard') return 'dashboard'
+  if (view.kind === 'adTagDetail') return `dashboard/ad?tag=${encodeURIComponent(view.tag)}`
   if (view.kind === 'report') return view.targetId
   return `${view.targetId}/occurrence`
+}
+
+function dashboardScrollFromState(state: unknown): number | null {
+  if (!state || typeof state !== 'object') return null
+  const value = (state as { dashboardScrollY?: unknown }).dashboardScrollY
+  return typeof value === 'number' ? value : null
 }
 
 function App() {
@@ -115,20 +136,51 @@ function App() {
     typeof window === 'undefined' ? { kind: 'home' } : parseAppView(),
   )
   const [heroReportMeta, setHeroReportMeta] = useState<HeroReportMetaPayload | null>(null)
+  const dashboardScrollYRef = useRef(0)
+  const appViewRef = useRef(appView)
 
   const target = useMemo(() => {
-    if (appView.kind === 'home') return null
-    return TARGETS[appView.targetId]
+    if (appView.kind === 'report' || appView.kind === 'occurrence') {
+      return TARGETS[appView.targetId]
+    }
+    return null
   }, [appView])
 
   useEffect(() => {
-    const onHashChange = () => {
+    const previousScrollRestoration =
+      'scrollRestoration' in window.history ? window.history.scrollRestoration : null
+    if ('scrollRestoration' in window.history) {
+      window.history.scrollRestoration = 'manual'
+    }
+
+    const onLocationChange = (event?: PopStateEvent) => {
+      const previous = appViewRef.current
+      if (previous.kind === 'dashboard') {
+        dashboardScrollYRef.current = window.scrollY
+      }
       const next = parseAppView()
+      appViewRef.current = next
       setAppView(next)
       setHeroReportMeta(next.kind === 'report' ? { status: 'loading' } : null)
+
+      if (next.kind === 'adTagDetail') {
+        window.requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0 }))
+      } else if (next.kind === 'dashboard' && previous.kind === 'adTagDetail') {
+        const restoredY = dashboardScrollFromState(event?.state) ?? dashboardScrollYRef.current
+        window.requestAnimationFrame(() => window.scrollTo({ top: restoredY, left: 0 }))
+      }
     }
+    const onHashChange = () => onLocationChange()
+    const onPopState = (event: PopStateEvent) => onLocationChange(event)
     window.addEventListener('hashchange', onHashChange)
-    return () => window.removeEventListener('hashchange', onHashChange)
+    window.addEventListener('popstate', onPopState)
+    return () => {
+      window.removeEventListener('hashchange', onHashChange)
+      window.removeEventListener('popstate', onPopState)
+      if (previousScrollRestoration && 'scrollRestoration' in window.history) {
+        window.history.scrollRestoration = previousScrollRestoration
+      }
+    }
   }, [])
 
   const handleHeroReportMeta = useCallback((meta: HeroReportMetaPayload) => {
@@ -136,10 +188,24 @@ function App() {
   }, [])
 
   const navigateToView = (view: AppView) => {
+    const previous = appViewRef.current
+    if (previous.kind === 'dashboard') {
+      dashboardScrollYRef.current = window.scrollY
+      window.history.replaceState(
+        { ...(window.history.state ?? {}), dashboardScrollY: dashboardScrollYRef.current },
+        '',
+      )
+    }
     const nextUrl = `${window.location.pathname}${window.location.search}${hashForView(view) ? `#${hashForView(view)}` : ''}`
-    window.history.pushState(null, '', nextUrl)
+    window.history.pushState({ dashboardScrollY: dashboardScrollYRef.current }, '', nextUrl)
+    appViewRef.current = view
     setAppView(view)
     setHeroReportMeta(view.kind === 'report' ? { status: 'loading' } : null)
+    if (view.kind === 'adTagDetail') {
+      window.requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0 }))
+    } else if (view.kind === 'dashboard' && previous.kind === 'adTagDetail') {
+      window.requestAnimationFrame(() => window.scrollTo({ top: dashboardScrollYRef.current, left: 0 }))
+    }
   }
 
   const moveToTarget = (targetId: TargetId) => {
@@ -154,11 +220,23 @@ function App() {
     navigateToView({ kind: 'home' })
   }
 
+  const moveToDashboard = () => {
+    navigateToView({ kind: 'dashboard' })
+  }
+
+  const moveToAdTag = useCallback((tag: string) => {
+    navigateToView({ kind: 'adTagDetail', tag })
+  }, [])
+
   const subtitle = target
     ? appView.kind === 'occurrence'
       ? `${target.label} — 발생 일시·매체 데이터`
       : `${target.label} 모니터링 결과를 확인합니다.`
-    : '모니터링할 페이지를 선택하세요.'
+    : appView.kind === 'dashboard'
+      ? '광고 스크립트를 업체·광고태그별로 모아 봅니다.'
+      : appView.kind === 'adTagDetail'
+        ? `광고 태그 「${appView.tag}」`
+        : '모니터링할 페이지를 선택하세요.'
 
   return (
     <div className="app">
@@ -225,6 +303,21 @@ function App() {
                 </button>
               </div>
             </>
+          ) : appView.kind === 'dashboard' ? (
+            <div className="heroActions">
+              <button type="button" className="btnBackHome" onClick={moveToHome}>
+                전체 보기
+              </button>
+            </div>
+          ) : appView.kind === 'adTagDetail' ? (
+            <div className="heroActions">
+              <button type="button" className="btnBackHome" onClick={moveToDashboard}>
+                대시보드
+              </button>
+              <button type="button" className="btnBackHome" onClick={moveToHome}>
+                전체 보기
+              </button>
+            </div>
           ) : null}
         </div>
 
@@ -267,8 +360,27 @@ function App() {
             historyPaths={target.historyPaths as unknown as string[]}
             targetLabel={target.label}
           />
+        ) : appView.kind === 'dashboard' ? (
+          <AdDashboardPage onOpenAdTag={moveToAdTag} />
+        ) : appView.kind === 'adTagDetail' ? (
+          <AdTagDetailPage tag={appView.tag} onOpenAdTag={moveToAdTag} />
         ) : (
           <section className="targetPicker">
+            <section className="targetServiceRow" aria-labelledby="target-service-dashboard">
+              <h2 className="targetServiceTitle" id="target-service-dashboard">
+                광고 스크립트
+              </h2>
+              <div className="targetServiceCards">
+                <button type="button" className="targetCard" onClick={moveToDashboard}>
+                  <span className="targetCardText">
+                    <span className="targetTitle">스크립트 대시보드</span>
+                    <span className="targetDescription">
+                      작업했던 광고 스크립트를 업체·광고태그별로 모아 보고, 코드를 바로 확인합니다.
+                    </span>
+                  </span>
+                </button>
+              </div>
+            </section>
             {TARGET_GROUPS.map((group) => (
               <section className="targetServiceRow" key={group.id} aria-labelledby={`target-service-${group.id}`}>
                 <h2 className="targetServiceTitle" id={`target-service-${group.id}`}>

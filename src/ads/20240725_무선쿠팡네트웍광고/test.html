@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="kr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <div id="ad_big">
+
+    </div>
+    <script>
+        var _script = document.createElement('script');
+        _script.src = 'https://api.dnxad.com/coupang/script_320x150_v1.php?subId=natethree&layerId=ad_big';
+        var _el = document.querySelector('#ad_big');
+        _el.appendChild(_script)
+    </script>
+    <!-- <script src="https://api.dnxad.com/coupang/script_320x150_v1.php?subId=natethree&layerId=ad_big"></script> -->
+</body>
+</html>

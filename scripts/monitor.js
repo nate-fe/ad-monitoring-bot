@@ -438,6 +438,32 @@ const LONG_TASK_CAPTURE_SCRIPT = `
 })();
 `
 
+/**
+ * console.error/warn 같은 JS 호출이 아니라 브라우저 엔진이 직접 생성하는 진단 로그(CDP Log 도메인)의 source 값 중
+ * 모니터링 가치가 있는 것만 선별. 'javascript'·'network'는 pageerror/response 리스너와 중복되므로 제외.
+ */
+const RELEVANT_BROWSER_LOG_SOURCES = new Set(['violation', 'intervention', 'security', 'deprecation'])
+
+function mapLogLevelToConsoleType(level) {
+  if (level === 'error') return 'error'
+  if (level === 'warning') return 'warning'
+  return 'log'
+}
+
+/** 화면 아래쪽 지연 로딩 광고(슬라이더·비디오 등)는 뷰포트에 들어와야 초기화되므로, 실제 사용자처럼 스크롤해 내려가며 트리거한다 */
+async function simulateUserScroll(page, { steps, stepDelayMs }) {
+  try {
+    const viewportHeight = page.viewportSize()?.height ?? 720
+    const stepPx = Math.round(viewportHeight * 0.85)
+    for (let i = 0; i < steps; i += 1) {
+      await page.mouse.wheel(0, stepPx)
+      await page.waitForTimeout(stepDelayMs)
+    }
+  } catch {
+    // 스크롤 시뮬레이션 실패는 치명적이지 않음 — 베스트에포트
+  }
+}
+
 async function main() {
   await loadDotEnv()
 
@@ -456,6 +482,10 @@ async function main() {
   const userAgent = getEnv('MONITOR_USER_AGENT', {
     defaultValue: 'ad-monitoring-bot/1.0 (+https://github.com)',
   })
+  /** 화면 아래쪽 지연 로딩 광고를 트리거하기 위한 스크롤 시뮬레이션 설정 */
+  const scrollEnabled = parseBool(getEnv('MONITOR_SCROLL_ENABLED', { defaultValue: 'true' }), true)
+  const scrollSteps = Number(getEnv('MONITOR_SCROLL_STEPS', { defaultValue: '12' }))
+  const scrollStepDelayMs = Number(getEnv('MONITOR_SCROLL_STEP_DELAY_MS', { defaultValue: '400' }))
 
   if (!targetScope) {
     throw new Error('Could not infer target scope from MONITOR_TARGET_URL. Set MONITOR_TARGET_SCOPE to news, news-home, pann, pann-home, news-pc, news-pc-home, pann-pc, or pann-pc-home.')
@@ -498,6 +528,9 @@ async function main() {
   let performanceMetrics = null
   /** @type {{ latencyTop5: object[], errorRateTop5: object[] } | null} */
   let domainInsights = null
+  /** CDP Log 도메인(violation/intervention 등, console.* 호출이 아닌 브라우저 자체 진단 메시지) — 메인 프레임과 모든 iframe(광고 iframe 포함)에서 수집 */
+  /** @type {{ type: string, text: string, url?: string, sourceUrl?: string, line?: number, source?: string }[]} */
+  const browserLogMessages = []
 
   const shouldIgnore = (text) => ignoreErrorPatterns.some((p) => p && text.includes(p))
 
@@ -640,6 +673,34 @@ async function main() {
         })
       })
 
+      const handleBrowserLogEntry = (entry, frameUrl) => {
+        if (!entry || !RELEVANT_BROWSER_LOG_SOURCES.has(entry.source)) return
+        const text = String(entry.text ?? '')
+        if (!text || shouldIgnore(text)) return
+        browserLogMessages.push({
+          type: mapLogLevelToConsoleType(entry.level),
+          text,
+          url: frameUrl,
+          sourceUrl: typeof entry.url === 'string' ? entry.url : undefined,
+          line: Number.isFinite(entry.lineNumber) ? entry.lineNumber + 1 : undefined,
+          source: 'browser-log',
+        })
+      }
+
+      /**
+       * CDP Log 도메인(console.* 호출이 아닌 violation/intervention 등 브라우저 자체 진단 메시지)을 구독.
+       * 광고 iframe(cross-origin 포함)에 개별 CDP 세션을 붙이는 것은 시도해봤으나 Playwright/Chromium이
+       * 이런 iframe들을 메인 프레임과 같은 세션으로 묶어 처리해 항상 실패했다 — 메인 프레임 세션 하나로
+       * 페이지 내 모든 프레임의 Log 이벤트가 들어온다(실측 확인됨).
+       */
+      try {
+        const logSession = await context.newCDPSession(page)
+        await logSession.send('Log.enable')
+        logSession.on('Log.entryAdded', ({ entry }) => handleBrowserLogEntry(entry, page.url()))
+      } catch {
+        // Log 도메인을 지원하지 않는 환경 — 베스트에포트이므로 무시
+      }
+
       const response = await page.goto(targetUrl, { waitUntil: 'domcontentloaded' })
       status = response?.status() ?? 0
       if (status && (status < 200 || status >= 300)) {
@@ -651,6 +712,14 @@ async function main() {
       } catch {
         // It's common for pages to keep long-polling; don't fail on this alone.
       }
+
+      if (scrollEnabled) {
+        await simulateUserScroll(page, {
+          steps: Number.isFinite(scrollSteps) ? scrollSteps : 12,
+          stepDelayMs: Number.isFinite(scrollStepDelayMs) ? scrollStepDelayMs : 400,
+        })
+      }
+
       if (Number.isFinite(afterLoadWaitMs) && afterLoadWaitMs > 0) {
         await page.waitForTimeout(afterLoadWaitMs)
       }
@@ -699,6 +768,13 @@ async function main() {
       for (const m of devToolsFiltered) {
         if (pageTexts.has(m.text)) continue
         pageTexts.add(m.text)
+        consoleMessages.push(m)
+      }
+
+      for (const m of browserLogMessages) {
+        const tx = String(m.text ?? '')
+        if (pageTexts.has(tx)) continue
+        pageTexts.add(tx)
         consoleMessages.push(m)
       }
 

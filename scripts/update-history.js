@@ -64,7 +64,7 @@ function summarize(report) {
   const consoleErrors = pageScriptErrors.length
   const consoleWarnings = warningMessages.length
   const consoleLogs = logLikeMessages.length
-  const consoleErrorSample = pageScriptErrors.slice(0, 5).map((m) => ({
+  const consoleErrorSample = pageScriptErrors.map((m) => ({
     type: m?.type ?? 'error',
     text: String(m?.text ?? ''),
     url: typeof m?.url === 'string' && m.url ? m.url : undefined,
@@ -72,7 +72,7 @@ function summarize(report) {
     line: Number.isFinite(Number(m?.line)) ? Number(m.line) : undefined,
     column: Number.isFinite(Number(m?.column)) ? Number(m.column) : undefined,
   }))
-  const consoleWarningSample = warningMessages.slice(0, 5).map((m) => ({
+  const consoleWarningSample = warningMessages.map((m) => ({
     type: m?.type ?? 'log',
     text: String(m?.text ?? ''),
     url: typeof m?.url === 'string' && m.url ? m.url : undefined,
@@ -80,7 +80,7 @@ function summarize(report) {
     line: Number.isFinite(Number(m?.line)) ? Number(m.line) : undefined,
     column: Number.isFinite(Number(m?.column)) ? Number(m.column) : undefined,
   }))
-  const consoleLogSample = logLikeMessages.slice(0, 8).map((m) => ({
+  const consoleLogSample = logLikeMessages.map((m) => ({
     type: m?.type ?? 'log',
     text: String(m?.text ?? ''),
     url: typeof m?.url === 'string' && m.url ? m.url : undefined,
@@ -90,7 +90,6 @@ function summarize(report) {
   }))
   const devToolsConsoleSample = errorMessages
     .filter((m) => m?.source === 'devtools')
-    .slice(0, 8)
     .map((m) => ({
       type: 'error',
       text: String(m?.text ?? ''),
@@ -100,7 +99,7 @@ function summarize(report) {
       column: Number.isFinite(Number(m?.column)) ? Number(m.column) : undefined,
       source: 'devtools',
     }))
-  const requestFailureSample = requestFailures.slice(0, 5).map((item) => ({
+  const requestFailureSample = requestFailures.map((item) => ({
     url: String(item?.url ?? ''),
     method: String(item?.method ?? ''),
     resourceType: String(item?.resourceType ?? ''),
@@ -116,7 +115,7 @@ function summarize(report) {
           adScriptResourceCount: Number(rawPm.adScriptResourceCount) || 0,
         }
       : undefined
-  const pageErrorSample = pageErrors.slice(0, 5).map((item) => ({
+  const pageErrorSample = pageErrors.map((item) => ({
     message: String(item?.message ?? ''),
     sourceUrl: typeof item?.sourceUrl === 'string' && item.sourceUrl ? item.sourceUrl : undefined,
     line: Number.isFinite(Number(item?.line)) ? Number(item.line) : undefined,

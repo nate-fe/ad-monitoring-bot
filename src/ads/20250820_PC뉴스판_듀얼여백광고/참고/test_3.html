@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <script>
+        (function () {
+    var _lib = document.createElement('script');
+    var _div = document.createElement('div');
+    var _script = document.createElement('script');
+    var _body = document.querySelector('body');
+    var _actionCode = `
+                window.googletag = window.googletag || {cmd: []};
+    googletag.cmd.push(function() {
+    googletag.defineSlot('/21682743634/S003/nate_pc_ap_bottom01_120x600', [120, 600], 'gpt-passback').addService(googletag.pubads());
+    googletag.enableServices();
+    googletag.display('gpt-passback');
+    });
+            `;
+    _script.innerHTML = _actionCode;
+    _lib.src = 'https://securepubads.g.doubleclick.net/tag/js/gpt.js';
+    _lib.async = true;
+    _lib.setAttribute('crossorigin', 'anonymous');
+    _div.setAttribute('id', 'gpt-passback');
+    _div.appendChild(_script);
+    _body.appendChild(_lib);
+    _body.appendChild(_div);
+}
+)();
+    </script>
+</body>
+</html>

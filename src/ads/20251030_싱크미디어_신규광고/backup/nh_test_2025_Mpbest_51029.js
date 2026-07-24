@@ -1,0 +1,1 @@
+document.write('<iframe src="//ad.3dpop.kr/web_ad/?company_uid=0884a98428760f03ab2d01b66e88a6d4108960a7" width="320" height="100" id="adtive" frameborder="none" scrolling="no" style="overflow: hidden;border: none;"></iframe>');

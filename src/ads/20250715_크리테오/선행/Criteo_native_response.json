@@ -1,0 +1,74 @@
+{
+    "slots": [
+        {
+            "slotid": "5e2aa79d9d264b64b37b32dd5bd83da5",
+            "impid": "466556",
+            "arbitrageid": "68818d33a66b8c9e55b3b868115d0000",
+            "zoneid": 1830756,
+            "cpm": 293.60030000000000000000000005,
+            "currency": "KRW",
+            "width": 2,
+            "height": 2,
+            "creative": "",
+            "native": {
+                "products": [
+                    {
+                        "title": "햇반 잡곡밥",
+                        "description": "로켓배송 상품은 오늘 주문 내일 도착",
+                        "price": "로켓배송",
+                        "click_url": "https://cat.jp2.as.criteo.com/delivery/ckn.php?cppv=3&cpp=p7nEunHRoCIA2QaOIvgN5UBGaRIxdaB2XX15tD_VMKJGXUffs--B3qAlscoYAwzM9_xRrtmDXzAsZzTaIVHzcKXSl1rjskfcQCErnBOVusaNWs9jSRVCER6hCRS_YbuT9kyZ2eGol0XLwvhzXswzRwU5R59GbJNgJd-iqq0F2atY4oTO9olWVLz_3zoY4BfujNNUrX7Z8YCW-_l7po_qv9pm10jMM0cWqKF23Dxx_f3Svrm16TlH8UD-62J3yqzXwJVi3F58KqawcM0XsUFyn7NK-0pClwk2-I65bmWRnyydvWeZqdt9hEaurq-Kip4Q6SV2aX1VGMIP4QNA5o0npAi0ZH0zmGSuIxk1-UDry6QDrOmYFbemqa12LEWgodEok6cErR38-LHpn-ghiOLOOU8fiFgtHlWi0XOD7X9VRD3di3DM_x2UtG0mBsi_qe1UFKKZAVG0oykYB02V6n2naBslG4oURi2agL3WNoiFfIaDDihwufOxRi-oTtIrke6Fan7hWkbBsZ3xGSYhbU0PcrN3xIbyRPLEcYTk6B_tiPv-H8U3&maxdest=https%3A%2F%2Flink.coupang.com%2Fre%2FDACRPCMLSDP%3FpageKey%3D6659187193%26ctag%3D6659187193%26itemId%3D13673902476%26vendorItemId%3D80925871716%26lptag%3Dpc_aro%26testparam%3D68818d33a66b8c9e55b3b868115d00001753320756%26cto_pld%3DXPXuAC8MAAAK3pIFoi8Nbg",
+                        "call_to_action": "바로구매",
+                        "image": {
+                            "url": "https://imageproxy.as.criteo.net/v1/0043lN2dMDMbiFMTxnQfZy70glqd9cKK04Vx6LdiJVFhhEMLb1APTvF3LlnMxArNNE8nWusuqZfG60i6X0C2XbYKBFcblfNggUDDC3uW3HrRosLDRQy7YICXlImxFUiV7Yq0pC7Jnx6kBHUKpGwsRZ2s39jzfjZvPdaHUiBJ6RcWeBA0kziG9v9G6wVRTihpDFGZwmIXZQ4QDRMlRAGJb0Jeti37UaHPOeqG8GLCmFq3fH0ff9PcMVC7ph",
+                            "height": 100,
+                            "width": 100
+                        }
+                    }
+                ],
+                "advertiser": {
+                    "description": "COUPANG",
+                    "domain": "coupang.com",
+                    "logo": {
+                        "url": "https://imageproxy.as.criteo.net/v1/004hzk077YEL8fbIR9kBt5N9y29L9dW0iHHFSJZYVPHUNHrzNMLCfRSaOyRq7KeYPM0eoASMtiTdNyySV7xSUpKPtuasp0R0NopVMPM7Ddi7poSTAFArUIqmtEmxOs3AN5IADrWEGsgoYvEtJtzWl54qAeNOeNnMMffOr0njEKdocpRM3bqvMtTfSiaTJYV4NbJVcJgxnHHVSiZ5Vq9",
+                        "height": 200,
+                        "width": 200
+                    },
+                    "logo_click_url": "https://cat.jp2.as.criteo.com/delivery/ckn.php?cppv=3&cpp=p7nEunHRoCIA2QaOIvgN5UBGaRIxdaB2XX15tD_VMKJGXUffs--B3qAlscoYAwzM9_xRrtmDXzAsZzTaIVHzcKXSl1rjskfcQCErnBOVusaNWs9jSRVCER6hCRS_YbuT9kyZ2eGol0XLwvhzXswzRwU5R59GbJNgJd-iqq0F2atY4oTO9olWVLz_3zoY4BfujNNUrX7Z8YCW-_l7po_qv9pm10jMM0cWqKF23Dxx_f3Svrm16TlH8UD-62J3yqzXwJVi3F58KqawcM0XsUFyn7NK-0pClwk2-I65bmWRnyydvWeZqdt9hEaurq-Kip4Q6SV2aX1VGMIP4QNA5o0npAi0ZH0zmGSuIxk1-UDry6QDrOmYFbemqa12LEWgodEok6cErR38-LHpn-ghiOLOOU8fiFgtHlWi0XOD7X9VRD3di3DM_x2UtG0mBsi_qe1UFKKZAVG0oykYB02V6n2naBslG4oURi2agL3WNoiFfIaDDihwufOxRi-oTtIrke6Fan7hWkbBsZ3xGSYhbU0PcrN3xIbyRPLEcYTk6B_tiPv-H8U3&maxdest=https%3A%2F%2Flink.coupang.com%2Fre%2FDACRPCMLSDP%3FpageKey%3D6659187193%26ctag%3D6659187193%26itemId%3D13673902476%26vendorItemId%3D80925871716%26lptag%3Dpc_aro%26testparam%3D68818d33a66b8c9e55b3b868115d00001753320756%26cto_pld%3DXPXuAC8MAAAK3pIFoi8Nbg"
+                },
+                "privacy": {
+                    "optout_click_url": "https://privacy.as.criteo.com/adchoices?cppv=3&cpp=K6aPSlNTcrb0MS3L2aDLg0xd8Cgai8M4kkvjayF7-Kv57O9GxaHPtp9LgCbCGzaHcEERd1eMWSoHDdgbuScYToAudGUmdAXQwE11AZpy6RpT_Un8LfAFjZMmXcpcJS98Iggpk0slHTafXBDMGGhEPf5EXK4",
+                    "optout_image_url": "https://static.criteo.net/flash/icon/nai_small.png",
+                    "long_legal_text": ""
+                },
+                "impression_pixels": [
+                    {
+                        "url": "https://cat.jp2.as.criteo.com/delivery/lgn.php?cppv=3&cpp=nAkB4nHRoCIA2QaOIvgN5UBGaRIxdaB2XX15tD_VMKJGXUffs--B3qAlscoYAwzM9_xRrtmDXzAsZzTaIVHzcKXSl1rjskfcQCErnBOVusaNWs9jSRVCER6hCRS_YbuT9kyZ2eATNlVUY-8N3P6GfzOB1L3jr2l-gMQqqizFriXYTJ1T3eb0YPCe3okQsPCktlsjkUhrBWRs4q-NaPDfSVtFTGmKAHjL6pIBL2zT4baVyL58u6lqkXAaWHSPfOSR7xrIYCzzOzGFzEhUFbGrhHW07zJ2YeaIH4bRL9iAJNqDGSBJZ4QXH0vf1WRvjibpr9y2pvbLoX_ZFtfOCzj9vMfX5_oDPbQ8hV_DwKt0GMdL4DR8ddcpqRZPiC00N14-3SSEUVdg1Wpnrn9hy_Vu53WknZE9VKdhSCIQZgNeCphn8WqGhwYlvtwS94fTFU8Os5PgAn2TCrwFbpDh70BN3CxpZnUOdGWxQfCpyFYskDLTWv7V"
+                    },
+                    {
+                        "url": "https://cat.jp2.as.criteo.com/tpd?dd=k6QGNV9KZzVMc2VVRiUyQmExa1J1QkVuRU5qM3RYYjVvOXJLNXNmZE92amw5bGpFdGFFTUxFJTJGdjhBZEh2OWU1T1QyVmd4aG9DTmpnd1ZoZkdVRnNDR1NCMjMlMkJndUtuazdtN0xRVTkyZ1prcGozck9JN0QxWTZ4Um1YZjBKQ1BHaUQ5a04xOUlaMWV2d29teVJYd01WaUlsdiUyRmpaZ040UXM2OUhBejdvUjZpJTJGcnpQTUduTFQ2MUlmQmFhMUVhZlpsaEx5S1lVaFJoR1E2S0MxaiUyQnNadU9IMlIwVUolMkJxVTR1cSUyQlFscGNzOFRZdHRPMk93VkNZeVVjVXN2b1RuTHklMkZzWXNKN0p1blR1OCUyQkVrRFJxQVlXWDJSVDlVcFdmMkJuMVJIQUpkdGZUMDVJenZEUjNIUUJjVlJWcDhaemVsMlBlaDF5MVlIQzZ2d3djajBsS0ZOcTNhd2UzJTJCSnFBUXhVV2VjbEpPZUZhR3BIRVVvN2VoaWZma3BXaDBKOVJYdW5qVmdtNUkxTVVlZXRrNjBWQmxCQ1FIQ3AyZFdBaWhKYVdodXpmQmhodmZPU3BDcmdJcXppODFmSzBuYVBGZGx4OSUyQksza2xEZFB5R3RFanVxJTJGNm9uUW5XU2JCTDU5cXJCTDdZc0tFNTIwV0dQN3NKOENjS1N4JTJGcm5PV3dGS3pqeDd5SEE5SSUyQjExTTc5Q29MJTJGRFkzbUxPMlZ0NzBKTHVQZ2FkSlZ0cSUyQmtwJTJCbkZmTm1FMmtWaEN2V3RLVTROZDUwVVgwOG93Uzc0ZWZYTmpTbEUxZ1VMU09TazU1djhjS3VNbUljMGNZJTJCeUxxJTJGSzZYVGN5RWdFJTJGNHZZOCUyRkpJYk43NHBHTVcwY0plVVdCYUFSWiUyRnF2emJSRmIlMkJkd0hvUSUzRCUzRA"
+                    }
+                ]
+            },
+            "video": false,
+            "deal": "",
+            "dealCode": "",
+            "creativecode": "11352910",
+            "is_rewarded": false,
+            "video_callback": "",
+            "ext": {
+                "meta": {
+                    "networkName": "Criteo"
+                },
+                "dsa": {
+                    "adrender": 1
+                }
+            },
+            "adomain": [
+                "coupang.com"
+            ],
+            "ttl": 1800
+        }
+    ],
+    "user_sync": true,
+    "ext": {}
+}

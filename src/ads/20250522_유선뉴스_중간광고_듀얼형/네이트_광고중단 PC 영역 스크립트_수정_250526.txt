@@ -1,0 +1,193 @@
+<div class="ad-container-content">
+  <style>
+    .ad-container-content{
+      /* background-color:#E6E6E6; */
+    }
+    .ad-row {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+    }
+    .ad-slot {
+      min-width: 300px;
+      min-height: 250px;
+      position: relative;
+      align-content: center;
+    }
+    .ad-item {
+      min-width: 300px;
+      min-height: 250px;
+      position: relative;
+      border: 1px solid rgb(0, 0, 0,0.2);
+      background-color: rgb(0, 0, 0);
+    }
+    .ad-label {
+      border: 1px solid rgb(0, 0, 0,0.2);
+      width:28px;
+      height:18px;
+      position: absolute;
+      top: 0;
+      left: 0;
+      background-color: rgb(0, 0, 0,0.5);
+      color: #ffffff;
+      font-size: 12px;
+      font-weight: bold;
+      padding: 0;
+      z-index: 10;
+      text-align: center;
+    }
+    #ad-layout{
+      border: 1px solid rgb(0, 0, 0,0.2);
+      width:600px;
+      height:250px;
+      position:relative;
+    }
+  </style>
+  <script async src="https://securepubads.g.doubleclick.net/tag/js/gpt.js"></script>
+  <div class="ad-row" id="ad-row-container">
+    <div class="ad-item"><div class="ad-label">AD</div><div id="S003_nate_mo_ap_bottom00_300x250" class="ad-slot"></div></div>
+    <div class="ad-item"><div class="ad-label">AD</div><div id="div-gpt-ad-1747382446854-0" class="ad-slot"></div></div>
+  </div>
+<center><div id="ad-layout" style="display:none;"><div class="ad-label">AD</div><div id="S003_nate_mo_ap_bottom01_600x250" style="display:none;"></div></div></center>
+
+<script>
+  const hasVideo = document.body.querySelector('video') !== null;
+  
+  var adchk = false;
+  const slotStatus = {
+    'S003_nate_mo_ap_bottom00_300x250': null,
+    'div-gpt-ad-1747382446854-0': null,
+  };
+  
+  let fallbackSlot = null;
+  let isProcessed = false; // 중복 처리 방지 플래그
+  
+  window.googletag = window.googletag || {cmd: []};
+
+  // 모든 슬롯 완료 후 배치 처리 함수
+  function processAllSlots() {
+    if (isProcessed) {
+      return;
+    }
+
+    const slot1 = slotStatus['S003_nate_mo_ap_bottom00_300x250'];
+    const slot2 = slotStatus['div-gpt-ad-1747382446854-0'];
+
+    // 둘 중 하나라도 비어 있다면 대체 광고로 교체
+    if (slot1.isEmpty || slot2.isEmpty) {
+      
+      isProcessed = true; // 처리 시작 표시
+      
+      // 기존 광고들 제거
+      googletag.destroySlots([slot1.slot, slot2.slot]);
+      document.getElementById('ad-row-container').style.display = 'none';
+      
+      // DOM 정리
+      document.getElementById('S003_nate_mo_ap_bottom00_300x250')?.remove();
+      document.getElementById('div-gpt-ad-1747382446854-0')?.remove();
+      document.getElementById('ad-row-container')?.remove();
+      
+      // 짧은 지연 후 대체 광고 로드 (DOM 정리 완료 대기)
+      setTimeout(() => {
+        
+        // 새로운 pubads 서비스로 fallback 슬롯 정의
+        fallbackSlot = googletag.defineSlot(
+          '/21682743634,22664242840/S003/nate_mo_ap_bottom01_600x250',
+          [600, 250],
+          'S003_nate_mo_ap_bottom01_600x250'
+        ).addService(googletag.pubads());
+        
+        // 대체 광고 표시
+        document.getElementById('S003_nate_mo_ap_bottom01_600x250').style.display = 'block';
+        document.getElementById('ad-layout').style.display = 'block';
+        
+        googletag.display('S003_nate_mo_ap_bottom01_600x250');
+      }, 100);
+      
+    } else {
+      isProcessed = true;
+    }
+  }
+
+  googletag.cmd.push(function () {
+    
+    const pubadscom = googletag.pubads().set('page_url', '//nate.com');
+      
+    if (hasVideo) {
+      // 300x250 광고 컨테이너 숨기기
+      document.getElementById('ad-row-container').style.display = 'none';
+      
+      // 600x250 광고 슬롯 정의 및 표시
+      const videoSlot = googletag.defineSlot(
+        '/21682743634,22664242840/S003/nate_mo_ap_bottom01_600x250',
+        [600, 250],
+        'S003_nate_mo_ap_bottom01_600x250'
+      ).addService(pubadscom);
+      
+      pubadscom.enableSingleRequest();
+      googletag.enableServices();
+      
+      // 600x250 광고 표시
+      document.getElementById('S003_nate_mo_ap_bottom01_600x250').style.display = 'block';
+      document.getElementById('ad-layout').style.display = 'block';
+      googletag.display('S003_nate_mo_ap_bottom01_600x250');
+      
+    } else {
+      // 기존 300x250 광고 로직
+      const slot1 = googletag.defineSlot(
+        '/21682743634,22664242840/S003/nate_mo_ap_bottom00_300x250',
+        [300, 250],
+        'S003_nate_mo_ap_bottom00_300x250'
+      ).addService(pubadscom);
+
+      const slot2 = googletag.defineSlot(
+        '/21622890900,22664242840/KR_nate.com_pc_article_avs',
+        [[300, 250], [1, 1]], 
+        'div-gpt-ad-1747382446854-0'
+      )
+        .defineSizeMapping(
+          googletag.sizeMapping()
+            .addSize([728, 300], [[1, 1], [300,250]])
+            .addSize([0, 0], [])
+            .build()
+        )
+        .setCollapseEmptyDiv(true)
+        .addService(pubadscom);
+
+      pubadscom.enableSingleRequest();
+      googletag.enableServices();
+
+      googletag.display('S003_nate_mo_ap_bottom00_300x250');
+      googletag.display('div-gpt-ad-1747382446854-0');
+    }
+
+    // 통합된 이벤트 리스너 (한 번만 등록)
+    googletag.pubads().addEventListener('slotRenderEnded', function (event) {
+      const slotId = event.slot.getSlotElementId();
+      const isEmpty = event.isEmpty;
+      
+      // 300x250 슬롯들의 상태 저장 (비디오가 없을 때만)
+      if (!hasVideo && slotId in slotStatus) {
+        slotStatus[slotId] = { slot: event.slot, isEmpty };
+        
+        // 모든 300x250 슬롯이 완료되면 배치 처리
+        if (
+          slotStatus['S003_nate_mo_ap_bottom00_300x250'] !== null &&
+          slotStatus['div-gpt-ad-1747382446854-0'] !== null &&
+          !isProcessed
+        ) {
+          processAllSlots();
+        }
+      }
+      
+      // 600x250 광고의 렌더링 결과 처리
+      if (event.slot.getSlotElementId() === 'S003_nate_mo_ap_bottom01_600x250') {
+        if (event.isEmpty) {
+          document.getElementById('S003_nate_mo_ap_bottom01_600x250').style.display = 'none';
+          document.getElementById('ad-layout').style.display = 'none';
+        }
+      }
+    });
+  });
+</script>
+</div>

@@ -1,0 +1,15 @@
+//! open-rtb v1.0.13.7 !Fri Apr 24 2020 16:57:02
+var rtb_conf = {
+    area: "area",
+    width: "320", // 320 
+    height: "100", // 100
+    ads_no: "%#ads_no%#",
+    minCPM: "100", //100
+    page_url: location.protocol + '//' + location.hostname,
+    selectorId: 'main_banner', // ad-area div id
+    parentId: window.name, // parent div id
+    timeout: 1000
+};
+
+//! open-rtb v1.0.16.0-patched-min !2025
+!function (c) { var l = c.rtb_conf; l.page_url = encodeURIComponent(l.page_url); var t = null, x = null; function r(e, n) { e = e || ""; var o = n || document.getElementById(l.selectorId); o || (o = document.createElement("div"), o.id = l.selectorId, document.body.appendChild(o)); o.style.cssText = "width:" + l.width + "px;height:" + l.height + "px;overflow:hidden;"; if (parent !== self && l.parentId) { try { var i = parent.document.getElementById(l.parentId); i && (i.style.height = l.height + "px") } catch (t) { } try { var d = location.href, s = d.indexOf("news") > -1, f = d.indexOf("pann") > -1; s && parent.postMessage(JSON.stringify({ method: "fnct", name: "callCrossOriginAd", property: { target: l.parentId, height: l.height } }), "*"); f && parent.postMessage(JSON.stringify({ target: l.parentId, params: { height: l.height } }), "*") } catch (t) { } } var a = document.createElement("iframe"); a.frameBorder = "0", a.scrolling = "no", a.width = l.width, a.height = l.height, a.style.cssText = "border:0;overflow:hidden;", o.appendChild(a); var c = a.contentWindow.document; c.open(), c.write("<!DOCTYPE html><html><head><meta charset='utf-8'><style>body{margin:0;padding:0;overflow:hidden}</style></head><body>" + e + "</body></html>"), c.close() } function s() { var e = l.passback || "mnate/news_rtb@rpbt_Bottom1", n = '<div id="' + l.selectorId + '" style="width:' + l.width + "px;height:" + l.height + 'px"><script src="https://cyad1.nate.com/js.kti/' + e + '"><\/script></div>'; r(n) } function o() { clearTimeout(t); if (x && x.status >= 400) s(); else try { var e = JSON.parse(x.responseText || ""), n = e.code || "", o = /^<script/i.test(n.trim()); o && (n = ""); n ? r(n) : s() } catch (t) { s() } } function u() { clearTimeout(t), s() } function i() { var e = document.getElementById(l.selectorId); e ? (t = setTimeout(u, l.timeout), x = new XMLHttpRequest, x.withCredentials = !0, x.open("get", "https://sbmdev.nate.com/getRTB?area=" + l.area + "&height=" + l.height + "&width=" + l.width + "&page_url=" + l.page_url + "&ads_no=" + l.ads_no + "&minCPM=" + l.minCPM, !0), x.onload = o, x.onerror = x.ontimeout = u, x.send()) : s() } l.selectorId = (l.selectorId || "").replace(/\s+/g, ""), l.parentId = (l.parentId || "").replace(/\s+/g, ""), document.readyState === "loading" ? c.addEventListener("DOMContentLoaded", i) : i(); try { parent.document.getElementById("election2024_bottom") && (parent.document.getElementById("election2024_bottom").style.width = "320px") } catch (e) { } }(window);
