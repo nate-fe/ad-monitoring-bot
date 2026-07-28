@@ -1134,6 +1134,10 @@
   grid-template-columns: auto minmax(0, 1fr) auto;
 }
 
+.diagLineHead:has(.pill):has(.diagDupeCount) {
+  grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 65px);
+}
+
 .diagLineHead:has(.pill) .pill {
   grid-column: 1;
 }
@@ -1147,8 +1151,16 @@
   justify-self: end;
 }
 
+.diagLineHead:has(.pill) .diagDupeCount {
+  grid-column: 4;
+}
+
 .diagLineHead:not(:has(.pill)) {
   grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.diagLineHead:not(:has(.pill)):has(.diagDupeCount) {
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 65px);
 }
 
 .diagLineHead:not(:has(.pill)) .diagLineHeadMsg {
@@ -1160,26 +1172,40 @@
   justify-self: end;
 }
 
+.diagLineHead:not(:has(.pill)) .diagDupeCount {
+  grid-column: 3;
+}
+
 .diagLineHead .pill {
+  grid-row: 1;
   flex-shrink: 0;
 }
 
 .diagLineHead .sourceLocationText {
+  grid-row: 1;
   flex-shrink: 0;
   white-space: nowrap;
   margin-left: 0;
 }
 
 .diagLineHeadMsg {
+  grid-row: 1;
   min-width: 0;
   max-width: 100%;
+  display: block;
+  white-space: normal;
   word-break: break-word;
   overflow-wrap: anywhere;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  overflow: hidden;
+  overflow: visible;
+}
+
+/* 실패 상세(failBox) 안에서는 메시지를 2줄로 자르지 않고 전체를 보여준다 */
+.failBox .diagLineHeadMsg {
+  display: block;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  overflow: visible;
 }
 
 .sourceLocationMeta {
@@ -1188,11 +1214,42 @@
   flex-direction: column;
   align-items: stretch;
   gap: 6px;
-  max-width: min(100%, 560px);
+  width:100%;
+  align-content:space-between;
 }
 
 .sourceLocationMeta > .diagUrlWrap {
   margin-top: 0;
+}
+
+.sourceLocationUrlLine {
+  display: grid;
+  grid-template-columns: minmax(0, 560px) minmax(0, 1fr) max-content;
+  align-items: center;
+  column-gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+.sourceLocationUrlLine:not(:has(.diagUrlWrap)) {
+  grid-template-columns: max-content;
+}
+
+.sourceLocationUrlLine .diagUrlWrap {
+  width: 100%;
+  min-width: 0;
+  margin-top: 0;
+}
+
+.sourceLocationUrlLine .sourceLocationText {
+  grid-column: 3;
+  justify-self: end;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.sourceLocationUrlLine:not(:has(.diagUrlWrap)) .sourceLocationText {
+  grid-column: 1;
 }
 
 .networkCauseUrlLine {
@@ -1437,7 +1494,7 @@
 .diagList li {
   position: relative;
   word-break: break-word;
-  margin-bottom:4px;
+  margin-bottom:8px;
   overflow: visible;
   min-width: 0;
 }
@@ -1473,7 +1530,7 @@
 }
 
 .diagUrlTrigger {
-  width: 100%;
+  width: 80%;
   display: block;
   padding: 6px 10px;
   border-radius: 4px;
@@ -3808,4 +3865,26 @@ details[open].historyItem .historyChevron {
   .adTab.isActive .adTabCount {
     background: rgba(255, 255, 255, 0.28);
   }
+}
+
+/* 콘솔 메시지 중복 횟수 뱃지(동일 경고 ×N) */
+.diagDupeCount {
+  display: inline-flex;
+  align-items: center;
+  grid-row: 1;
+  justify-content: center;
+  justify-self: end;
+  box-sizing: border-box;
+  max-width: 65px;
+  min-width: 0;
+  padding: 1px 7px;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 999px;
+  color: var(--warn);
+  border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--border));
+  background: color-mix(in srgb, var(--warn) 15%, transparent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }

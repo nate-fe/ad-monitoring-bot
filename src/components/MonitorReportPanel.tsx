@@ -160,6 +160,7 @@ function classifyCurrentReportErrors(report: MonitorReport): ClassifiedIssue[] {
           text: m.text,
           url: m.url ?? extractHttpUrlFromText(m.text),
           sourceUrl: m.sourceUrl,
+          dupeCount: m.dupeCount,
         })) ?? []),
     )
   }
@@ -178,8 +179,34 @@ function classifyCurrentReportErrors(report: MonitorReport): ClassifiedIssue[] {
 function classifyCurrentReportAll(report: MonitorReport): ClassifiedIssue[] {
   const items = (report.diagnostics?.consoleMessages ?? [])
     .filter((m) => m.type === 'warning')
-    .map((m) => ({ text: m.text, url: m.url, sourceUrl: m.sourceUrl }))
+    .map((m) => ({ text: m.text, url: m.url, sourceUrl: m.sourceUrl, dupeCount: m.dupeCount }))
   return buildClassifiedIssues(items)
+}
+
+/**
+ * 콘솔 메시지 중 완전히 동일한 항목(내용·위치·출처)을 한 줄로 합치고 dupeCount 를 매긴다.
+ * 광고 스크립트가 같은 경고를 여러 번 찍어도 목록에는 1행(×N)으로만 보이게 한다.
+ */
+function dedupeConsoleMessages<
+  T extends {
+    type?: string
+    text?: string
+    url?: string
+    sourceUrl?: string
+    line?: number | null
+    column?: number | null
+    dupeCount?: number
+  },
+>(messages: T[]): Array<T & { dupeCount: number }> {
+  const map = new Map<string, T & { dupeCount: number }>()
+  for (const m of messages) {
+    const key = [m.type, m.text, m.url ?? '', m.sourceUrl ?? '', m.line ?? '', m.column ?? ''].join('')
+    const inc = m.dupeCount ?? 1
+    const prev = map.get(key)
+    if (prev) prev.dupeCount += inc
+    else map.set(key, { ...m, dupeCount: inc })
+  }
+  return [...map.values()]
 }
 
 type DiagCopyableFieldProps = {
@@ -261,11 +288,23 @@ function SourceLocationLineText({ line, column }: { line?: number; column?: numb
   )
 }
 
-function SourceLocationUrlBlock({ sourceUrl }: { sourceUrl?: string }) {
-  if (!sourceUrl) return null
+function SourceLocationUrlBlock({
+  sourceUrl,
+  line,
+  column,
+}: {
+  sourceUrl?: string
+  line?: number
+  column?: number
+}) {
+  const hasLine = line != null && Number.isFinite(line)
+  if (!sourceUrl && !hasLine) return null
   return (
     <div className="sourceLocationMeta">
-      <IssueUrlPreview url={sourceUrl} ariaLabel={`출처 URL: ${sourceUrl}`} />
+      <div className="sourceLocationUrlLine">
+        {sourceUrl ? <IssueUrlPreview url={sourceUrl} ariaLabel={`출처 URL: ${sourceUrl}`} /> : null}
+        <SourceLocationLineText line={line} column={column} />
+      </div>
     </div>
   )
 }
@@ -352,9 +391,8 @@ export function MonitorReportPanel({
         <div className="diagLineHead">
           <span className={`pill ${item.type}`}>{item.type}</span>
           <span className="diagLineHeadMsg">{item.text}</span>
-          <SourceLocationLineText line={item.line} column={item.column} />
         </div>
-        <SourceLocationUrlBlock sourceUrl={item.sourceUrl} />
+        <SourceLocationUrlBlock sourceUrl={item.sourceUrl} line={item.line} column={item.column} />
       </li>
     )
 
@@ -384,9 +422,8 @@ export function MonitorReportPanel({
             <li key={`${idx}-${item.message}`}>
               <div className="diagLineHead">
                 <span className="diagLineHeadMsg">{item.message}</span>
-                <SourceLocationLineText line={item.line} column={item.column} />
               </div>
-              <SourceLocationUrlBlock sourceUrl={item.sourceUrl} />
+              <SourceLocationUrlBlock sourceUrl={item.sourceUrl} line={item.line} column={item.column} />
             </li>
           ))}
         </ul>
@@ -532,7 +569,9 @@ export function MonitorReportPanel({
 
   const currentConsoleWarnings = useMemo(() => {
     if (state.kind !== 'loaded') return []
-    return (state.report.diagnostics?.consoleMessages ?? []).filter((m) => m.type === 'warning')
+    return dedupeConsoleMessages(
+      (state.report.diagnostics?.consoleMessages ?? []).filter((m) => m.type === 'warning'),
+    )
   }, [state])
 
   const currentRequestFailures = useMemo(() => {
@@ -542,12 +581,16 @@ export function MonitorReportPanel({
 
   const currentConsoleLogs = useMemo(() => {
     if (state.kind !== 'loaded') return []
-    return (state.report.diagnostics?.consoleMessages ?? []).filter((m) => m.type === 'log' || m.type === 'info')
+    return dedupeConsoleMessages(
+      (state.report.diagnostics?.consoleMessages ?? []).filter((m) => m.type === 'log' || m.type === 'info'),
+    )
   }, [state])
 
   const currentDevToolsConsole = useMemo(() => {
     if (state.kind !== 'loaded') return []
-    return (state.report.diagnostics?.consoleMessages ?? []).filter((m) => m.source === 'devtools')
+    return dedupeConsoleMessages(
+      (state.report.diagnostics?.consoleMessages ?? []).filter((m) => m.source === 'devtools'),
+    )
   }, [state])
 
   const currentPerformanceMetrics = useMemo(() => {
@@ -719,12 +762,12 @@ export function MonitorReportPanel({
                                                         <li key={`${sampleIdx}-${item.message}`}>
                                                           <div className="diagLineHead">
                                                             <span className="diagLineHeadMsg">{item.message}</span>
-                                                            <SourceLocationLineText
-                                                              line={item.line}
-                                                              column={item.column}
-                                                            />
                                                           </div>
-                                                          <SourceLocationUrlBlock sourceUrl={item.sourceUrl} />
+                                                          <SourceLocationUrlBlock
+                                                            sourceUrl={item.sourceUrl}
+                                                            line={item.line}
+                                                            column={item.column}
+                                                          />
                                                         </li>
                                                       ))}
                                                     </ul>
@@ -739,9 +782,12 @@ export function MonitorReportPanel({
                                                           <div className="diagLineHead">
                                                             <span className={`pill ${m.type}`}>{m.type}</span>
                                                             <span className="diagLineHeadMsg">{m.text}</span>
-                                                            <SourceLocationLineText line={m.line} column={m.column} />
                                                           </div>
-                                                          <SourceLocationUrlBlock sourceUrl={m.sourceUrl} />
+                                                          <SourceLocationUrlBlock
+                                                            sourceUrl={m.sourceUrl}
+                                                            line={m.line}
+                                                            column={m.column}
+                                                          />
                                                         </li>
                                                       ))}
                                                     </ul>
@@ -756,9 +802,12 @@ export function MonitorReportPanel({
                                                           <div className="diagLineHead">
                                                             <span className={`pill ${m.type}`}>{m.type}</span>
                                                             <span className="diagLineHeadMsg">{m.text}</span>
-                                                            <SourceLocationLineText line={m.line} column={m.column} />
                                                           </div>
-                                                          <SourceLocationUrlBlock sourceUrl={m.sourceUrl} />
+                                                          <SourceLocationUrlBlock
+                                                            sourceUrl={m.sourceUrl}
+                                                            line={m.line}
+                                                            column={m.column}
+                                                          />
                                                         </li>
                                                       ))}
                                                     </ul>
@@ -773,9 +822,12 @@ export function MonitorReportPanel({
                                                           <div className="diagLineHead">
                                                             <span className={`pill ${m.type}`}>{m.type}</span>
                                                             <span className="diagLineHeadMsg">{m.text}</span>
-                                                            <SourceLocationLineText line={m.line} column={m.column} />
                                                           </div>
-                                                          <SourceLocationUrlBlock sourceUrl={m.sourceUrl} />
+                                                          <SourceLocationUrlBlock
+                                                            sourceUrl={m.sourceUrl}
+                                                            line={m.line}
+                                                            column={m.column}
+                                                          />
                                                         </li>
                                                       ))}
                                                     </ul>
@@ -793,9 +845,12 @@ export function MonitorReportPanel({
                                                             <li key={`${sampleIdx}-devtools-${m.text}`}>
                                                               <div className="diagLineHead">
                                                                 <span className="diagLineHeadMsg">{m.text}</span>
-                                                                <SourceLocationLineText line={m.line} column={m.column} />
                                                               </div>
-                                                              <SourceLocationUrlBlock sourceUrl={m.sourceUrl} />
+                                                              <SourceLocationUrlBlock
+                                                                sourceUrl={m.sourceUrl}
+                                                                line={m.line}
+                                                                column={m.column}
+                                                              />
                                                             </li>
                                                           )
                                                         })}
@@ -961,9 +1016,9 @@ export function MonitorReportPanel({
                             <div className="diagLineHead">
                               <span className={`pill ${m.type}`}>{m.type}</span>
                               <span className="diagLineHeadMsg">{m.text}</span>
-                              <SourceLocationLineText line={m.line} column={m.column} />
+                              {m.dupeCount > 1 ? <span className="diagDupeCount">×{m.dupeCount}</span> : null}
                             </div>
-                            <SourceLocationUrlBlock sourceUrl={m.sourceUrl} />
+                            <SourceLocationUrlBlock sourceUrl={m.sourceUrl} line={m.line} column={m.column} />
                           </li>
                         ))}
                       </ul>
@@ -986,9 +1041,9 @@ export function MonitorReportPanel({
                             <div className="diagLineHead">
                               <span className={`pill ${m.type}`}>{m.type}</span>
                               <span className="diagLineHeadMsg">{m.text}</span>
-                              <SourceLocationLineText line={m.line} column={m.column} />
+                              {m.dupeCount > 1 ? <span className="diagDupeCount">×{m.dupeCount}</span> : null}
                             </div>
-                            <SourceLocationUrlBlock sourceUrl={m.sourceUrl} />
+                            <SourceLocationUrlBlock sourceUrl={m.sourceUrl} line={m.line} column={m.column} />
                           </li>
                         ))}
                       </ul>
@@ -1007,9 +1062,9 @@ export function MonitorReportPanel({
                             <li key={`${idx}-devtools-${m.text}`}>
                               <div className="diagLineHead">
                                 <span className="diagLineHeadMsg">{m.text}</span>
-                                <SourceLocationLineText line={m.line} column={m.column} />
+                                {m.dupeCount > 1 ? <span className="diagDupeCount">×{m.dupeCount}</span> : null}
                               </div>
-                              <SourceLocationUrlBlock sourceUrl={m.sourceUrl} />
+                              <SourceLocationUrlBlock sourceUrl={m.sourceUrl} line={m.line} column={m.column} />
                             </li>
                           )
                         })}

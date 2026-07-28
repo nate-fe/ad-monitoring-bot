@@ -237,6 +237,37 @@ function buildScriptIssueTop10(pageErrors, consoleMessages) {
     .slice(0, 10)
 }
 
+/**
+ * 완전히 동일한 콘솔 메시지(내용·위치·출처)를 한 항목으로 합치고 dupeCount 를 매긴다.
+ * 광고 스크립트가 같은 경고를 여러 번 찍는 경우 리포트 크기를 줄인다.
+ */
+function dedupeConsoleMessages(messages) {
+  const map = new Map()
+  for (const m of messages) {
+    const key = [
+      m.type,
+      m.text,
+      m.url ?? '',
+      m.sourceUrl ?? '',
+      m.line ?? '',
+      m.column ?? '',
+      m.source ?? '',
+    ].join('')
+    const prev = map.get(key)
+    if (prev) {
+      prev.dupeCount += 1
+    } else {
+      map.set(key, { ...m, dupeCount: 1 })
+    }
+  }
+  // dupeCount 는 2 이상일 때만 남긴다(중복 없는 리포트는 필드 추가로 커지지 않게).
+  return [...map.values()].map((m) => {
+    if (m.dupeCount > 1) return m
+    const { dupeCount: _omit, ...rest } = m
+    return rest
+  })
+}
+
 function inferTargetScope(targetUrl) {
   const lower = String(targetUrl).toLowerCase()
   try {
@@ -314,6 +345,50 @@ function parseLocationFromStack(stackText) {
   }
 
   return {}
+}
+
+// ── CDP Runtime.consoleAPICalled 스택 트레이스에서 실제 출처 추출 ──
+// Playwright msg.location()/주입 래퍼가 못 잡는 출처(loader.js 등)를 보강하기 위한 헬퍼.
+
+/** RemoteObject → 텍스트(문자열 인자 기준). 저장된 메시지 text 와 매칭용. */
+function cdpRemoteObjectToText(arg) {
+  if (arg == null) return ''
+  if (typeof arg.value === 'string') return arg.value
+  if (arg.value != null) return String(arg.value)
+  if (typeof arg.unserializableValue === 'string') return arg.unserializableValue
+  return arg.description ?? arg.className ?? arg.subtype ?? arg.type ?? ''
+}
+
+function cdpArgsToText(args) {
+  return (Array.isArray(args) ? args : []).map(cdpRemoteObjectToText).join(' ')
+}
+
+/** CDP consoleAPICalled type → 저장 규격(log/info/warning/error). */
+function mapCdpConsoleType(type) {
+  if (type === 'warning') return 'warning'
+  if (type === 'error' || type === 'assert') return 'error'
+  if (type === 'info') return 'info'
+  return 'log'
+}
+
+/** 스택 트레이스(부모 async 스택 포함)에서 첫 http(s) 프레임 = 실제 출처 스크립트. */
+function firstHttpFrameFromStack(stackTrace) {
+  let cur = stackTrace
+  let guard = 0
+  while (cur && guard < 20) {
+    guard += 1
+    for (const f of cur.callFrames ?? []) {
+      if (typeof f.url === 'string' && /^https?:\/\//i.test(f.url)) {
+        return {
+          sourceUrl: f.url,
+          line: Number.isFinite(f.lineNumber) ? f.lineNumber + 1 : undefined,
+          column: Number.isFinite(f.columnNumber) ? f.columnNumber : undefined,
+        }
+      }
+    }
+    cur = cur.parent
+  }
+  return undefined
 }
 
 const CONSOLE_CAPTURE_SCRIPT = `
@@ -531,6 +606,9 @@ async function main() {
   /** CDP Log 도메인(violation/intervention 등, console.* 호출이 아닌 브라우저 자체 진단 메시지) — 메인 프레임과 모든 iframe(광고 iframe 포함)에서 수집 */
   /** @type {{ type: string, text: string, url?: string, sourceUrl?: string, line?: number, source?: string }[]} */
   const browserLogMessages = []
+  /** CDP Runtime.consoleAPICalled 로 뽑은 실제 출처. key=`${type} ${text}` → {sourceUrl,line,column} */
+  /** @type {Map<string, { sourceUrl: string, line?: number, column?: number }>} */
+  const cdpConsoleSourceByKey = new Map()
 
   const shouldIgnore = (text) => ignoreErrorPatterns.some((p) => p && text.includes(p))
 
@@ -697,6 +775,26 @@ async function main() {
         const logSession = await context.newCDPSession(page)
         await logSession.send('Log.enable')
         logSession.on('Log.entryAdded', ({ entry }) => handleBrowserLogEntry(entry, page.url()))
+
+        // console.* 호출의 전체 스택 트레이스를 받아 실제 출처(loader.js 등)를 뽑는다.
+        // Playwright msg.location()/주입 래퍼가 못 잡는 출처를 나중에 보강하는 용도.
+        try {
+          await logSession.send('Runtime.enable')
+          logSession.on('Runtime.consoleAPICalled', (e) => {
+            try {
+              const loc = firstHttpFrameFromStack(e.stackTrace)
+              if (!loc) return
+              const text = cdpArgsToText(e.args)
+              if (!text) return
+              const key = `${mapCdpConsoleType(e.type)} ${text}`
+              if (!cdpConsoleSourceByKey.has(key)) cdpConsoleSourceByKey.set(key, loc)
+            } catch {
+              /* ignore */
+            }
+          })
+        } catch {
+          // Runtime 도메인 미지원 — 보강 없이 진행
+        }
       } catch {
         // Log 도메인을 지원하지 않는 환경 — 베스트에포트이므로 무시
       }
@@ -776,6 +874,18 @@ async function main() {
         if (pageTexts.has(tx)) continue
         pageTexts.add(tx)
         consoleMessages.push(m)
+      }
+
+      // 출처(sourceUrl)가 비어 있는 메시지를 CDP 스택 트레이스 결과로 보강한다.
+      // (Playwright msg.location() 이 주입 래퍼 지점만 가리켜 URL 이 없던 케이스)
+      for (const m of consoleMessages) {
+        if (m.sourceUrl) continue
+        const loc = cdpConsoleSourceByKey.get(`${String(m.type ?? '')} ${String(m.text ?? '')}`)
+        if (!loc) continue
+        // 기존 line 은 주입 래퍼 위치라 실제 출처와 안 맞으니 함께 교체.
+        m.sourceUrl = loc.sourceUrl
+        if (loc.line != null) m.line = loc.line
+        if (loc.column != null) m.column = loc.column
       }
 
       try {
@@ -880,7 +990,10 @@ async function main() {
   }
 
   const durationMs = Date.now() - startedAt
+  // 집계(scriptIssueTop10·domainInsights)는 원본 기준으로 이미 계산됨.
+  // 저장용 consoleMessages 는 동일 메시지를 합쳐 리포트 크기를 줄인다(dupeCount 보존).
   const scriptIssueTop10 = buildScriptIssueTop10(pageErrors, consoleMessages)
+  const dedupedConsoleMessages = dedupeConsoleMessages(consoleMessages)
   const result = {
     ok,
     url: targetUrl,
@@ -890,7 +1003,7 @@ async function main() {
     failures,
     diagnostics: {
       pageErrors,
-      consoleMessages,
+      consoleMessages: dedupedConsoleMessages,
       requestFailures: requestFailuresForReport,
       scriptIssueTop10,
       ...(performanceMetrics != null ? { performanceMetrics } : {}),

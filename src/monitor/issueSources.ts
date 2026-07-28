@@ -7,6 +7,8 @@ export type IssueSourceCandidate =
       url?: string
       /** 스크립트 출처 URL — 페이지 URL과 다를 때 분류에 사용 */
       sourceUrl?: string
+      /** 이미 합쳐진 동일 메시지의 개수(리포트 dedup). 없으면 1로 센다. */
+      dupeCount?: number
     }
 
 export type ClassifiedIssue = {
@@ -56,11 +58,13 @@ export function buildClassifiedIssues(items: IssueSourceCandidate[]): Classified
 
   for (const item of items) {
     const matched = classifyIssueText(item)
+    // 리포트에서 이미 합쳐진 동일 메시지는 dupeCount 만큼 가중치로 센다.
+    const weight = typeof item === 'string' ? 1 : item.dupeCount ?? 1
     const prev = bucket.get(matched.key)
     if (prev) {
-      prev.count += 1
+      prev.count += weight
     } else {
-      bucket.set(matched.key, { ...matched, count: 1 })
+      bucket.set(matched.key, { ...matched, count: weight })
     }
   }
 

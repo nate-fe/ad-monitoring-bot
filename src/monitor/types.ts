@@ -68,6 +68,8 @@ export type MonitorReport = {
       line?: number
       column?: number
       source?: string
+      /** 수집 단계에서 합쳐진 동일 메시지 개수(dedup). 없으면 1로 취급. */
+      dupeCount?: number
     }[]
     requestFailures?: { url: string; method: string; resourceType: string; errorText: string }[]
     performanceMetrics?: MonitorPerformanceMetrics

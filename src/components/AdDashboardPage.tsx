@@ -30,6 +30,11 @@ const TAG_TAB_LIMIT = 24
 
 type ViewMode = 'list' | 'layout'
 
+type ScriptSourceState =
+  | { entryId: string; status: 'loading' }
+  | { entryId: string; status: 'loaded'; text: string }
+  | { entryId: string; status: 'error'; message: string }
+
 const GROUP_OPTIONS: { id: GroupKey; label: string }[] = [
   { id: 'company', label: '업체별' },
   { id: 'adTag', label: '광고태그별' },
@@ -66,21 +71,27 @@ function ScriptDetailModal({
   entry: AdScriptEntry
   onClose: () => void
 }) {
-  const [source, setSource] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [sourceState, setSourceState] = useState<ScriptSourceState>(() => ({
+    entryId: entry.id,
+    status: 'loading',
+  }))
   const [copied, setCopied] = useState(false)
   const closeRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
     let alive = true
-    setSource(null)
-    setError(null)
     loadScriptSource(entry.id)
       .then((text) => {
-        if (alive) setSource(text)
+        if (alive) setSourceState({ entryId: entry.id, status: 'loaded', text })
       })
       .catch((err: unknown) => {
-        if (alive) setError(err instanceof Error ? err.message : String(err))
+        if (alive) {
+          setSourceState({
+            entryId: entry.id,
+            status: 'error',
+            message: err instanceof Error ? err.message : String(err),
+          })
+        }
       })
     return () => {
       alive = false
@@ -97,15 +108,19 @@ function ScriptDetailModal({
   }, [onClose])
 
   const handleCopy = async () => {
-    if (source == null) return
+    const currentSource = currentSourceState.status === 'loaded' ? currentSourceState.text : null
+    if (currentSource == null) return
     try {
-      await navigator.clipboard.writeText(source)
+      await navigator.clipboard.writeText(currentSource)
       setCopied(true)
       window.setTimeout(() => setCopied(false), 1500)
     } catch {
       setCopied(false)
     }
   }
+
+  const currentSourceState =
+    sourceState.entryId === entry.id ? sourceState : ({ entryId: entry.id, status: 'loading' } as const)
 
   return (
     <div className="adModalBackdrop" role="presentation" onClick={onClose}>
@@ -128,7 +143,7 @@ function ScriptDetailModal({
             </div>
           </div>
           <div className="adModalActions">
-            <button type="button" className="btnGhost" onClick={handleCopy} disabled={source == null}>
+            <button type="button" className="btnGhost" onClick={handleCopy} disabled={currentSourceState.status !== 'loaded'}>
               {copied ? '복사됨 ✓' : '코드 복사'}
             </button>
             <button ref={closeRef} type="button" className="btnGhost" onClick={onClose}>
@@ -137,13 +152,13 @@ function ScriptDetailModal({
           </div>
         </header>
         <div className="adModalBody">
-          {error ? (
-            <p className="adModalStatus adModalError">불러오기 실패: {error}</p>
-          ) : source == null ? (
+          {currentSourceState.status === 'error' ? (
+            <p className="adModalStatus adModalError">불러오기 실패: {currentSourceState.message}</p>
+          ) : currentSourceState.status === 'loading' ? (
             <p className="adModalStatus">스크립트를 불러오는 중…</p>
           ) : (
             <pre className="adCode">
-              <code>{source}</code>
+              <code>{currentSourceState.text}</code>
             </pre>
           )}
         </div>
