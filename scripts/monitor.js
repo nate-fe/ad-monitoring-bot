@@ -519,6 +519,25 @@ const LONG_TASK_CAPTURE_SCRIPT = `
  */
 const RELEVANT_BROWSER_LOG_SOURCES = new Set(['violation', 'intervention', 'security', 'deprecation'])
 
+/**
+ * 크롬 DevTools 콘솔이 브라우저 자체 진단 메시지 앞에 붙이는 접두어(예: `[Violation] Permissions policy
+ * violation: unload is not allowed in this document.`). CDP 는 접두어 없는 원문을 주므로, 크롬에서 보이는
+ * 문자열과 맞추려면 여기서 직접 붙여야 한다. security 는 DevTools 도 접두어를 붙이지 않아 제외.
+ */
+const BROWSER_LOG_TEXT_PREFIXES = {
+  violation: '[Violation] ',
+  intervention: '[Intervention] ',
+  deprecation: '[Deprecation] ',
+}
+
+/**
+ * 접두어를 뗀 원문. Playwright 는 같은 Log 항목을 접두어 없이 한 번 더 전달하므로, 중복 판정은 항상
+ * 이 원문 기준으로 해야 같은 메시지로 인식된다.
+ */
+function stripBrowserLogPrefix(text) {
+  return String(text ?? '').replace(/^\[(?:Violation|Intervention|Deprecation)\] /, '')
+}
+
 function mapLogLevelToConsoleType(level) {
   if (level === 'error') return 'error'
   if (level === 'warning') return 'warning'
@@ -606,7 +625,7 @@ async function main() {
   /** CDP Log 도메인(violation/intervention 등, console.* 호출이 아닌 브라우저 자체 진단 메시지) — 메인 프레임과 모든 iframe(광고 iframe 포함)에서 수집 */
   /** @type {{ type: string, text: string, url?: string, sourceUrl?: string, line?: number, source?: string }[]} */
   const browserLogMessages = []
-  /** CDP Runtime.consoleAPICalled 로 뽑은 실제 출처. key=`${type} ${text}` → {sourceUrl,line,column} */
+  /** CDP Runtime.consoleAPICalled 로 뽑은 실제 출처. key=`${type} ${text}` → {sourceUrl,line,column} */
   /** @type {Map<string, { sourceUrl: string, line?: number, column?: number }>} */
   const cdpConsoleSourceByKey = new Map()
 
@@ -754,10 +773,11 @@ async function main() {
       const handleBrowserLogEntry = (entry, frameUrl) => {
         if (!entry || !RELEVANT_BROWSER_LOG_SOURCES.has(entry.source)) return
         const text = String(entry.text ?? '')
+        // 무시 패턴은 사용자가 크롬 원문 그대로 적으므로 접두어를 붙이기 전에 판정한다.
         if (!text || shouldIgnore(text)) return
         browserLogMessages.push({
           type: mapLogLevelToConsoleType(entry.level),
-          text,
+          text: `${BROWSER_LOG_TEXT_PREFIXES[entry.source] ?? ''}${text}`,
           url: frameUrl,
           sourceUrl: typeof entry.url === 'string' ? entry.url : undefined,
           line: Number.isFinite(entry.lineNumber) ? entry.lineNumber + 1 : undefined,
@@ -774,6 +794,30 @@ async function main() {
       try {
         const logSession = await context.newCDPSession(page)
         await logSession.send('Log.enable')
+
+        /**
+         * DevTools 가 `[Violation]` 접두어로 보여주는 진단 중 verbose 레벨(document.write, non-passive
+         * 리스너, Forced reflow, unload 퍼미션 정책 등)은 세션마다 이 호출을 해야만 Log.entryAdded 로
+         * 들어온다. DevTools 는 콘솔을 열 때 자동으로 부르지만 Playwright 는 부르지 않아서, 이 호출이
+         * 없으면 verbose 위반이 한 건도 잡히지 않는다(error 레벨 위반은 이 설정과 무관하게 들어옴).
+         * 임계값은 DevTools 기본값과 동일하게 맞춘다.
+         */
+        try {
+          await logSession.send('Log.startViolationsReport', {
+            config: [
+              { name: 'longTask', threshold: 200 },
+              { name: 'longLayout', threshold: 30 },
+              { name: 'blockedEvent', threshold: 100 },
+              { name: 'blockedParser', threshold: -1 },
+              { name: 'handler', threshold: 150 },
+              { name: 'recurringHandler', threshold: 50 },
+              { name: 'discouragedAPIUse', threshold: -1 },
+            ],
+          })
+        } catch {
+          // 위반 리포트 미지원 — error 레벨 위반만 수집하고 계속 진행
+        }
+
         logSession.on('Log.entryAdded', ({ entry }) => handleBrowserLogEntry(entry, page.url()))
 
         // console.* 호출의 전체 스택 트레이스를 받아 실제 출처(loader.js 등)를 뽑는다.
@@ -829,14 +873,26 @@ async function main() {
       })
       const fromPage = capturedConsoleMessages.filter((item) => item && !shouldIgnore(String(item.text ?? '')))
       consoleMessages.push(...fromPage)
-      const pageTexts = new Set(fromPage.map((m) => String(m.text ?? '')))
+      /**
+       * 인페이지 훅이 잡은 console.* 텍스트. Playwright 가 같은 호출을 한 번 더 전달하므로 이것과 겹치는
+       * 것만 합친다(텍스트만 비교 — 훅의 location 은 래퍼 지점이라 위치가 서로 다르게 잡힌다).
+       */
+      const hookTexts = new Set(fromPage.map((m) => String(m.text ?? '')))
+      /**
+       * 이미 담은 메시지의 신원 = 텍스트 + 위치. 크롬 DevTools 콘솔이 같은 줄로 묶는 기준과 동일하게 맞춘다.
+       * 문구가 같아도 URL·줄번호가 다르면 콘솔에는 각각 찍히므로 별개로 남겨야 한다.
+       */
+      const messageIdentity = (m) =>
+        [stripBrowserLogPrefix(m.text), m.url ?? '', m.sourceUrl ?? '', m.line ?? ''].join('\u0000')
+      /** 아래 병합 루프들이 공유하는 중복 판정 집합. */
+      const seenIdentities = new Set(consoleMessages.map(messageIdentity))
 
       for (const m of playwrightPageConsoleMessages) {
         const tx = String(m.text ?? '')
         if (tx === 'JSHandle@node' && consoleMessages.some((x) => String(x.text ?? '').includes('[HTML 태그 객체:'))) {
           continue
         }
-        if (pageTexts.has(tx)) {
+        if (hookTexts.has(tx)) {
           const idx = consoleMessages.findIndex((x) => String(x.text ?? '') === tx)
           if (idx >= 0 && m.sourceUrl) {
             const cur = consoleMessages[idx]
@@ -844,7 +900,7 @@ async function main() {
           }
           continue
         }
-        pageTexts.add(tx)
+        seenIdentities.add(messageIdentity(m))
         consoleMessages.push(m)
       }
 
@@ -863,16 +919,30 @@ async function main() {
         return !(Number.isFinite(st) && st >= 200 && st < 300)
       })
 
+      // 네트워크 한 줄은 문구가 같아도(예: "Failed to load resource: …403") 리소스 URL 마다 콘솔에 따로 찍힌다.
       for (const m of devToolsFiltered) {
-        if (pageTexts.has(m.text)) continue
-        pageTexts.add(m.text)
+        const id = messageIdentity(m)
+        if (seenIdentities.has(id)) continue
+        seenIdentities.add(id)
         consoleMessages.push(m)
       }
 
+      /**
+       * error·warning 레벨 Log 항목은 Playwright 도 접두어 없이 위 루프로 한 번 전달한다. 신원은
+       * 접두어를 뗀 원문 기준이라 서로 같게 잡히므로, 크롬 표기를 따르는 이쪽(접두어 있음)으로 교체한다.
+       * 위치가 다르면 그대로 남긴다 — 같은 문구라도 광고 슬롯이 다르면 콘솔에는 각각 찍히기 때문이다.
+       * 완전히 동일한 항목은 뒤의 dedupeConsoleMessages 가 dupeCount 로 묶는다.
+       */
       for (const m of browserLogMessages) {
-        const tx = String(m.text ?? '')
-        if (pageTexts.has(tx)) continue
-        pageTexts.add(tx)
+        const id = messageIdentity(m)
+        const dupeIdx = consoleMessages.findIndex(
+          (x) => x.source === 'page' && messageIdentity(x) === id,
+        )
+        if (dupeIdx >= 0) {
+          consoleMessages[dupeIdx] = m
+          continue
+        }
+        seenIdentities.add(id)
         consoleMessages.push(m)
       }
 
