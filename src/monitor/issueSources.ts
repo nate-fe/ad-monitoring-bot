@@ -29,6 +29,19 @@ export const ISSUE_SOURCE_RULES = [
     label: 'Taboola',
     patterns: ['taboola', 'cdn.taboola.com', 'trc.taboola.com', 'api.taboola.com'],
   },
+  /**
+   * 이디엘 태그가 document.write 로 띄우는 서드파티 광고 iframe(doorigo/z00) 안에서 도는 RTX 핑거프린트
+   * SDK. wasm CORS 차단·encrypted-media 퍼미션 위반 등 파생 메시지가 한 번에 여러 건 찍히는데 전부 같은
+   * 원인이라 한 줄로 묶는다. 원본 콘솔 메시지는 리포트에 그대로 남는다.
+   *
+   * iframe URL 에 `tsource=m.news.nate.com` 같은 파라미터가 붙어 있어서 아래 nate 규칙보다 먼저 와야
+   * 한다(그러지 않으면 서드파티 오류가 'Nate 내부'로 잡힌다).
+   */
+  {
+    key: 'rtx',
+    label: 'RTX 핑거프린트 SDK (z00.kr)',
+    patterns: ['z00.kr', 'rtbx.co.kr', 'doorigo.co.kr', 'rtx_wasm_fingerprint', 'rtx.bundle.prod'],
+  },
   { key: 'nate', label: 'Nate 내부', patterns: ['news.nate.com', 'm.news.nate.com', 'nate.com'] },
 ] as const
 
