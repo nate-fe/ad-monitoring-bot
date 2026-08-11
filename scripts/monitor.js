@@ -2,6 +2,16 @@ import process from 'node:process'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { chromium } from 'playwright'
+import {
+  isoToFileBase,
+  parseRetentionHours,
+  pruneManifest,
+  pruneOrphanFiles,
+  readManifest,
+  screenshotDirForReport,
+  toWebPath,
+  writeManifest,
+} from './screenshot-store.js'
 
 function getEnv(name, { required = false, defaultValue = undefined } = {}) {
   const value = process.env[name]
@@ -175,6 +185,133 @@ function normalizeScriptSourceKey(url) {
     return `${u.origin}${u.pathname}`
   } catch {
     return t
+  }
+}
+
+/** 광고·네이트 태그·광고 iframe HTML 등, 원인 코드 추적용으로 본문을 캐시할 URL */
+const SCRIPT_BODY_CACHE_URL_RE =
+  /cyad\d*\.nate\.com|js\.kti|nate\.com\/etc\/|nate\.com\/js\/|googlesyndication|doubleclick|googletag|pagead2|adservice|taboola|criteo|adnxs|amazon-adsystem|casalemedia|pubmatic|rubiconproject|openx|prebid|adform|adsafeprotected|2mdn\.net|creativecdn|spotx|outbrain|facebook\.net\/|dable|widerplanet|mobwith|googletagservices|securepubads|gpt\.js|pubads/i
+
+const SCRIPT_BODY_MAX_CHARS = 512 * 1024
+const SCRIPT_BODY_CACHE_MAX_ENTRIES = 200
+const SCRIPT_BODY_CACHE_MAX_TOTAL_CHARS = 8 * 1024 * 1024
+const SOURCE_SNIPPET_CONTEXT_LINES = 2
+const SOURCE_SNIPPET_MAX_LINE_CHARS = 240
+const SOURCE_SNIPPET_MINIFIED_RADIUS = 100
+
+function shouldCacheScriptBody(resourceType, url) {
+  if (!url || typeof url !== 'string') return false
+  if (resourceType === 'script') {
+    // 스크립트는 용량 한도 안에서 전부 캐시(출처가 벤더 패턴 밖이어도 Violation 에 잡힐 수 있음)
+    return true
+  }
+  // adShopBox 같은 광고 iframe HTML 안의 인라인 스크립트 줄번호를 위해 document 도 일부 캐시
+  if (resourceType === 'document') return SCRIPT_BODY_CACHE_URL_RE.test(url)
+  return false
+}
+
+/**
+ * @param {Map<string, string>} cache
+ * @param {string} url
+ * @param {string} body
+ * @param {{ totalChars: number }} budget
+ */
+function putScriptBody(cache, url, body, budget) {
+  if (!url || body == null) return
+  if (cache.size >= SCRIPT_BODY_CACHE_MAX_ENTRIES) return
+  const text = String(body)
+  if (!text) return
+  if (text.length > SCRIPT_BODY_MAX_CHARS) return
+  if (budget.totalChars + text.length > SCRIPT_BODY_CACHE_MAX_TOTAL_CHARS) return
+
+  cache.set(url, text)
+  const key = normalizeScriptSourceKey(url)
+  if (key && key !== url && !cache.has(key)) cache.set(key, text)
+  budget.totalChars += text.length
+}
+
+/**
+ * @param {Map<string, string>} cache
+ * @param {string | undefined} url
+ */
+function lookupScriptBody(cache, url) {
+  if (!url) return undefined
+  if (cache.has(url)) return cache.get(url)
+  const key = normalizeScriptSourceKey(url)
+  if (key && cache.has(key)) return cache.get(key)
+  try {
+    const u = new URL(url)
+    const noQuery = `${u.origin}${u.pathname}`
+    if (cache.has(noQuery)) return cache.get(noQuery)
+  } catch {
+    /* ignore */
+  }
+  return undefined
+}
+
+/**
+ * sourceUrl + line(+column) 기준으로 스크립트/문서 본문에서 원인 코드 스니펫을 만든다.
+ * @returns {{ text: string, focusLine?: number, startLine?: number, endLine?: number, truncated?: boolean } | undefined}
+ */
+function extractSourceSnippet(body, line, column) {
+  if (body == null || body === '') return undefined
+  const lines = String(body).split(/\r?\n/)
+  const focusLine = Number.isFinite(line) && line > 0 ? Math.floor(line) : 1
+  const idx = Math.min(Math.max(focusLine - 1, 0), Math.max(lines.length - 1, 0))
+
+  // minify(사실상 한 줄)이면 column 주변만 잘라 보여 준다.
+  if (lines.length === 1 && Number.isFinite(column) && column > 0) {
+    const row = lines[0] ?? ''
+    const col = Math.max(0, Math.floor(column) - 1)
+    const start = Math.max(0, col - SOURCE_SNIPPET_MINIFIED_RADIUS)
+    const end = Math.min(row.length, col + SOURCE_SNIPPET_MINIFIED_RADIUS)
+    const slice = row.slice(start, end)
+    if (!slice.trim()) return undefined
+    return {
+      text: `${start > 0 ? '…' : ''}${slice}${end < row.length ? '…' : ''}`,
+      focusLine: 1,
+      startLine: 1,
+      endLine: 1,
+      truncated: start > 0 || end < row.length,
+    }
+  }
+
+  const from = Math.max(0, idx - SOURCE_SNIPPET_CONTEXT_LINES)
+  const to = Math.min(lines.length - 1, idx + SOURCE_SNIPPET_CONTEXT_LINES)
+  const parts = []
+  for (let i = from; i <= to; i++) {
+    let row = lines[i] ?? ''
+    let truncated = false
+    if (row.length > SOURCE_SNIPPET_MAX_LINE_CHARS) {
+      row = `${row.slice(0, SOURCE_SNIPPET_MAX_LINE_CHARS)}…`
+      truncated = true
+    }
+    const marker = i === idx ? '>' : ' '
+    parts.push(`${marker}${String(i + 1).padStart(4, ' ')} | ${row}`)
+    if (truncated) parts[parts.length - 1] += ''
+  }
+  const text = parts.join('\n').trimEnd()
+  if (!text) return undefined
+  return {
+    text,
+    focusLine,
+    startLine: from + 1,
+    endLine: to + 1,
+  }
+}
+
+/**
+ * @param {Array<{ sourceUrl?: string, line?: number, column?: number, sourceSnippet?: unknown }>} messages
+ * @param {Map<string, string>} scriptBodyByUrl
+ */
+function attachSourceSnippets(messages, scriptBodyByUrl) {
+  for (const m of messages) {
+    if (!m || m.sourceSnippet) continue
+    if (!m.sourceUrl || m.line == null || !Number.isFinite(m.line)) continue
+    const body = lookupScriptBody(scriptBodyByUrl, m.sourceUrl)
+    if (!body) continue
+    const snippet = extractSourceSnippet(body, m.line, m.column)
+    if (snippet) m.sourceSnippet = snippet
   }
 }
 
@@ -544,18 +681,240 @@ function mapLogLevelToConsoleType(level) {
   return 'log'
 }
 
-/** 화면 아래쪽 지연 로딩 광고(슬라이더·비디오 등)는 뷰포트에 들어와야 초기화되므로, 실제 사용자처럼 스크롤해 내려가며 트리거한다 */
+const DESKTOP_VIEWPORT = { width: 1280, height: 720 }
+/** 모바일 지면은 실제 사용자와 같은 폭·UA로 열어야 로드되는 광고와 레이아웃이 일치한다 */
+const MOBILE_VIEWPORT = { width: 393, height: 852 }
+/**
+ * 봇임을 알리는 토큰을 UA 에 붙이면 일부 광고 서버(ad.3dpop.kr 등)가 403 을 돌려주어,
+ * 실제 사용자에게는 나오는 광고가 캡쳐·리포트에서만 오류로 보인다. 그래서 실제 크롬과 같은 UA 를 쓴다.
+ */
+const DEFAULT_MOBILE_USER_AGENT =
+  'Mozilla/5.0 (Linux; Android 14; SM-S928N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36'
+const DEFAULT_DESKTOP_USER_AGENT =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
+
+/** '-pc' 가 붙지 않은 스코프(news, news-home, pann, pann-home)가 모바일 지면 */
+function isMobileScope(scope) {
+  return Boolean(scope) && !String(scope).includes('-pc')
+}
+
+/** Chromium 한 장 캡쳐의 높이 한계(16384px)보다 낮게 잡고, 넘으면 구간을 나눠 찍어 대시보드에서 이어 붙인다 */
+const SCREENSHOT_SEGMENT_MAX_PX = 16000
+/** 무한 스크롤 지면이 끝없이 길어질 때의 안전장치 — 초과분은 truncated 로 표시 */
+const SCREENSHOT_MAX_SEGMENTS = 8
+
+/**
+ * 화면에 붙어 다니는 요소(하단 앵커 광고·상단 고정 네비 등)를 캡쳐 동안만 감춘다.
+ * 긴 지면을 구간으로 나눠 찍으면 이런 요소가 구간마다 다시 그려져 본문 중간을 가리기 때문.
+ * 레이아웃이 밀리지 않도록 visibility 만 바꾸고, 원래 인라인 값은 복원용으로 들고 있는다.
+ * @returns {Promise<number>} 감춘 요소 수
+ */
+async function hideStickyOverlays(page, { includeSticky }) {
+  return page.evaluate((withSticky) => {
+    const KEY = '__adMonitorOverlayHider__'
+    /** @type {any} */
+    let state = globalThis[KEY]
+
+    if (!state) {
+      state = { withSticky, hidden: [], handled: new Set(), observer: null, pending: false }
+
+      state.reassert = () => {
+        // 사이트·광고 스크립트가 style 을 덮어썼을 수 있어 값만 다시 못 박는다.
+        for (const entry of state.hidden) {
+          const [el, prop, , , applied] = entry
+          if (el.isConnected && el.style.getPropertyValue(prop) !== applied) {
+            el.style.setProperty(prop, applied, 'important')
+          }
+        }
+      }
+
+      state.consider = (els) => {
+        for (const el of els) {
+          if (state.handled.has(el)) continue
+          const cs = getComputedStyle(el)
+          const isFixed = cs.position === 'fixed'
+          const isSticky = cs.position === 'sticky'
+          if (!isFixed && !(isSticky && state.withSticky)) continue
+          if (cs.visibility === 'hidden' || cs.display === 'none') continue
+          const rect = el.getBoundingClientRect()
+          // 추적 픽셀처럼 작은 것은 건드리지 않는다
+          if (rect.width < 40 || rect.height < 16) continue
+          // fixed 는 흐름 밖이라 display:none 으로 지워도 본문 레이아웃이 밀리지 않는다.
+          // sticky 는 제자리를 차지하므로 opacity 로만 지운다. 둘 다 자식이 visibility:visible 로 되살리지 못하는 방식.
+          const prop = isFixed ? 'display' : 'opacity'
+          const applied = isFixed ? 'none' : '0'
+          state.hidden.push([el, prop, el.style.getPropertyValue(prop), el.style.getPropertyPriority(prop), applied])
+          state.handled.add(el)
+          el.style.setProperty(prop, applied, 'important')
+        }
+      }
+
+      state.scan = () => {
+        state.reassert()
+        state.consider(document.querySelectorAll('body *'))
+      }
+
+      /**
+       * 광고 스크립트가 스크롤·리사이즈에 반응해 앵커를 다시 만들어 넣으므로 캡쳐가 끝날 때까지 계속 지운다.
+       * 콜백은 마이크로태스크(=페인트 전)라, 여기서 곧바로 처리해야 다시 그려지기 전에 지워진다.
+       * 전체 DOM 순회는 비싸므로 바뀐 노드만 본다.
+       */
+      state.observer = new MutationObserver((records) => {
+        state.reassert()
+        for (const record of records) {
+          if (record.type === 'attributes' && record.target instanceof Element) {
+            // 클래스 하나 바뀌면서 안쪽 광고 슬롯이 보이게 되는 경우가 있어 자손까지 본다
+            state.consider([record.target, ...record.target.querySelectorAll('*')])
+            continue
+          }
+          for (const node of record.addedNodes) {
+            if (!(node instanceof Element)) continue
+            state.consider([node, ...node.querySelectorAll('*')])
+          }
+        }
+      })
+      state.observer.observe(document.documentElement, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['style', 'class'],
+      })
+
+      globalThis[KEY] = state
+    }
+
+    state.withSticky = state.withSticky || withSticky
+    state.scan()
+    return state.hidden.length
+  }, includeSticky)
+}
+
+async function restoreStickyOverlays(page) {
+  await page
+    .evaluate(() => {
+      const KEY = '__adMonitorOverlayHider__'
+      const state = globalThis[KEY]
+      if (!state) return
+      state.observer?.disconnect()
+      for (const [el, prop, value, priority] of state.hidden) {
+        if (value) el.style.setProperty(prop, value, priority)
+        else el.style.removeProperty(prop)
+      }
+      globalThis[KEY] = undefined
+    })
+    .catch(() => {})
+}
+
+/**
+ * 리포트를 만든 바로 그 세션에서 페이지 맨 위부터 맨 아래까지 찍는다(별도 재방문이 아니므로 checkedAt 과 같은 순간).
+ * 한 장에 안 들어가는 긴 지면만 위에서부터 구간을 나눈다.
+ * 하단 앵커 광고·고정 네비는 본문을 가리므로 캡쳐 동안 감춘다.
+ * @returns {Promise<{ capturedAt: string, files: string[], width: number, totalHeight: number, capturedHeight: number, truncated?: boolean } | null>}
+ */
+async function captureFullPageScreenshot(
+  page,
+  { outDir, fileBase, quality, segmentMaxPx = SCREENSHOT_SEGMENT_MAX_PX, hideOverlays = true },
+) {
+  try {
+    await page.evaluate(() => {
+      globalThis.scrollTo(0, 0)
+    })
+    // 스크롤 위치에 붙어 있던 sticky 요소가 제자리를 찾을 시간
+    await page.waitForTimeout(500)
+
+    const metrics = await page.evaluate(() => {
+      const doc = document.documentElement
+      const body = document.body
+      return {
+        width: Math.ceil(Math.max(doc?.clientWidth ?? 0, globalThis.innerWidth ?? 0)),
+        height: Math.ceil(Math.max(body?.scrollHeight ?? 0, doc?.scrollHeight ?? 0, doc?.clientHeight ?? 0)),
+      }
+    })
+
+    const width = metrics.width > 0 ? metrics.width : (page.viewportSize()?.width ?? DESKTOP_VIEWPORT.width)
+    const totalHeight = metrics.height > 0 ? metrics.height : (page.viewportSize()?.height ?? DESKTOP_VIEWPORT.height)
+
+    await mkdir(outDir, { recursive: true })
+
+    /** @type {string[]} */
+    const files = []
+    const segmentCount = Math.min(Math.ceil(totalHeight / segmentMaxPx), SCREENSHOT_MAX_SEGMENTS)
+    const segmented = segmentCount > 1
+    // 구간 분할일 때만 sticky 까지 감춘다 — 한 장으로 찍을 때 sticky 는 원래 자리에 한 번만 그려진다.
+    if (hideOverlays) await hideStickyOverlays(page, { includeSticky: segmented })
+
+    // 뷰포트를 지면 높이만큼 키워 두고 찍는다. screenshot({ fullPage: true }) 는 화면 밖 영역을 따로 합성하는데,
+    // 광고·댓글처럼 별도 프로세스로 뜨는 iframe 은 그때 그려지지 않아 통째로 흰칸이 된다.
+    // (한계: 뷰포트를 키우면 GPT 앵커 슬롯이 새 크기에 맞춰 다시 그려져 구간 아래쪽에 앵커가 남을 수 있다.
+    //  실제 모습은 위 overlay 캡쳐로 확인.)
+    const originalViewport = page.viewportSize() ?? DESKTOP_VIEWPORT
+    let capturedHeight = 0
+    try {
+      for (let i = 0; i < segmentCount; i += 1) {
+        const y = i * segmentMaxPx
+        const height = Math.min(segmentMaxPx, totalHeight - y)
+        if (height <= 0) break
+        await page.setViewportSize({ width: originalViewport.width, height })
+        await page.evaluate((top) => {
+          globalThis.scrollTo(0, top)
+        }, y)
+        // 넓어진 화면 안에서 지연 로딩 이미지·iframe 이 실제로 그려질 시간
+        await page.waitForTimeout(1200)
+        // 이 스크롤 위치에서 새로 붙어 나온 고정 요소까지 감춘다.
+        if (hideOverlays) await hideStickyOverlays(page, { includeSticky: segmented })
+        const name = segmented ? `${fileBase}--${String(i + 1).padStart(2, '0')}.jpg` : `${fileBase}.jpg`
+        await page.screenshot({ path: path.join(outDir, name), type: 'jpeg', quality })
+        files.push(name)
+        capturedHeight = y + height
+      }
+    } finally {
+      await page.setViewportSize(originalViewport).catch(() => {})
+      if (hideOverlays) await restoreStickyOverlays(page)
+    }
+
+    if (!files.length) return null
+
+    return {
+      capturedAt: new Date().toISOString(),
+      files,
+      width,
+      totalHeight,
+      capturedHeight,
+      ...(capturedHeight < totalHeight ? { truncated: true } : {}),
+    }
+  } catch (err) {
+    // 캡쳐 실패로 모니터링 자체를 실패시키지는 않는다 — 베스트에포트
+    console.warn(`[screenshot] capture failed: ${err instanceof Error ? err.message : String(err)}`)
+    return null
+  }
+}
+
+/**
+ * 화면 아래쪽 지연 로딩 광고(슬라이더·비디오 등)는 뷰포트에 들어와야 초기화되므로, 실제 사용자처럼 스크롤해 내려가며 트리거한다.
+ * steps 는 상한이고, 문서 끝에 닿으면 거기서 멈춘다 — 고정 횟수만 내리면 긴 기사의 아래쪽 광고가 아예 로드되지 않아
+ * 수집에서도 캡쳐에서도 빈칸으로 남는다.
+ * @returns {Promise<{ steps: number, reachedBottom: boolean }>}
+ */
 async function simulateUserScroll(page, { steps, stepDelayMs }) {
+  let used = 0
   try {
     const viewportHeight = page.viewportSize()?.height ?? 720
     const stepPx = Math.round(viewportHeight * 0.85)
     for (let i = 0; i < steps; i += 1) {
       await page.mouse.wheel(0, stepPx)
       await page.waitForTimeout(stepDelayMs)
+      used = i + 1
+      const atBottom = await page.evaluate(() => {
+        const doc = document.documentElement
+        const height = Math.max(document.body?.scrollHeight ?? 0, doc?.scrollHeight ?? 0)
+        return globalThis.scrollY + globalThis.innerHeight >= height - 8
+      })
+      if (atBottom) return { steps: used, reachedBottom: true }
     }
   } catch {
     // 스크롤 시뮬레이션 실패는 치명적이지 않음 — 베스트에포트
   }
+  return { steps: used, reachedBottom: false }
 }
 
 async function main() {
@@ -573,12 +932,23 @@ async function main() {
   const navTimeoutMs = Number(getEnv('MONITOR_NAV_TIMEOUT_MS', { defaultValue: '30000' }))
   /** 너무 짧으면 Long Task/TBT(근사)가 거의 잡히지 않을 수 있음 — 랩에서 8s 권장 */
   const afterLoadWaitMs = Number(getEnv('MONITOR_WAIT_AFTER_LOAD_MS', { defaultValue: '8000' }))
-  const userAgent = getEnv('MONITOR_USER_AGENT', {
-    defaultValue: 'ad-monitoring-bot/1.0 (+https://github.com)',
-  })
+  const desktopUserAgent = getEnv('MONITOR_USER_AGENT', { defaultValue: DEFAULT_DESKTOP_USER_AGENT })
+  const mobileUserAgent = getEnv('MONITOR_MOBILE_USER_AGENT', { defaultValue: DEFAULT_MOBILE_USER_AGENT })
+  /** 모바일 지면을 모바일 뷰포트·UA 로 열지 여부. 끄면 이전처럼 1280×720 데스크톱으로 측정한다. */
+  const mobileEmulationEnabled = parseBool(getEnv('MONITOR_MOBILE_EMULATION', { defaultValue: 'true' }), true)
+  /** 화면 전체 캡쳐 저장 여부·품질·보존 기간 */
+  const screenshotEnabled = parseBool(getEnv('MONITOR_SCREENSHOT_ENABLED', { defaultValue: 'true' }), true)
+  const screenshotQuality = Number(getEnv('MONITOR_SCREENSHOT_QUALITY', { defaultValue: '62' }))
+  const screenshotRetentionHours = parseRetentionHours(getEnv('MONITOR_SCREENSHOT_RETENTION_HOURS', { defaultValue: '' }))
+  const screenshotSegmentMaxPx = Number(
+    getEnv('MONITOR_SCREENSHOT_SEGMENT_MAX_PX', { defaultValue: String(SCREENSHOT_SEGMENT_MAX_PX) }),
+  )
+  /** 하단 앵커 광고·고정 네비를 캡쳐 동안 감출지 */
+  const screenshotHideOverlays = parseBool(getEnv('MONITOR_SCREENSHOT_HIDE_OVERLAYS', { defaultValue: 'true' }), true)
   /** 화면 아래쪽 지연 로딩 광고를 트리거하기 위한 스크롤 시뮬레이션 설정 */
   const scrollEnabled = parseBool(getEnv('MONITOR_SCROLL_ENABLED', { defaultValue: 'true' }), true)
-  const scrollSteps = Number(getEnv('MONITOR_SCROLL_STEPS', { defaultValue: '12' }))
+  /** 스크롤 상한 — 문서 끝에 닿으면 이보다 일찍 멈춘다 */
+  const scrollSteps = Number(getEnv('MONITOR_SCROLL_STEPS', { defaultValue: '40' }))
   const scrollStepDelayMs = Number(getEnv('MONITOR_SCROLL_STEP_DELAY_MS', { defaultValue: '400' }))
 
   if (!targetScope) {
@@ -598,8 +968,13 @@ async function main() {
   ]
 
   const startedAt = Date.now()
+  const useMobileEmulation = mobileEmulationEnabled && isMobileScope(targetScope)
+  /** 캡쳐 파일명·매니페스트 키로 쓰는 실행 시각(리포트 checkedAt 과 같은 실행을 가리킨다) */
+  const runIso = new Date(startedAt).toISOString()
 
   let status = 0
+  /** @type {{ capturedAt: string, files: string[], width: number, totalHeight: number, viewport: { width: number, height: number }, truncated?: boolean } | null} */
+  let screenshot = null
   let ok = false
   /** @type {string[]} */
   const failures = []
@@ -628,6 +1003,12 @@ async function main() {
   /** CDP Runtime.consoleAPICalled 로 뽑은 실제 출처. key=`${type} ${text}` → {sourceUrl,line,column} */
   /** @type {Map<string, { sourceUrl: string, line?: number, column?: number }>} */
   const cdpConsoleSourceByKey = new Map()
+  /** 측정 중 받은 스크립트/광고 문서 본문 — Violation sourceUrl+line 스니펫용 */
+  /** @type {Map<string, string>} */
+  const scriptBodyByUrl = new Map()
+  const scriptBodyBudget = { totalChars: 0 }
+  /** @type {Promise<void>[]} */
+  const scriptBodyFetchPromises = []
 
   const shouldIgnore = (text) => ignoreErrorPatterns.some((p) => p && text.includes(p))
 
@@ -638,10 +1019,20 @@ async function main() {
     let context
     try {
       browser = await chromium.launch({ headless: true })
-      context = await browser.newContext({
-        userAgent,
-        viewport: { width: 1280, height: 720 },
-      })
+      context = await browser.newContext(
+        useMobileEmulation
+          ? {
+              userAgent: mobileUserAgent,
+              viewport: MOBILE_VIEWPORT,
+              deviceScaleFactor: 1,
+              isMobile: true,
+              hasTouch: true,
+            }
+          : {
+              userAgent: desktopUserAgent,
+              viewport: DESKTOP_VIEWPORT,
+            },
+      )
       await context.addInitScript(LONG_TASK_CAPTURE_SCRIPT)
       await context.addInitScript(CONSOLE_CAPTURE_SCRIPT)
       const page = await context.newPage()
@@ -660,6 +1051,30 @@ async function main() {
         } catch {
           /* ignore */
         }
+
+        let resourceType = ''
+        let url = ''
+        try {
+          resourceType = response.request().resourceType()
+          url = response.url()
+        } catch {
+          return
+        }
+        if (!shouldCacheScriptBody(resourceType, url)) return
+        if (!(st >= 200 && st < 300)) return
+
+        const fetchBody = (async () => {
+          try {
+            const headers = response.headers()
+            const lenHeader = headers['content-length']
+            if (lenHeader != null && Number(lenHeader) > SCRIPT_BODY_MAX_CHARS) return
+            const text = await response.text()
+            putScriptBody(scriptBodyByUrl, url, text, scriptBodyBudget)
+          } catch {
+            /* 본문 읽기 실패는 스니펫만 포기 */
+          }
+        })()
+        scriptBodyFetchPromises.push(fetchBody)
       })
 
       page.on('console', (msg) => {
@@ -856,14 +1271,34 @@ async function main() {
       }
 
       if (scrollEnabled) {
-        await simulateUserScroll(page, {
-          steps: Number.isFinite(scrollSteps) ? scrollSteps : 12,
+        const scrolled = await simulateUserScroll(page, {
+          steps: Number.isFinite(scrollSteps) ? scrollSteps : 40,
           stepDelayMs: Number.isFinite(scrollStepDelayMs) ? scrollStepDelayMs : 400,
         })
+        if (!scrolled.reachedBottom) {
+          console.log(`[scroll] ${scrolled.steps}회 내려갔지만 문서 끝에는 닿지 않음 — 아래쪽 광고는 로드되지 않았을 수 있음`)
+        }
       }
 
       if (Number.isFinite(afterLoadWaitMs) && afterLoadWaitMs > 0) {
         await page.waitForTimeout(afterLoadWaitMs)
+      }
+
+      if (screenshotEnabled && reportPath && reportPath !== '0' && reportPath.toLowerCase() !== 'none') {
+        const captured = await captureFullPageScreenshot(page, {
+          outDir: screenshotDirForReport(reportPath),
+          fileBase: isoToFileBase(runIso),
+          quality: Number.isFinite(screenshotQuality) ? screenshotQuality : 62,
+          segmentMaxPx:
+            Number.isFinite(screenshotSegmentMaxPx) && screenshotSegmentMaxPx > 0
+              ? screenshotSegmentMaxPx
+              : SCREENSHOT_SEGMENT_MAX_PX,
+          hideOverlays: screenshotHideOverlays,
+        })
+        if (captured) {
+          const viewport = page.viewportSize() ?? (useMobileEmulation ? MOBILE_VIEWPORT : DESKTOP_VIEWPORT)
+          screenshot = { ...captured, viewport }
+        }
       }
 
       const capturedConsoleMessages = await page.evaluate(() => {
@@ -957,6 +1392,11 @@ async function main() {
         if (loc.line != null) m.line = loc.line
         if (loc.column != null) m.column = loc.column
       }
+
+      // 스크립트 본문 캐시가 끝날 때까지 기다린 뒤, sourceUrl+line 이 있는 메시지에 코드 스니펫을 붙인다.
+      await Promise.allSettled(scriptBodyFetchPromises)
+      attachSourceSnippets(consoleMessages, scriptBodyByUrl)
+      attachSourceSnippets(pageErrors, scriptBodyByUrl)
 
       try {
         const perfRaw = await page.evaluate(() => {
@@ -1064,6 +1504,20 @@ async function main() {
   // 저장용 consoleMessages 는 동일 메시지를 합쳐 리포트 크기를 줄인다(dupeCount 보존).
   const scriptIssueTop10 = buildScriptIssueTop10(pageErrors, consoleMessages)
   const dedupedConsoleMessages = dedupeConsoleMessages(consoleMessages)
+  const screenshotDir = reportPath ? screenshotDirForReport(reportPath) : ''
+  /** 대시보드가 BASE_URL 뒤에 붙여 쓰는 웹 경로(public/ 접두어 제거) */
+  const screenshotForReport = screenshot
+    ? {
+        capturedAt: screenshot.capturedAt,
+        width: screenshot.width,
+        totalHeight: screenshot.totalHeight,
+        viewport: screenshot.viewport,
+        emulation: useMobileEmulation ? 'mobile' : 'desktop',
+        files: screenshot.files.map((name) => toWebPath(path.join(screenshotDir, name))),
+        ...(screenshot.truncated ? { truncated: true } : {}),
+      }
+    : null
+
   const result = {
     ok,
     url: targetUrl,
@@ -1071,6 +1525,7 @@ async function main() {
     durationMs,
     checkedAt: new Date().toISOString(),
     failures,
+    ...(screenshotForReport ? { screenshot: screenshotForReport } : {}),
     diagnostics: {
       pageErrors,
       consoleMessages: dedupedConsoleMessages,
@@ -1085,6 +1540,35 @@ async function main() {
     await ensureParentDir(reportPath)
     await writeFile(reportPath, JSON.stringify(result, null, 2), 'utf8')
     console.log(`Wrote report: ${reportPath}`)
+  }
+
+  // 이번 캡쳐를 매니페스트에 넣고, 보존 기간이 지난 항목과 남은 이미지 파일을 함께 정리한다.
+  if (screenshotEnabled && screenshotDir) {
+    try {
+      const previous = await readManifest(screenshotDir)
+      const merged = screenshot
+        ? [
+            {
+              capturedAt: screenshot.capturedAt,
+              files: screenshot.files,
+              width: screenshot.width,
+              totalHeight: screenshot.totalHeight,
+              viewport: screenshot.viewport,
+              emulation: useMobileEmulation ? 'mobile' : 'desktop',
+              ...(screenshot.truncated ? { truncated: true } : {}),
+            },
+            ...previous,
+          ]
+        : previous
+      const { kept } = pruneManifest(merged, { retentionHours: screenshotRetentionHours })
+      await writeManifest(screenshotDir, kept)
+      const { removed } = await pruneOrphanFiles(screenshotDir, kept)
+      console.log(
+        `[screenshot] ${screenshot ? `saved ${screenshot.files.length} file(s), ` : ''}kept=${kept.length} (${screenshotRetentionHours}h), removed=${removed}`,
+      )
+    } catch (err) {
+      console.warn(`[screenshot] manifest update failed: ${err instanceof Error ? err.message : String(err)}`)
+    }
   }
 
   if (ok) {

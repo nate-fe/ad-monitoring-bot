@@ -77,19 +77,29 @@ function mergeScriptIssueTop10(groups: ScriptIssueTop10Row[][]): ScriptIssueTop1
 
 /**
  * checkedAt 기준으로 스냅샷을 한 번만 쓰고(동일 시각은 현재 리포트가 있으면 덮어씀),
- * 모든 기록·이번 리포트를 합산한 Top5 / Top10을 만든다.
+ * 기록·이번 리포트를 합산한 Top5 / Top10을 만든다.
+ * sinceMs 를 주면 그 시각 이후 기록만 합산한다(스크립트 Top 10 은 최근 구간만 보기 위해 사용).
  */
 export function buildAggregatedRankings(
   historyItems: MonitorHistoryEntry[],
   report: MonitorReport | null,
+  options?: { sinceMs?: number },
 ): {
   domainInsights: DomainInsights | null
   scriptIssueTop10: ScriptIssueTop10Row[]
   snapshotCount: number
 } {
+  const sinceMs = options?.sinceMs ?? 0
+  const isWithinWindow = (checkedAt: string) => {
+    if (!sinceMs) return true
+    const t = Date.parse(checkedAt)
+    return Number.isFinite(t) && t >= sinceMs
+  }
+
   const byAt = new Map<string, { domain?: DomainInsights; script?: ScriptIssueTop10Row[] }>()
 
   for (const it of historyItems) {
+    if (!isWithinWindow(it.checkedAt)) continue
     const cur = byAt.get(it.checkedAt) ?? {}
     if (it.domainInsights) cur.domain = it.domainInsights
     if (it.scriptIssueTop10?.length) cur.script = it.scriptIssueTop10
@@ -98,7 +108,7 @@ export function buildAggregatedRankings(
     }
   }
 
-  if (report?.diagnostics) {
+  if (report?.diagnostics && isWithinWindow(report.checkedAt)) {
     const cur = byAt.get(report.checkedAt) ?? {}
     if (report.diagnostics.domainInsights) cur.domain = report.diagnostics.domainInsights
     if (report.diagnostics.scriptIssueTop10?.length) cur.script = report.diagnostics.scriptIssueTop10

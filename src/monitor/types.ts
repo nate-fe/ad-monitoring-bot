@@ -51,6 +51,34 @@ export type MonitorPerformanceMetrics = {
   adScriptResourceCount: number
 }
 
+/** 콘솔/페이지 오류의 sourceUrl+line 기준으로 측정 시 캐시한 스크립트 본문에서 자른 코드 */
+export type SourceSnippet = {
+  text: string
+  focusLine?: number
+  startLine?: number
+  endLine?: number
+  truncated?: boolean
+}
+
+/**
+ * 리포트를 만든 그 실행에서 찍은 페이지 전체(맨 위~맨 아래) 캡쳐.
+ * 한 장에 담기지 않는 긴 지면은 위에서부터 여러 장으로 잘라 files 에 순서대로 담는다.
+ * files 는 사이트 루트 기준 경로(BASE_URL 뒤에 붙여 사용). 보존 기간이 지나면 이미지가 삭제되어 링크가 끊긴다.
+ */
+export type MonitorScreenshot = {
+  capturedAt: string
+  files: string[]
+  /** CSS 픽셀 기준 페이지 폭 */
+  width: number
+  /** 캡쳐 시점 문서 전체 높이(CSS 픽셀) */
+  totalHeight: number
+  viewport?: { width: number; height: number }
+  /** 측정에 쓴 뷰포트 종류 */
+  emulation?: string
+  /** 지면이 너무 길어 아래쪽 일부가 빠진 경우 */
+  truncated?: boolean
+}
+
 export type MonitorReport = {
   ok: boolean
   url: string
@@ -58,8 +86,16 @@ export type MonitorReport = {
   durationMs: number
   checkedAt: string
   failures: string[]
+  screenshot?: MonitorScreenshot
   diagnostics?: {
-    pageErrors?: { message: string; stack?: string; sourceUrl?: string; line?: number; column?: number }[]
+    pageErrors?: {
+      message: string
+      stack?: string
+      sourceUrl?: string
+      line?: number
+      column?: number
+      sourceSnippet?: SourceSnippet
+    }[]
     consoleMessages?: {
       type: string
       text: string
@@ -70,6 +106,8 @@ export type MonitorReport = {
       source?: string
       /** 수집 단계에서 합쳐진 동일 메시지 개수(dedup). 없으면 1로 취급. */
       dupeCount?: number
+      /** sourceUrl+line 에 해당하는 스크립트/문서 코드 스니펫(측정 시 응답 본문에서 추출) */
+      sourceSnippet?: SourceSnippet
     }[]
     requestFailures?: { url: string; method: string; resourceType: string; errorText: string }[]
     performanceMetrics?: MonitorPerformanceMetrics
@@ -92,10 +130,40 @@ export type MonitorHistoryEntry = {
     consoleLogs?: number
     requestFailures: number
   }
-  pageErrorSample?: { message: string; sourceUrl?: string; line?: number; column?: number }[]
-  consoleErrorSample?: { type: string; text: string; url?: string; sourceUrl?: string; line?: number; column?: number }[]
-  consoleWarningSample?: { type: string; text: string; url?: string; sourceUrl?: string; line?: number; column?: number }[]
-  consoleLogSample?: { type: string; text: string; url?: string; sourceUrl?: string; line?: number; column?: number }[]
+  pageErrorSample?: {
+    message: string
+    sourceUrl?: string
+    line?: number
+    column?: number
+    sourceSnippet?: SourceSnippet
+  }[]
+  consoleErrorSample?: {
+    type: string
+    text: string
+    url?: string
+    sourceUrl?: string
+    line?: number
+    column?: number
+    sourceSnippet?: SourceSnippet
+  }[]
+  consoleWarningSample?: {
+    type: string
+    text: string
+    url?: string
+    sourceUrl?: string
+    line?: number
+    column?: number
+    sourceSnippet?: SourceSnippet
+  }[]
+  consoleLogSample?: {
+    type: string
+    text: string
+    url?: string
+    sourceUrl?: string
+    line?: number
+    column?: number
+    sourceSnippet?: SourceSnippet
+  }[]
   devToolsConsoleSample?: {
     type: string
     text: string
@@ -111,6 +179,8 @@ export type MonitorHistoryEntry = {
     runUrl?: string
     sha?: string
   }
+  /** 해당 시각 화면 전체 캡쳐(보존 기간이 지난 실행은 없음) */
+  screenshot?: MonitorScreenshot
   performanceMetrics?: MonitorPerformanceMetrics
   /** 해당 시점 monitor-report의 도메인 Top5 스냅샷(히스토리 합산용) */
   domainInsights?: DomainInsights

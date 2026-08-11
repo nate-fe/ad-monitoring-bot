@@ -48,7 +48,12 @@ jobs:
       MONITOR_TARGET_URL_PANN_PC_HOME: ${{ vars.MONITOR_TARGET_URL_PANN_PC_HOME || secrets.MONITOR_TARGET_URL_PANN_PC_HOME || 'https://pann.nate.com/' }}
       MONITOR_IGNORE_ERROR_PATTERNS: ${{ vars.MONITOR_IGNORE_ERROR_PATTERNS || secrets.MONITOR_IGNORE_ERROR_PATTERNS }}
       MONITOR_TIMEOUT_MS: '20000'
-      MONITOR_USER_AGENT: 'ad-monitoring-bot/1.0 (github-actions)'
+      # 봇 토큰이 든 UA 는 일부 광고 서버(ad.3dpop.kr 등)가 403 으로 막아, 실사용자와 다른 화면을 측정하게 된다.
+      # 실제 크롬과 같은 UA 를 쓰기 위해 여기서 덮어쓰지 않는다(scripts/monitor.js 의 기본값 사용).
+      # 모바일 지면은 모바일 뷰포트·UA 로 측정(실제 사용자와 같은 광고가 로드되도록)
+      MONITOR_MOBILE_EMULATION: 'true'
+      # 화면 전체 캡쳐 보존 기간 — Pages 용량·배포 시간이 부담되면 줄인다
+      MONITOR_SCREENSHOT_RETENTION_HOURS: '24'
       GITHUB_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
       JSON_SYNC_UNTIL: ${{ inputs.sync_until || vars.JSON_SYNC_UNTIL || '' }}
 
@@ -76,6 +81,11 @@ jobs:
       - name: Seed JSON from yoonzeen Pages (nate-fe only)
         if: steps.schedule_gate.outputs.should_run != 'false' && github.repository_owner == 'nate-fe'
         run: npm run json:sync
+
+      - name: Restore recent screenshots from previous Pages deploy
+        if: steps.schedule_gate.outputs.should_run != 'false' && (github.event_name != 'workflow_dispatch' || inputs.backfill_only != true)
+        continue-on-error: true
+        run: npm run screenshots:sync
 
       - name: Install Playwright browsers (Chromium)
         if: steps.schedule_gate.outputs.should_run != 'false' && (github.event_name != 'workflow_dispatch' || inputs.backfill_only != true) && (env.MONITOR_TARGET_URL_NEWS_VIEW != '' || env.MONITOR_TARGET_URL_NEWS_HOME != '' || env.MONITOR_TARGET_URL_PANN_VIEW != '' || env.MONITOR_TARGET_URL_PANN_HOME != '' || env.MONITOR_TARGET_URL_NEWS_PC_VIEW != '' || env.MONITOR_TARGET_URL_NEWS_PC_HOME != '' || env.MONITOR_TARGET_URL_PANN_PC_VIEW != '' || env.MONITOR_TARGET_URL_PANN_PC_HOME != '')

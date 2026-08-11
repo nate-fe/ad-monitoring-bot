@@ -13,7 +13,7 @@
 
         _customStyle.innerHTML = ` 
             .top-banner-area {width:100%; border-bottom:1px solid #ededed;}
-            #topBanner {width:${_adWidth}px; height: ${_adHeight}px; margin:-1px auto 0;}
+            #topBanner {width:${_adWidth}px; height: ${_adHeight}px; margin:0 auto;}
             @media (prefers-color-scheme: dark) {
                 .top-banner-area {border-bottom:1px solid #393939;}
             }

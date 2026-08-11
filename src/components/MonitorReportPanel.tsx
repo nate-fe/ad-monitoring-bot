@@ -15,7 +15,9 @@ import { ScriptIssueTop10, SCRIPT_ISSUE_TOP10_HELP_TEXT } from './ScriptIssueTop
 import { InlineHelpTooltip } from './InlineHelpTooltip'
 import { HistoryMonthlyConsoleSection } from './HistoryMonthlyConsoleSection'
 import { HistoryPerformanceSection } from './HistoryPerformanceSection'
+import { ScreenshotViewer } from './ScreenshotViewer'
 import { fetchJsonFromPaths } from '../monitor/fetchJsonFromPaths'
+import type { SourceSnippet } from '../monitor/types'
 
 type LoadState =
   | { kind: 'idle' | 'loading' }
@@ -52,6 +54,8 @@ type ConsoleLikeMessage = {
   line?: number
   column?: number
   source?: string
+  dupeCount?: number
+  sourceSnippet?: SourceSnippet
 }
 
 const REQUEST_FAILURE_HELP_TEXT =
@@ -63,18 +67,27 @@ const HEADLESS_NETWORK_LOG_HELP_TEXT =
 const PERFORMANCE_METRICS_HELP_TEXT =
   'TBT는 Long Task 기반 근사치이며, 스크립트 시간은 리소스 duration 평균입니다. CLS(레이아웃 밀림)는 placeholder 확보 등 별도 점검이 필요합니다.'
 
+const MIXED_CONTENT_HELP_TEXT =
+  'HTTPS 페이지에서 업체(광고) 측 코드가 http:// 이미지·리소스를 요청해 브라우저가 경고한 경우입니다. 소재 URL을 https로 바꾸면 대개 해소됩니다.'
+
 const DOMAIN_RANKINGS_HELP_TECH =
   '리소스 URL·오류 출처 URL·실패 요청 URL에서 hostname을 뽑아, 평균 지연과 에러 대비 리소스 비율을 각각 상위 5개까지 보여 줍니다. 에러율에는 헤드리스 네트워크 로그 건수를 넣지 않습니다.'
 
-const DOMAIN_RANKINGS_AGGREGATE_HELP =
-  '저장된 실행 기록(전체 기간)과 이번 리포트를 날짜·시각(checkedAt) 단위로 한 번씩만 반영해 합산했습니다.'
+/** 도메인 Top 5 · 스크립트 Top 10 집계 구간(일) */
+const RANKING_WINDOW_DAYS = 30
+
+const RANKINGS_AGGREGATE_HELP = `최근 ${RANKING_WINDOW_DAYS}일 동안 쌓인 실행 기록에서 집계한 값입니다. 각 실행이 남긴 순위 스냅샷을 모두 더했습니다(같은 시각 checkedAt 은 한 번만). 30일 이전 기록은 포함하지 않습니다.`
+
+function isMixedContentWarning(text: string | undefined) {
+  return Boolean(text && /mixed content/i.test(text))
+}
 
 function domainRankingsHelpFull() {
-  return `${DOMAIN_RANKINGS_HELP_TECH}\n\n${DOMAIN_RANKINGS_AGGREGATE_HELP}`
+  return `${DOMAIN_RANKINGS_HELP_TECH}\n\n${RANKINGS_AGGREGATE_HELP}`
 }
 
 function scriptRankingsHelpWithAggregate() {
-  return `${SCRIPT_ISSUE_TOP10_HELP_TEXT}\n\n${DOMAIN_RANKINGS_AGGREGATE_HELP}`
+  return `${SCRIPT_ISSUE_TOP10_HELP_TEXT}\n\n${RANKINGS_AGGREGATE_HELP}`
 }
 
 function formatDate(iso: string) {
@@ -178,7 +191,14 @@ function classifyCurrentReportErrors(report: MonitorReport): ClassifiedIssue[] {
 
 function classifyCurrentReportAll(report: MonitorReport): ClassifiedIssue[] {
   const items = (report.diagnostics?.consoleMessages ?? [])
-    .filter((m) => m.type === 'warning')
+    .filter((m) => m.type === 'warning' && !isMixedContentWarning(m.text))
+    .map((m) => ({ text: m.text, url: m.url, sourceUrl: m.sourceUrl, dupeCount: m.dupeCount }))
+  return buildClassifiedIssues(items)
+}
+
+function classifyCurrentReportMixedContent(report: MonitorReport): ClassifiedIssue[] {
+  const items = (report.diagnostics?.consoleMessages ?? [])
+    .filter((m) => m.type === 'warning' && isMixedContentWarning(m.text))
     .map((m) => ({ text: m.text, url: m.url, sourceUrl: m.sourceUrl, dupeCount: m.dupeCount }))
   return buildClassifiedIssues(items)
 }
@@ -205,6 +225,43 @@ function dedupeConsoleMessages<
     const prev = map.get(key)
     if (prev) prev.dupeCount += inc
     else map.set(key, { ...m, dupeCount: inc })
+  }
+  return [...map.values()]
+}
+
+/**
+ * Mixed Content 는 같은 비보안 리소스 경고가 line 만 다르게 여러 번 찍히는 경우가 많아
+ * 텍스트(+페이지 URL) 기준으로 묶어 ×N 으로 보여 준다.
+ */
+function dedupeMixedContentWarnings<
+  T extends {
+    type?: string
+    text?: string
+    url?: string
+    sourceUrl?: string
+    line?: number | null
+    column?: number | null
+    dupeCount?: number
+    sourceSnippet?: SourceSnippet
+  },
+>(messages: T[]): Array<T & { dupeCount: number }> {
+  const map = new Map<string, T & { dupeCount: number }>()
+  for (const m of messages) {
+    const key = [m.type ?? 'warning', m.text ?? '', m.url ?? ''].join('')
+    const inc = m.dupeCount ?? 1
+    const prev = map.get(key)
+    if (prev) {
+      prev.dupeCount += inc
+      // 스니펫·출처가 비어 있으면 나중에 온 항목으로 보강
+      if (!prev.sourceSnippet && m.sourceSnippet) prev.sourceSnippet = m.sourceSnippet
+      if (!prev.sourceUrl && m.sourceUrl) {
+        prev.sourceUrl = m.sourceUrl
+        prev.line = m.line
+        prev.column = m.column
+      }
+    } else {
+      map.set(key, { ...m, dupeCount: inc })
+    }
   }
   return [...map.values()]
 }
@@ -292,19 +349,39 @@ function SourceLocationUrlBlock({
   sourceUrl,
   line,
   column,
+  sourceSnippet,
 }: {
   sourceUrl?: string
   line?: number
   column?: number
+  sourceSnippet?: SourceSnippet
 }) {
   const hasLine = line != null && Number.isFinite(line)
-  if (!sourceUrl && !hasLine) return null
+  if (!sourceUrl && !hasLine && !sourceSnippet?.text) return null
   return (
     <div className="sourceLocationMeta">
-      <div className="sourceLocationUrlLine">
-        {sourceUrl ? <IssueUrlPreview url={sourceUrl} ariaLabel={`출처 URL: ${sourceUrl}`} /> : null}
-        <SourceLocationLineText line={line} column={column} />
-      </div>
+      {sourceUrl || hasLine ? (
+        <div className="sourceLocationUrlLine">
+          {sourceUrl ? <IssueUrlPreview url={sourceUrl} ariaLabel={`출처 URL: ${sourceUrl}`} /> : null}
+          <SourceLocationLineText line={line} column={column} />
+        </div>
+      ) : null}
+      {sourceSnippet?.text ? (
+        <pre className="sourceSnippet" aria-label="출처 코드 스니펫">
+          {sourceSnippet.focusLine != null ? (
+            <span className="sourceSnippetMeta">
+              원인 코드
+              {sourceSnippet.startLine != null &&
+              sourceSnippet.endLine != null &&
+              sourceSnippet.startLine !== sourceSnippet.endLine
+                ? ` · L${sourceSnippet.startLine}–${sourceSnippet.endLine}`
+                : ` · L${sourceSnippet.focusLine}`}
+              {sourceSnippet.truncated ? ' · 일부' : ''}
+            </span>
+          ) : null}
+          <code>{sourceSnippet.text}</code>
+        </pre>
+      ) : null}
     </div>
   )
 }
@@ -392,7 +469,12 @@ export function MonitorReportPanel({
           <span className={`pill ${item.type}`}>{item.type}</span>
           <span className="diagLineHeadMsg">{item.text}</span>
         </div>
-        <SourceLocationUrlBlock sourceUrl={item.sourceUrl} line={item.line} column={item.column} />
+        <SourceLocationUrlBlock
+          sourceUrl={item.sourceUrl}
+          line={item.line}
+          column={item.column}
+          sourceSnippet={item.sourceSnippet}
+        />
       </li>
     )
 
@@ -423,7 +505,12 @@ export function MonitorReportPanel({
               <div className="diagLineHead">
                 <span className="diagLineHeadMsg">{item.message}</span>
               </div>
-              <SourceLocationUrlBlock sourceUrl={item.sourceUrl} line={item.line} column={item.column} />
+              <SourceLocationUrlBlock
+                sourceUrl={item.sourceUrl}
+                line={item.line}
+                column={item.column}
+                sourceSnippet={item.sourceSnippet}
+              />
             </li>
           ))}
         </ul>
@@ -567,12 +654,33 @@ export function MonitorReportPanel({
     return classifyCurrentReportAll(state.report)
   }, [state])
 
+  const currentMixedContentIssueSources = useMemo(() => {
+    if (state.kind !== 'loaded') return []
+    return classifyCurrentReportMixedContent(state.report)
+  }, [state])
+
   const currentConsoleWarnings = useMemo(() => {
     if (state.kind !== 'loaded') return []
     return dedupeConsoleMessages(
-      (state.report.diagnostics?.consoleMessages ?? []).filter((m) => m.type === 'warning'),
+      (state.report.diagnostics?.consoleMessages ?? []).filter(
+        (m) => m.type === 'warning' && !isMixedContentWarning(m.text),
+      ),
     )
   }, [state])
+
+  const currentMixedContentWarnings = useMemo(() => {
+    if (state.kind !== 'loaded') return []
+    return dedupeMixedContentWarnings(
+      (state.report.diagnostics?.consoleMessages ?? []).filter(
+        (m) => m.type === 'warning' && isMixedContentWarning(m.text),
+      ),
+    )
+  }, [state])
+
+  const currentMixedContentWarningCount = useMemo(
+    () => currentMixedContentWarnings.reduce((sum, m) => sum + (m.dupeCount ?? 1), 0),
+    [currentMixedContentWarnings],
+  )
 
   const currentRequestFailures = useMemo(() => {
     if (state.kind !== 'loaded') return []
@@ -598,10 +706,13 @@ export function MonitorReportPanel({
     return state.report.diagnostics?.performanceMetrics ?? null
   }, [state])
 
+  /** Top 5 · Top 10 모두 최근 한 달(30일)만 — 오래전에 고쳐진 도메인·스크립트가 계속 상위에 남지 않도록 */
   const aggregatedRankings = useMemo(() => {
     const items = history.kind === 'loaded' ? history.items : []
     const report = state.kind === 'loaded' ? state.report : null
-    return buildAggregatedRankings(items, report)
+    return buildAggregatedRankings(items, report, {
+      sinceMs: Date.now() - RANKING_WINDOW_DAYS * 24 * 60 * 60 * 1000,
+    })
   }, [history, state])
 
   const currentFailureBuckets = useMemo(() => {
@@ -702,6 +813,7 @@ export function MonitorReportPanel({
                                       </summary>
 
                                       <div className="historyBody">
+                                        <ScreenshotViewer screenshot={it.screenshot} />
                                         {(() => {
                                           const consoleErrors = it.counts?.consoleErrors ?? 0
                                           const consoleWarnings = it.counts?.consoleWarnings ?? 0
@@ -767,6 +879,7 @@ export function MonitorReportPanel({
                                                             sourceUrl={item.sourceUrl}
                                                             line={item.line}
                                                             column={item.column}
+                                                            sourceSnippet={item.sourceSnippet}
                                                           />
                                                         </li>
                                                       ))}
@@ -787,6 +900,7 @@ export function MonitorReportPanel({
                                                             sourceUrl={m.sourceUrl}
                                                             line={m.line}
                                                             column={m.column}
+                                                            sourceSnippet={m.sourceSnippet}
                                                           />
                                                         </li>
                                                       ))}
@@ -807,6 +921,7 @@ export function MonitorReportPanel({
                                                             sourceUrl={m.sourceUrl}
                                                             line={m.line}
                                                             column={m.column}
+                                                            sourceSnippet={m.sourceSnippet}
                                                           />
                                                         </li>
                                                       ))}
@@ -827,6 +942,7 @@ export function MonitorReportPanel({
                                                             sourceUrl={m.sourceUrl}
                                                             line={m.line}
                                                             column={m.column}
+                                                            sourceSnippet={m.sourceSnippet}
                                                           />
                                                         </li>
                                                       ))}
@@ -948,13 +1064,25 @@ export function MonitorReportPanel({
             </div>
           )}
 
-          <div className="adIssueSection">
-            <h2 className="adIssueSectionTitle">광고·영역별 오류 / 경고</h2>
-            <p className="adIssueSectionDesc">
-              페이지 스크립트 콘솔의 오류·경고와 페이지 오류 메시지·URL을 키워드로 묶어, 어떤 광고/플랫폼 쪽 이슈가 많은지 보여
-              줍니다. 요청 실패는 여기에 포함하지 않습니다.
-            </p>
-            <AdIssueBreakdown report={state.report} />
+          {/* 넓은 화면에서는 오류 요약 옆에 캡쳐를 두고, 좁아지면 캡쳐가 아래로 내려간다 */}
+          <div className="reportOverviewRow">
+            <div className="adIssueSection">
+              <h2 className="adIssueSectionTitle">광고·영역별 오류 / 경고</h2>
+              <p className="adIssueSectionDesc">
+                페이지 스크립트 콘솔의 오류·경고와 페이지 오류 메시지·URL을 키워드로 묶어, 어떤 광고/플랫폼 쪽 이슈가 많은지 보여
+                줍니다. 요청 실패는 여기에 포함하지 않습니다.
+              </p>
+              <AdIssueBreakdown report={state.report} />
+            </div>
+
+            <div className="screenshotSection">
+              <ScreenshotViewer
+                screenshot={state.report.screenshot}
+                title="이번 실행 화면 전체 캡쳐"
+                emptyHint="이번 실행에는 저장된 화면 캡쳐가 없습니다."
+                variant="panel"
+              />
+            </div>
           </div>
 
           {state.report.diagnostics ? (
@@ -964,6 +1092,7 @@ export function MonitorReportPanel({
                   추가 정보{' '}
                   <span className="count">
                     {currentConsoleWarnings.length +
+                      currentMixedContentWarnings.length +
                       currentRequestFailures.length +
                       currentConsoleLogs.length +
                       currentDevToolsConsole.length}
@@ -1018,13 +1147,57 @@ export function MonitorReportPanel({
                               <span className="diagLineHeadMsg">{m.text}</span>
                               {m.dupeCount > 1 ? <span className="diagDupeCount">×{m.dupeCount}</span> : null}
                             </div>
-                            <SourceLocationUrlBlock sourceUrl={m.sourceUrl} line={m.line} column={m.column} />
+                            <SourceLocationUrlBlock
+                              sourceUrl={m.sourceUrl}
+                              line={m.line}
+                              column={m.column}
+                              sourceSnippet={m.sourceSnippet}
+                            />
                           </li>
                         ))}
                       </ul>
-                    ) : (
+                    ) : null}
+                    {currentMixedContentWarnings.length ? (
+                      <details className="mixedContentGroup">
+                        <summary className="mixedContentSummary">
+                          <span className="mixedContentSummaryLabel">
+                            <span className="pill warning">warning</span>
+                            <span className="diagLineHeadMsg">Mixed Content</span>
+                            <span className="count">{currentMixedContentWarningCount}</span>
+                            <span className="mixedContentSummaryHint">내용 보기</span>
+                          </span>
+                        </summary>
+                        <p className="diagSectionHint mixedContentHint">{MIXED_CONTENT_HELP_TEXT}</p>
+                        {currentMixedContentIssueSources.length ? (
+                          <div className="diagChips">
+                            {currentMixedContentIssueSources.map((source) => (
+                              <span className="chip" key={`mixed-${source.key}`}>
+                                {source.label} <b>{source.count}</b>
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
+                        <ul className="diagList">
+                          {currentMixedContentWarnings.map((m, idx) => (
+                            <li key={`mixed-${idx}-${m.type}-${m.text}-${m.url ?? ''}`}>
+                              <div className="diagLineHead">
+                                <span className="diagLineHeadMsg">{m.text}</span>
+                                {m.dupeCount > 1 ? <span className="diagDupeCount">×{m.dupeCount}</span> : null}
+                              </div>
+                              <SourceLocationUrlBlock
+                                sourceUrl={m.sourceUrl}
+                                line={m.line}
+                                column={m.column}
+                                sourceSnippet={m.sourceSnippet}
+                              />
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    ) : null}
+                    {!currentConsoleWarnings.length && !currentMixedContentWarnings.length ? (
                       <p className="muted">없음</p>
-                    )}
+                    ) : null}
                   </div>
                   <div className="diagSection">
                     <div className="diagSectionTitle">
@@ -1043,7 +1216,12 @@ export function MonitorReportPanel({
                               <span className="diagLineHeadMsg">{m.text}</span>
                               {m.dupeCount > 1 ? <span className="diagDupeCount">×{m.dupeCount}</span> : null}
                             </div>
-                            <SourceLocationUrlBlock sourceUrl={m.sourceUrl} line={m.line} column={m.column} />
+                            <SourceLocationUrlBlock
+                              sourceUrl={m.sourceUrl}
+                              line={m.line}
+                              column={m.column}
+                              sourceSnippet={m.sourceSnippet}
+                            />
                           </li>
                         ))}
                       </ul>
@@ -1064,7 +1242,11 @@ export function MonitorReportPanel({
                                 <span className="diagLineHeadMsg">{m.text}</span>
                                 {m.dupeCount > 1 ? <span className="diagDupeCount">×{m.dupeCount}</span> : null}
                               </div>
-                              <SourceLocationUrlBlock sourceUrl={m.sourceUrl} line={m.line} column={m.column} />
+                              <SourceLocationUrlBlock
+                                sourceUrl={m.sourceUrl}
+                                line={m.line}
+                                column={m.column}
+                              />
                             </li>
                           )
                         })}
@@ -1084,7 +1266,7 @@ export function MonitorReportPanel({
                         <span>도메인(Source URL) 지연 · 에러율 Top 5</span>
                         <InlineHelpTooltip text={domainRankingsHelpFull()} />
                       </h2>
-                      <p className="diagRankingsDesc">총 {aggregatedRankings.snapshotCount} 건 합산</p>
+                      <p className="diagRankingsDesc">최근 {RANKING_WINDOW_DAYS}일 집계</p>
                       <DomainSourceTop5 insights={aggregatedRankings.domainInsights} />
                     </>
                   ) : null}
@@ -1096,16 +1278,10 @@ export function MonitorReportPanel({
                     >
                       <h2 className="diagRankingsTitle adIssueSectionTitleWithHelp">
                         <span>스크립트 파일별 오류 · 경고 Top 10</span>
-                        <InlineHelpTooltip
-                          text={
-                            aggregatedRankings.domainInsights != null
-                              ? SCRIPT_ISSUE_TOP10_HELP_TEXT
-                              : scriptRankingsHelpWithAggregate()
-                          }
-                        />
+                        <InlineHelpTooltip text={scriptRankingsHelpWithAggregate()} />
                       </h2>
                       <p className="diagRankingsDesc">
-                        가장 많은 에러 및 경고를 일으키는 스크립트 출처(<strong>sourceUrl</strong>)입니다. (총 {aggregatedRankings.snapshotCount} 건 합산)
+                        가장 많은 에러 및 경고를 일으키는 스크립트 출처(<strong>sourceUrl</strong>)입니다. 최근 {RANKING_WINDOW_DAYS}일 집계
                       </p>
                       <ScriptIssueTop10 rows={aggregatedRankings.scriptIssueTop10} />
                     </div>

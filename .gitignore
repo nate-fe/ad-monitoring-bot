@@ -49,4 +49,7 @@ public/pann/pc/view/monitor-report.json
 public/pann/view/history.json
 public/pann/view/monitor-report.json
 
+# 화면 전체 캡쳐(보존 기간 내 이미지 + manifest) — 배포 산출물이라 커밋하지 않는다
+public/**/screenshots/
+
 .vercel

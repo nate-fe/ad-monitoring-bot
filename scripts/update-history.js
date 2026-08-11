@@ -13,6 +13,35 @@ function toInt(value, fallback) {
   return Number.isFinite(n) ? n : fallback
 }
 
+/** 히스토리 비대화 방지: 스니펫 텍스트는 짧게만 남긴다. */
+function pickSourceSnippet(raw) {
+  if (!raw || typeof raw !== 'object') return undefined
+  const text = typeof raw.text === 'string' ? raw.text : ''
+  if (!text) return undefined
+  const maxLen = 800
+  const clipped = text.length > maxLen ? `${text.slice(0, maxLen - 1)}…` : text
+  /** @type {{ text: string, focusLine?: number, startLine?: number, endLine?: number, truncated?: boolean }} */
+  const out = { text: clipped }
+  if (Number.isFinite(Number(raw.focusLine))) out.focusLine = Number(raw.focusLine)
+  if (Number.isFinite(Number(raw.startLine))) out.startLine = Number(raw.startLine)
+  if (Number.isFinite(Number(raw.endLine))) out.endLine = Number(raw.endLine)
+  if (raw.truncated || text.length > maxLen) out.truncated = true
+  return out
+}
+
+function mapConsoleSample(m, fallbackType = 'log') {
+  const sourceSnippet = pickSourceSnippet(m?.sourceSnippet)
+  return {
+    type: m?.type ?? fallbackType,
+    text: String(m?.text ?? ''),
+    url: typeof m?.url === 'string' && m.url ? m.url : undefined,
+    sourceUrl: typeof m?.sourceUrl === 'string' && m.sourceUrl ? m.sourceUrl : undefined,
+    line: Number.isFinite(Number(m?.line)) ? Number(m.line) : undefined,
+    column: Number.isFinite(Number(m?.column)) ? Number(m.column) : undefined,
+    ...(sourceSnippet ? { sourceSnippet } : {}),
+  }
+}
+
 async function readJsonFile(filePath) {
   try {
     const raw = await readFile(filePath, 'utf8')
@@ -64,30 +93,9 @@ function summarize(report) {
   const consoleErrors = pageScriptErrors.length
   const consoleWarnings = warningMessages.length
   const consoleLogs = logLikeMessages.length
-  const consoleErrorSample = pageScriptErrors.map((m) => ({
-    type: m?.type ?? 'error',
-    text: String(m?.text ?? ''),
-    url: typeof m?.url === 'string' && m.url ? m.url : undefined,
-    sourceUrl: typeof m?.sourceUrl === 'string' && m.sourceUrl ? m.sourceUrl : undefined,
-    line: Number.isFinite(Number(m?.line)) ? Number(m.line) : undefined,
-    column: Number.isFinite(Number(m?.column)) ? Number(m.column) : undefined,
-  }))
-  const consoleWarningSample = warningMessages.map((m) => ({
-    type: m?.type ?? 'log',
-    text: String(m?.text ?? ''),
-    url: typeof m?.url === 'string' && m.url ? m.url : undefined,
-    sourceUrl: typeof m?.sourceUrl === 'string' && m.sourceUrl ? m.sourceUrl : undefined,
-    line: Number.isFinite(Number(m?.line)) ? Number(m.line) : undefined,
-    column: Number.isFinite(Number(m?.column)) ? Number(m.column) : undefined,
-  }))
-  const consoleLogSample = logLikeMessages.map((m) => ({
-    type: m?.type ?? 'log',
-    text: String(m?.text ?? ''),
-    url: typeof m?.url === 'string' && m.url ? m.url : undefined,
-    sourceUrl: typeof m?.sourceUrl === 'string' && m.sourceUrl ? m.sourceUrl : undefined,
-    line: Number.isFinite(Number(m?.line)) ? Number(m.line) : undefined,
-    column: Number.isFinite(Number(m?.column)) ? Number(m.column) : undefined,
-  }))
+  const consoleErrorSample = pageScriptErrors.map((m) => mapConsoleSample(m, 'error'))
+  const consoleWarningSample = warningMessages.map((m) => mapConsoleSample(m, 'log'))
+  const consoleLogSample = logLikeMessages.map((m) => mapConsoleSample(m, 'log'))
   const devToolsConsoleSample = errorMessages
     .filter((m) => m?.source === 'devtools')
     .map((m) => ({
@@ -115,12 +123,31 @@ function summarize(report) {
           adScriptResourceCount: Number(rawPm.adScriptResourceCount) || 0,
         }
       : undefined
-  const pageErrorSample = pageErrors.map((item) => ({
-    message: String(item?.message ?? ''),
-    sourceUrl: typeof item?.sourceUrl === 'string' && item.sourceUrl ? item.sourceUrl : undefined,
-    line: Number.isFinite(Number(item?.line)) ? Number(item.line) : undefined,
-    column: Number.isFinite(Number(item?.column)) ? Number(item.column) : undefined,
-  }))
+  const pageErrorSample = pageErrors.map((item) => {
+    const sourceSnippet = pickSourceSnippet(item?.sourceSnippet)
+    return {
+      message: String(item?.message ?? ''),
+      sourceUrl: typeof item?.sourceUrl === 'string' && item.sourceUrl ? item.sourceUrl : undefined,
+      line: Number.isFinite(Number(item?.line)) ? Number(item.line) : undefined,
+      column: Number.isFinite(Number(item?.column)) ? Number(item.column) : undefined,
+      ...(sourceSnippet ? { sourceSnippet } : {}),
+    }
+  })
+
+  /** 화면 전체 캡쳐는 파일 경로 메타만 옮긴다(이미지는 screenshots/ 에, 보존 기간이 지나면 링크가 끊긴다). */
+  const rawShot = report?.screenshot
+  const screenshot =
+    rawShot && Array.isArray(rawShot.files) && rawShot.files.length
+      ? {
+          capturedAt: String(rawShot.capturedAt ?? report?.checkedAt ?? ''),
+          files: rawShot.files.map((f) => String(f)),
+          width: Number(rawShot.width) || 0,
+          totalHeight: Number(rawShot.totalHeight) || 0,
+          ...(rawShot.viewport ? { viewport: rawShot.viewport } : {}),
+          ...(rawShot.emulation ? { emulation: String(rawShot.emulation) } : {}),
+          ...(rawShot.truncated ? { truncated: true } : {}),
+        }
+      : undefined
 
   return {
     checkedAt: String(report?.checkedAt ?? ''),
@@ -147,6 +174,7 @@ function summarize(report) {
       runUrl: getEnv('GITHUB_RUN_URL', { defaultValue: '' }),
       sha: getEnv('GITHUB_SHA', { defaultValue: '' }),
     },
+    ...(screenshot ? { screenshot } : {}),
     ...(performanceMetrics ? { performanceMetrics } : {}),
     ...(report?.diagnostics?.domainInsights ? { domainInsights: report.diagnostics.domainInsights } : {}),
     ...(Array.isArray(report?.diagnostics?.scriptIssueTop10) && report.diagnostics.scriptIssueTop10.length

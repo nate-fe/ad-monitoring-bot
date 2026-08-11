@@ -1089,6 +1089,74 @@
   color: var(--muted);
 }
 
+.mixedContentGroup {
+  margin-top: 8px;
+  border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--panel2) 40%, transparent);
+  padding: 0 12px;
+}
+
+.mixedContentSummary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 14px 0;
+  font-weight: 700;
+  color: var(--text);
+  user-select: none;
+}
+
+.mixedContentSummary::-webkit-details-marker {
+  display: none;
+}
+
+.mixedContentSummaryLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.mixedContentSummaryLabel::before {
+  content: '▸';
+  display: inline-block;
+  color: var(--muted);
+  transition: transform 0.12s ease;
+}
+
+.mixedContentGroup[open] .mixedContentSummaryLabel::before {
+  transform: rotate(90deg);
+}
+
+.mixedContentSummaryHint {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 2px;
+  padding: 2px 8px;
+  border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--panel) 70%, transparent);
+}
+
+.mixedContentGroup[open] .mixedContentSummaryHint {
+  color: var(--text);
+}
+
+.mixedContentHint {
+  margin-top: 2px;
+}
+
+.diagList + .mixedContentGroup {
+  margin-top: 10px;
+}
+
 .failTitle {
   font-weight: 700;
   font-size: 16px;
@@ -1197,6 +1265,8 @@
   word-break: break-word;
   overflow-wrap: anywhere;
   overflow: visible;
+  font-weight:400;
+  font-size:15px;
 }
 
 /* 실패 상세(failBox) 안에서는 메시지를 2줄로 자르지 않고 전체를 보여준다 */
@@ -1250,6 +1320,36 @@
 
 .sourceLocationUrlLine:not(:has(.diagUrlWrap)) .sourceLocationText {
   grid-column: 1;
+}
+
+.sourceSnippet {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--panel2) 55%, transparent);
+  overflow-x: auto;
+  max-width: 100%;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre;
+  color: var(--text);
+}
+
+.sourceSnippetMeta {
+  display: block;
+  margin-bottom: 6px;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.sourceSnippet code {
+  font-family: inherit;
+  font-size: inherit;
+  white-space: pre;
 }
 
 .networkCauseUrlLine {
@@ -1445,7 +1545,7 @@
   overflow: visible;
 }
 
-.diagItem summary {
+.diagItem > summary {
   cursor: pointer;
   font-weight: 700;
   display: grid;
@@ -3888,3 +3988,130 @@ details[open].historyItem .historyChevron {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* 해당 시각 화면 전체 캡쳐 (맨 위~맨 아래) */
+.screenshotSection {
+  margin: 16px 0;
+}
+
+/* 넓은 화면: 광고·영역별 오류 요약(좌) + 화면 캡쳐(우). 좁아지면 캡쳐가 아래로 */
+.reportOverviewRow {
+  display: grid;
+  gap: 16px;
+}
+
+@media (min-width: 860px) {
+  .reportOverviewRow {
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 380px);
+    align-items: stretch;
+  }
+
+  /*
+   * 캡쳐 열 높이를 왼쪽 오류 요약에 맞춘다.
+   * 카드를 absolute 로 띄워야 긴 캡쳐 이미지가 행 높이를 밀어 올리지 않고 카드 안에서만 스크롤된다.
+   */
+  .reportOverviewRow > .screenshotSection {
+    position: relative;
+    min-height: 260px;
+  }
+
+  .reportOverviewRow .screenshotBlock {
+    position: absolute;
+    inset: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .reportOverviewRow .screenshotScroll {
+    flex: 1;
+    min-height: 0;
+    max-height: none;
+  }
+}
+
+.reportOverviewRow > .adIssueSection,
+.reportOverviewRow > .screenshotSection {
+  margin: 0;
+  min-width: 0;
+}
+
+.screenshotBlock {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--panel2) 45%, transparent);
+}
+
+/* 펼쳐진 카드형 — 제목 아래 남는 공간을 이미지 영역이 채운다 */
+.screenshotPanel {
+  display: flex;
+  flex-direction: column;
+  /* 옆 .adIssueSection 과 같은 안쪽 여백이어야 두 제목의 높이가 맞는다 */
+  padding: 14px;
+}
+
+.historyBody > .screenshotBlock {
+  margin-bottom: 10px;
+}
+
+.screenshotSummary {
+  cursor: pointer;
+  font-weight: 700;
+  list-style: none;
+}
+
+.screenshotSummary::-webkit-details-marker {
+  display: none;
+}
+
+.screenshotSummary::before {
+  content: '▸';
+  display: inline-block;
+  margin-right: 6px;
+  opacity: 0.8;
+  transition: transform 140ms ease;
+}
+
+details[open] > .screenshotSummary::before {
+  transform: rotate(90deg);
+}
+
+.screenshotSummaryMeta {
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.screenshotMeta {
+  margin: 6px 0 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.screenshotEmpty {
+  margin: 8px 0 0;
+  font-size: 13px;
+}
+
+/* 페이지가 길어 이미지가 세로로 매우 크므로, 블록 안에서만 스크롤한다 */
+.screenshotScroll {
+  max-height: 70vh;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: #fff;
+}
+
+.screenshotStack {
+  display: block;
+  margin: 0 auto;
+}
+
+/* 여러 장으로 잘린 캡쳐가 한 장처럼 이어지도록 사이 간격을 두지 않는다 */
+.screenshotImage {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
