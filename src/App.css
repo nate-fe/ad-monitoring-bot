@@ -735,7 +735,7 @@
 }
 
 .diagPerfList {
-  margin: 0 0 8px;
+  margin-bottom:0;
 }
 
 .diagPerfList li {
@@ -1076,6 +1076,7 @@
   padding: 12px 12px;
   border: 1px solid color-mix(in srgb, var(--fail) 28%, var(--border));
   background: color-mix(in srgb, var(--fail) 8%, transparent);
+  margin-bottom:14px;
 }
 
 .issueSourceBlock {
@@ -1084,7 +1085,7 @@
 
 .issueSourceTitle {
   margin-bottom: 8px;
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 700;
   color: var(--muted);
 }
@@ -1173,7 +1174,7 @@
 }
 
 .failDetailList {
-  margin: 8px 0 0;
+  margin: 8px 0;
   padding-left: 18px;
   display: grid;
   gap: 6px;
@@ -1437,15 +1438,15 @@
 .diagSections {
   margin-top: 10px;
   display: grid;
-  gap: 10px;
+  gap: 20px;
   padding-left:10px;
 }
 
+/* 메시지 줄(15px)과 같은 크기라 제목이 묻혔다 — 한 단 키워 위계를 준다 */
 .diagSectionTitle {
   font-weight: 700;
-  margin-bottom: 6px;
   color: var(--muted);
-  font-size: 15px;
+  font-size: 17px;
 }
 
 .diagSectionTitleWithHelp {
@@ -1584,7 +1585,6 @@
 }
 
 .diagList {
-  margin: 10px 0 0;
   padding-left: 18px;
   display: grid;
   gap: 8px;
@@ -1597,6 +1597,9 @@
   margin-bottom:8px;
   overflow: visible;
   min-width: 0;
+}
+.diagList li:last-child {
+  margin-bottom:0;
 }
 
 .miniList {
@@ -4115,3 +4118,312 @@ details[open] > .screenshotSummary::before {
   height: auto;
 }
 
+
+/* ── 콘솔 메시지 뜻풀이 배지 ─────────────────────────────
+   메시지 앞에 붙어 「조치 필요 / 확인만 / 무시 가능」을 알려 주고,
+   누르면 기획자용 설명이 뜬다. .diagLineHeadMsg 안쪽에 들어가므로
+   .diagLineHead 그리드 열 배치는 건드리지 않는다. */
+.msgExplainWrap {
+  display: inline;
+}
+
+.msgExplainBadge {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: 2px;
+  margin: 0 6px 0 0;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.5;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: none;
+  transform: none;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+
+.msgExplainBadge:hover,
+.msgExplainBadge:focus-visible {
+  transform: none;
+  box-shadow: none;
+}
+
+.msgExplainBadge--action {
+  color: color-mix(in srgb, var(--fail) 82%, var(--text));
+  border: 1px solid color-mix(in srgb, var(--fail) 50%, var(--border));
+  background: color-mix(in srgb, var(--fail) 14%, transparent);
+}
+
+.msgExplainBadge--action:hover,
+.msgExplainBadge--action:focus-visible {
+  border-color: color-mix(in srgb, var(--fail) 78%, var(--border));
+  background: color-mix(in srgb, var(--fail) 24%, transparent);
+}
+
+.msgExplainBadge--watch {
+  color: color-mix(in srgb, var(--warn) 78%, var(--text));
+  border: 1px solid color-mix(in srgb, var(--warn) 52%, var(--border));
+  background: color-mix(in srgb, var(--warn) 14%, transparent);
+}
+
+.msgExplainBadge--watch:hover,
+.msgExplainBadge--watch:focus-visible {
+  border-color: color-mix(in srgb, var(--warn) 80%, var(--border));
+  background: color-mix(in srgb, var(--warn) 24%, transparent);
+}
+
+.msgExplainBadge--noise {
+  color: var(--muted);
+  border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
+  background: color-mix(in srgb, var(--panel2) 60%, transparent);
+}
+
+.msgExplainBadge--noise:hover,
+.msgExplainBadge--noise:focus-visible {
+  border-color: color-mix(in srgb, var(--border) 100%, transparent);
+  background: color-mix(in srgb, var(--panel2) 100%, transparent);
+}
+
+/* 범례 안의 배지는 누를 수 없는 견본이다 */
+.msgExplainBadge--static {
+  cursor: default;
+  margin-right: 0;
+}
+
+.msgExplainTooltip {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(360px, 100%);
+  white-space: normal;
+  text-align: left;
+}
+
+.msgExplainTooltipLevel {
+  align-self: flex-start;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.msgExplainTooltipLevel--action {
+  color: color-mix(in srgb, var(--fail) 82%, var(--text));
+  background: color-mix(in srgb, var(--fail) 16%, transparent);
+}
+
+.msgExplainTooltipLevel--watch {
+  color: color-mix(in srgb, var(--warn) 78%, var(--text));
+  background: color-mix(in srgb, var(--warn) 16%, transparent);
+}
+
+.msgExplainTooltipLevel--noise {
+  color: var(--muted);
+  background: color-mix(in srgb, var(--panel2) 80%, transparent);
+}
+
+.msgExplainTooltipTitle {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.msgExplainTooltipBody {
+  display: block;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: color-mix(in srgb, var(--text) 88%, var(--muted));
+}
+
+.msgExplainTooltipBody b {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.msgExplainTooltipFoot {
+  padding-top: 8px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+/* ── 배지 범례 ───────────────────────────────────────── */
+.msgExplainLegend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin: 20px 0;
+  padding: 8px 12px;
+  border-radius: 4px;
+  border: 1px dashed color-mix(in srgb, var(--border) 85%, transparent);
+  background: color-mix(in srgb, var(--panel2) 35%, transparent);
+  font-size: 12.5px;
+}
+
+/* 「메시지 앞 배지 ⓘ」는 제목 줄이므로 한 행을 다 쓰고, 배지 항목은 아랫줄로 내린다 */
+.msgExplainLegendLead {
+  flex-basis: 100%;
+  display: flex;
+  align-items: center;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.msgExplainLegendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.msgExplainLegendDesc {
+  color: var(--muted);
+}
+
+@media (max-width: 640px) {
+  .msgExplainLegend {
+    gap: 6px 10px;
+  }
+}
+
+.msgExplainLegendCount {
+  margin-left: 5px;
+  color: var(--text);
+  font-weight: 700;
+}
+
+/* 공통 도움말 툴팁은 236px로 묶여 있는데, 뜻풀이는 항목이 4단이라 그대로 두면 너무 길어진다 */
+@media (min-width: 641px) {
+  .inlineHelpTooltip.inlineHelpTooltipViewport.msgExplainTooltip {
+    max-width: min(380px, calc(100vw - 32px)) !important;
+  }
+}
+
+/* 판단 기준 툴팁도 공통 236px 제한보다는 넓어야 읽힌다 */
+.msgExplainCriteriaWrap {
+  margin-left: 4px;
+}
+
+@media (min-width: 641px) {
+  .inlineHelpTooltip.inlineHelpTooltipViewport.msgExplainCriteriaTooltip {
+    max-width: min(420px, calc(100vw - 32px)) !important;
+  }
+}
+
+.msgExplainCriteriaTooltip {
+  text-align: left;
+  font-size: 13px;
+}
+
+/* ── 같은 문구가 여러 파일에서 나올 때: 발생 위치 묶음 ── */
+.msgOccurrenceGroup {
+  margin: 4px 0 0;
+}
+
+.msgOccurrenceSummary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+  cursor: pointer;
+  list-style: none;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.msgOccurrenceSummary::-webkit-details-marker {
+  display: none;
+}
+
+.msgOccurrenceSummary::before {
+  content: '▸';
+  font-size: 11px;
+  line-height: 1;
+  transition: transform 120ms ease;
+}
+
+.msgOccurrenceGroup[open] > .msgOccurrenceSummary::before {
+  transform: rotate(90deg);
+}
+
+.msgOccurrenceSummary:hover {
+  color: var(--text);
+}
+
+.msgOccurrenceSummaryHint {
+  font-size: 12px;
+  color: color-mix(in srgb, var(--muted) 75%, transparent);
+}
+
+.msgOccurrenceList {
+  margin: 4px 0 0;
+  padding: 0 0 0 14px;
+  list-style: none;
+  border-left: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+.msgOccurrenceList > li {
+  padding: 2px 0;
+}
+
+.msgOccurrenceList > li + li {
+  margin-top: 4px;
+  border-top: 1px dashed color-mix(in srgb, var(--border) 55%, transparent);
+  padding-top: 6px;
+}
+
+/* ── 접히는 「추가 정보」 칸 ─────────────────────────── */
+.diagSectionCollapsible > .diagSectionSummary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.diagSectionCollapsible > .diagSectionSummary::-webkit-details-marker {
+  display: none;
+}
+
+.diagSectionCollapsible > .diagSectionSummary::before {
+  content: '▸';
+  font-size: 11px;
+  line-height: 1;
+  color: var(--muted);
+  transition: transform 120ms ease;
+}
+
+.diagSectionCollapsible[open] > .diagSectionSummary::before {
+  transform: rotate(90deg);
+}
+
+.diagSectionHelpSlot {
+  display: inline-flex;
+  align-items: center;
+}
+
+
+/* 「추가 정보」 안의 메시지 목록만 제목보다 한 단 더 들여쓴다.
+   .diagList 는 최근 실행 기록 목록에도 쓰여서 전역으로 건드리지 않는다. */
+.diagSection > .diagList,
+.mixedContentGroup > .diagList {
+  padding-left: 28px;
+}
+
+/* URL 칩(.diagUrlTrigger)·복사 버튼은 메시지 줄 사이에 촘촘히 놓여서
+   전역 button 의 그림자가 겹쳐 보인다. .diagUrlWrap 안에서는 그림자를 쓰지 않는다. */
+.diagUrlWrap button,
+.diagUrlWrap button:hover,
+.diagUrlWrap button:focus,
+.diagUrlWrap button:focus-visible,
+.diagUrlWrap button:active {
+  box-shadow: none;
+}

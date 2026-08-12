@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { explainMessage } from '../monitor/messageExplanations'
 import { buildAggregatedRankings } from '../monitor/aggregateRankings'
 import type { MonitorHistoryEntry, MonitorReport } from '../monitor/types'
 import {
@@ -13,6 +14,7 @@ import { RefreshIcon } from './RefreshIcon'
 import { DomainSourceTop5 } from './DomainSourceTop5'
 import { ScriptIssueTop10, SCRIPT_ISSUE_TOP10_HELP_TEXT } from './ScriptIssueTop10'
 import { InlineHelpTooltip } from './InlineHelpTooltip'
+import { MessageExplainBadge, MessageExplainLegend } from './MessageExplainBadge'
 import { HistoryMonthlyConsoleSection } from './HistoryMonthlyConsoleSection'
 import { HistoryPerformanceSection } from './HistoryPerformanceSection'
 import { ScreenshotViewer } from './ScreenshotViewer'
@@ -81,6 +83,29 @@ const RANKINGS_AGGREGATE_HELP = `최근 ${RANKING_WINDOW_DAYS}일 동안 쌓인 
 function isMixedContentWarning(text: string | undefined) {
   return Boolean(text && /mixed content/i.test(text))
 }
+
+/**
+ * 「낡음」 관련 줄은 고치는 방법이 달라서 두 칸으로 나눈다.
+ *
+ * - 오래된 문법: 기능·작성 방식 자체가 낡은 것. 광고사가 **코드를 다시 짜야** 없어진다.
+ * - 구식 라이브러리: 광고사가 주는 스크립트·SDK 가 옛날 버전인 것. **태그를 새 버전으로 갈면** 없어진다.
+ *
+ * document.write 는 브라우저가 log 레벨로 찍어 「콘솔 log / info」에, deprecated 경고는 warning 이라
+ * 「콘솔 경고」에 섞여 들어가는데, 둘 다 잡음에 묻히면 안 되는 실제 개선 근거라 밖으로 뺀다.
+ */
+function isLegacySyntaxMessage(text: string | undefined) {
+  return Boolean(text && /document\.write|scriptprocessornode/i.test(text))
+}
+
+function isLegacyLibraryMessage(text: string | undefined) {
+  return Boolean(text && /deprecat/i.test(text)) && !isLegacySyntaxMessage(text)
+}
+
+const LEGACY_SYNTAX_HELP_TEXT =
+  '기능이나 작성 방식 자체가 낡아서 브라우저가 경고하는 경우입니다. 대표적으로 document.write 는 광고 태그가 페이지를 그리는 도중에 내용을 직접 써 넣는 옛날 방식인데, 광고는 나오지만 그 광고가 다 올 때까지 화면 그리기가 멈춰 페이지가 늦게 뜹니다. 태그만 갈아서는 해결되지 않고 광고사가 코드를 다시 짜야 없어집니다.'
+
+const LEGACY_LIBRARY_HELP_TEXT =
+  '광고사가 주는 스크립트·SDK 가 옛날 버전이라 "새 버전을 쓰라"는 안내가 뜨는 경우입니다. 지금은 정상 동작하지만 언젠가 지원이 끊깁니다. 오래된 문법과 달리 태그를 새 버전으로 교체하면 해소되므로, 교체 일정을 잡을 수 있는 항목입니다.'
 
 function domainRankingsHelpFull() {
   return `${DOMAIN_RANKINGS_HELP_TECH}\n\n${RANKINGS_AGGREGATE_HELP}`
@@ -266,6 +291,47 @@ function dedupeMixedContentWarnings<
   return [...map.values()]
 }
 
+type MessageOccurrence = {
+  url?: string
+  sourceUrl?: string
+  line?: number
+  column?: number
+  sourceSnippet?: SourceSnippet
+  dupeCount?: number
+}
+
+type MessageGroup = {
+  type?: string
+  text?: string
+  /** 이 문구가 실제로 찍힌 총 횟수(각 항목 dupeCount 합) */
+  totalCount: number
+  /** 같은 문구가 나온 파일·위치들 */
+  occurrences: MessageOccurrence[]
+}
+
+/**
+ * 같은 문구를 한 줄로 묶고, 나온 파일·위치는 그 아래에 모아 둔다.
+ * dedupe 는 (문구 + 파일 + 줄)이 모두 같아야 합치므로, 같은 경고가 파일 10곳에서 나면 10줄이 된다.
+ * 읽는 사람이 실제로 알고 싶은 것은 「무슨 문제가 몇 종류인가」라서 문구 기준으로 한 번 더 묶는다.
+ */
+function groupConsoleMessagesByText<
+  T extends { type?: string; text?: string; dupeCount?: number } & MessageOccurrence,
+>(messages: T[]): MessageGroup[] {
+  const map = new Map<string, MessageGroup>()
+  for (const m of messages) {
+    const key = m.text ?? ''
+    const inc = m.dupeCount ?? 1
+    const prev = map.get(key)
+    if (prev) {
+      prev.totalCount += inc
+      prev.occurrences.push(m)
+    } else {
+      map.set(key, { type: m.type, text: m.text, totalCount: inc, occurrences: [m] })
+    }
+  }
+  return [...map.values()]
+}
+
 type DiagCopyableFieldProps = {
   value: string
   ariaLabel: string
@@ -386,6 +452,147 @@ function SourceLocationUrlBlock({
   )
 }
 
+function hasSourceInfo(o: MessageOccurrence) {
+  return Boolean(o.sourceUrl || (o.line != null && Number.isFinite(o.line)) || o.sourceSnippet?.text)
+}
+
+/** 한 문구가 나온 파일·위치 목록. 한 곳뿐이면 접지 않고 그대로 보여 준다. */
+function MessageOccurrences({ occurrences }: { occurrences: MessageOccurrence[] }) {
+  const withSource = occurrences.filter(hasSourceInfo)
+  if (!withSource.length) return null
+
+  if (withSource.length === 1) {
+    const only = withSource[0]
+    return (
+      <SourceLocationUrlBlock
+        sourceUrl={only.sourceUrl}
+        line={only.line}
+        column={only.column}
+        sourceSnippet={only.sourceSnippet}
+      />
+    )
+  }
+
+  return (
+    <details className="msgOccurrenceGroup">
+      <summary className="msgOccurrenceSummary">
+        발생한 파일·위치 <span className="count">{withSource.length}</span>
+        <span className="msgOccurrenceSummaryHint">보기</span>
+      </summary>
+      <ol className="msgOccurrenceList">
+        {withSource.map((o, idx) => (
+          <li key={`${idx}-${o.sourceUrl ?? ''}-${o.line ?? ''}-${o.column ?? ''}`}>
+            <SourceLocationUrlBlock
+              sourceUrl={o.sourceUrl}
+              line={o.line}
+              column={o.column}
+              sourceSnippet={o.sourceSnippet}
+            />
+          </li>
+        ))}
+      </ol>
+    </details>
+  )
+}
+
+/** 문구 기준으로 묶은 콘솔 메시지 목록 */
+function GroupedConsoleMessageList({
+  groups,
+  keyPrefix,
+  showPill = true,
+  listClassName = 'diagList',
+}: {
+  groups: MessageGroup[]
+  keyPrefix: string
+  showPill?: boolean
+  /** 실행 기록 안에서는 miniConsoleList 를 쓴다 */
+  listClassName?: string
+}) {
+  return (
+    <ul className={listClassName}>
+      {groups.map((g, idx) => (
+        <li key={`${keyPrefix}-${idx}-${g.text ?? ''}`}>
+          <div className="diagLineHead">
+            {showPill && g.type ? <span className={`pill ${g.type}`}>{g.type}</span> : null}
+            <span className="diagLineHeadMsg">
+              <MessageExplainBadge text={g.text} />
+              {g.text}
+            </span>
+            {g.totalCount > 1 ? <span className="diagDupeCount">×{g.totalCount}</span> : null}
+          </div>
+          <MessageOccurrences occurrences={g.occurrences} />
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+/** 접힌 채로 열어도 되는 칸인지 — 조치 필요·확인만이나 아직 분류 안 된 줄이 하나라도 있으면 펼쳐 둔다 */
+function hasNoteworthyMessage(groups: MessageGroup[]) {
+  return groups.some((g) => {
+    const info = explainMessage(g.text)
+    return !info || info.level !== 'noise'
+  })
+}
+
+/**
+ * 「추가 정보」 한 칸.
+ * 잡음 위주인 칸은 `collapsible` 로 접어 두되, 볼 것이 섞여 있으면 펼친 채로 연다.
+ * 내용이 없는 칸은 아예 렌더하지 않는다(호출부에서 거른다) — 「없음」만 적힌 칸이 화면을 길게 만든다.
+ */
+function DiagSection({
+  title,
+  help,
+  count,
+  collapsible = false,
+  defaultOpen = true,
+  children,
+}: {
+  title: ReactNode
+  help?: string
+  count?: number
+  collapsible?: boolean
+  defaultOpen?: boolean
+  children: ReactNode
+}) {
+  const [open, setOpen] = useState(defaultOpen)
+
+  const titleInner = (
+    <>
+      <span>
+        {title}
+        {count ? <> <span className="count">{count}</span></> : null}
+      </span>
+      {help ? (
+        // summary 안에서 ⓘ 를 눌러도 칸이 접히지 않도록
+        <span className="diagSectionHelpSlot" onClick={(e) => e.stopPropagation()}>
+          <InlineHelpTooltip text={help} />
+        </span>
+      ) : null}
+    </>
+  )
+
+  if (!collapsible) {
+    return (
+      <div className="diagSection">
+        <div className={`diagSectionTitle${help ? ' diagSectionTitleWithHelp' : ''}`}>{titleInner}</div>
+        {children}
+      </div>
+    )
+  }
+
+  return (
+    <details
+      className="diagSection diagSectionCollapsible"
+      open={open}
+      onToggle={(e) => setOpen(e.currentTarget.open)}
+    >
+      <summary className="diagSectionTitle diagSectionSummary">{titleInner}</summary>
+      {children}
+    </details>
+  )
+}
+
 function RequestFailureList({
   items,
 }: {
@@ -467,7 +674,10 @@ export function MonitorReportPanel({
       <li key={`${idx}-${item.type}-${item.text}-${item.url ?? ''}`}>
         <div className="diagLineHead">
           <span className={`pill ${item.type}`}>{item.type}</span>
-          <span className="diagLineHeadMsg">{item.text}</span>
+          <span className="diagLineHeadMsg">
+            <MessageExplainBadge text={item.text} />
+            {item.text}
+          </span>
         </div>
         <SourceLocationUrlBlock
           sourceUrl={item.sourceUrl}
@@ -661,24 +871,48 @@ export function MonitorReportPanel({
 
   const currentConsoleWarnings = useMemo(() => {
     if (state.kind !== 'loaded') return []
-    return dedupeConsoleMessages(
-      (state.report.diagnostics?.consoleMessages ?? []).filter(
-        (m) => m.type === 'warning' && !isMixedContentWarning(m.text),
+    return groupConsoleMessagesByText(
+      dedupeConsoleMessages(
+        (state.report.diagnostics?.consoleMessages ?? []).filter(
+          (m) =>
+            m.type === 'warning' &&
+            !isMixedContentWarning(m.text) &&
+            !isLegacyLibraryMessage(m.text) &&
+            !isLegacySyntaxMessage(m.text),
+        ),
       ),
     )
   }, [state])
 
+  const currentLegacyLibraryWarnings = useMemo(() => {
+    if (state.kind !== 'loaded') return []
+    return groupConsoleMessagesByText(
+      dedupeConsoleMessages(
+        (state.report.diagnostics?.consoleMessages ?? []).filter(
+          (m) => m.type === 'warning' && isLegacyLibraryMessage(m.text),
+        ),
+      ),
+    )
+  }, [state])
+
+  const currentLegacyLibraryCount = useMemo(
+    () => currentLegacyLibraryWarnings.reduce((sum, g) => sum + g.totalCount, 0),
+    [currentLegacyLibraryWarnings],
+  )
+
   const currentMixedContentWarnings = useMemo(() => {
     if (state.kind !== 'loaded') return []
-    return dedupeMixedContentWarnings(
-      (state.report.diagnostics?.consoleMessages ?? []).filter(
-        (m) => m.type === 'warning' && isMixedContentWarning(m.text),
+    return groupConsoleMessagesByText(
+      dedupeMixedContentWarnings(
+        (state.report.diagnostics?.consoleMessages ?? []).filter(
+          (m) => m.type === 'warning' && isMixedContentWarning(m.text),
+        ),
       ),
     )
   }, [state])
 
   const currentMixedContentWarningCount = useMemo(
-    () => currentMixedContentWarnings.reduce((sum, m) => sum + (m.dupeCount ?? 1), 0),
+    () => currentMixedContentWarnings.reduce((sum, g) => sum + g.totalCount, 0),
     [currentMixedContentWarnings],
   )
 
@@ -689,21 +923,72 @@ export function MonitorReportPanel({
 
   const currentConsoleLogs = useMemo(() => {
     if (state.kind !== 'loaded') return []
-    return dedupeConsoleMessages(
-      (state.report.diagnostics?.consoleMessages ?? []).filter((m) => m.type === 'log' || m.type === 'info'),
+    return groupConsoleMessagesByText(
+      dedupeConsoleMessages(
+        (state.report.diagnostics?.consoleMessages ?? []).filter(
+          (m) => (m.type === 'log' || m.type === 'info') && !isLegacySyntaxMessage(m.text),
+        ),
+      ),
     )
   }, [state])
 
+  /** log 로 찍히는 document.write 와 warning 으로 찍히는 ScriptProcessorNode 를 한 칸에 모은다 */
+  const currentLegacySyntaxMessages = useMemo(() => {
+    if (state.kind !== 'loaded') return []
+    return groupConsoleMessagesByText(
+      dedupeConsoleMessages(
+        (state.report.diagnostics?.consoleMessages ?? []).filter(
+          (m) => m.source !== 'devtools' && isLegacySyntaxMessage(m.text),
+        ),
+      ),
+    )
+  }, [state])
+
+  const currentLegacySyntaxCount = useMemo(
+    () => currentLegacySyntaxMessages.reduce((sum, g) => sum + g.totalCount, 0),
+    [currentLegacySyntaxMessages],
+  )
+
   const currentDevToolsConsole = useMemo(() => {
     if (state.kind !== 'loaded') return []
-    return dedupeConsoleMessages(
-      (state.report.diagnostics?.consoleMessages ?? []).filter((m) => m.source === 'devtools'),
+    return groupConsoleMessagesByText(
+      dedupeConsoleMessages((state.report.diagnostics?.consoleMessages ?? []).filter((m) => m.source === 'devtools')),
     )
   }, [state])
 
   const currentPerformanceMetrics = useMemo(() => {
     if (state.kind !== 'loaded') return null
     return state.report.diagnostics?.performanceMetrics ?? null
+  }, [state])
+
+  /**
+   * 「추가 정보」 범례에 표시할 단계별 건수.
+   *
+   * 기준은 **경고 레벨인가**이지 어느 칸에 보이는가가 아니다. 그래서 밖으로 뺀 구식 라이브러리
+   * 경고는 계속 세고, log 로 찍히는 document.write 는 세지 않는다. 칸을 옮겼다고 숫자가
+   * 달라지면 「봐야 할 것이 몇 건인가」라는 뜻이 무너진다.
+   * (헤드리스 네트워크 로그 제외는 이 파일의 다른 집계와 같은 기준이다.)
+   */
+  const currentDiagMessageTexts = useMemo(
+    () =>
+      [
+        ...currentConsoleWarnings,
+        ...currentMixedContentWarnings,
+        ...currentLegacyLibraryWarnings,
+        // 오래된 문법 칸에는 log 도 섞여 있으니 경고만 센다
+        ...currentLegacySyntaxMessages.filter((m) => m.type === 'warning'),
+      ].map((m) => m.text),
+    [currentConsoleWarnings, currentMixedContentWarnings, currentLegacyLibraryWarnings, currentLegacySyntaxMessages],
+  )
+
+  /** 「고쳐야 할 항목」 범례용 — 콘솔 오류와 페이지 오류 메시지 */
+  const currentFailureMessageTexts = useMemo(() => {
+    if (state.kind !== 'loaded') return []
+    const diag = state.report.diagnostics
+    return [
+      ...(diag?.consoleMessages ?? []).filter((m) => m.type === 'error' && m.source !== 'devtools').map((m) => m.text),
+      ...(diag?.pageErrors ?? []).map((e) => e.message),
+    ]
   }, [state])
 
   /** Top 5 · Top 10 모두 최근 한 달(30일)만 — 오래전에 고쳐진 도메인·스크립트가 계속 상위에 남지 않도록 */
@@ -821,11 +1106,30 @@ export function MonitorReportPanel({
                                           const pageErrors = it.counts?.pageErrors ?? 0
                                           const requestFailures = it.counts?.requestFailures ?? 0
                                           const s = summarizeFailures(it.failures, 5)
-                                          const pageErrorSample = it.pageErrorSample ?? []
-                                          const consoleErrorSample = it.consoleErrorSample ?? []
-                                          const consoleWarningSample = it.consoleWarningSample ?? []
-                                          const consoleLogSample = it.consoleLogSample ?? []
-                                          const devToolsConsoleSample = it.devToolsConsoleSample ?? []
+                                          // 페이지 오류는 text 대신 message 라서 묶기 전에 맞춰 준다
+                                          const pageErrorSample = groupConsoleMessagesByText(
+                                            (it.pageErrorSample ?? []).map((e) => ({ ...e, text: e.message })),
+                                          )
+                                          const consoleErrorSample = groupConsoleMessagesByText(it.consoleErrorSample ?? [])
+                                          const consoleWarningSample = groupConsoleMessagesByText(
+                                            (it.consoleWarningSample ?? []).filter(
+                                              (m) => !isLegacyLibraryMessage(m.text) && !isLegacySyntaxMessage(m.text),
+                                            ),
+                                          )
+                                          const legacyLibrarySample = groupConsoleMessagesByText(
+                                            (it.consoleWarningSample ?? []).filter((m) => isLegacyLibraryMessage(m.text)),
+                                          )
+                                          const legacySyntaxSample = groupConsoleMessagesByText(
+                                            [...(it.consoleWarningSample ?? []), ...(it.consoleLogSample ?? [])].filter((m) =>
+                                              isLegacySyntaxMessage(m.text),
+                                            ),
+                                          )
+                                          const consoleLogSample = groupConsoleMessagesByText(
+                                            (it.consoleLogSample ?? []).filter((m) => !isLegacySyntaxMessage(m.text)),
+                                          )
+                                          const devToolsConsoleSample = groupConsoleMessagesByText(
+                                            it.devToolsConsoleSample ?? [],
+                                          )
                                           const requestFailureSample = it.requestFailureSample ?? []
                                           const issueSources = classifyHistoryEntry(it)
 
@@ -869,84 +1173,63 @@ export function MonitorReportPanel({
                                                 {pageErrorSample.length ? (
                                                   <li>
                                                     <div className="miniSectionTitle">페이지 오류 내용</div>
-                                                    <ul className="miniConsoleList">
-                                                      {pageErrorSample.map((item, sampleIdx) => (
-                                                        <li key={`${sampleIdx}-${item.message}`}>
-                                                          <div className="diagLineHead">
-                                                            <span className="diagLineHeadMsg">{item.message}</span>
-                                                          </div>
-                                                          <SourceLocationUrlBlock
-                                                            sourceUrl={item.sourceUrl}
-                                                            line={item.line}
-                                                            column={item.column}
-                                                            sourceSnippet={item.sourceSnippet}
-                                                          />
-                                                        </li>
-                                                      ))}
-                                                    </ul>
+                                                    <GroupedConsoleMessageList
+                                                      groups={pageErrorSample}
+                                                      keyPrefix="h-pageerr"
+                                                      listClassName="miniConsoleList"
+                                                      showPill={false}
+                                                    />
                                                   </li>
                                                 ) : null}
                                                 {consoleErrorSample.length ? (
                                                   <li>
                                                     <div className="miniSectionTitle">콘솔 오류 내용</div>
-                                                    <ul className="miniConsoleList">
-                                                      {consoleErrorSample.map((m, sampleIdx) => (
-                                                        <li key={`${sampleIdx}-${m.type}-${m.text}-${m.url ?? ''}`}>
-                                                          <div className="diagLineHead">
-                                                            <span className={`pill ${m.type}`}>{m.type}</span>
-                                                            <span className="diagLineHeadMsg">{m.text}</span>
-                                                          </div>
-                                                          <SourceLocationUrlBlock
-                                                            sourceUrl={m.sourceUrl}
-                                                            line={m.line}
-                                                            column={m.column}
-                                                            sourceSnippet={m.sourceSnippet}
-                                                          />
-                                                        </li>
-                                                      ))}
-                                                    </ul>
+                                                    <GroupedConsoleMessageList
+                                                      groups={consoleErrorSample}
+                                                      keyPrefix="h-err"
+                                                      listClassName="miniConsoleList"
+                                                    />
                                                   </li>
                                                 ) : null}
                                                 {consoleWarningSample.length ? (
                                                   <li>
                                                     <div className="miniSectionTitle">콘솔 경고 내용</div>
-                                                    <ul className="miniConsoleList">
-                                                      {consoleWarningSample.map((m, sampleIdx) => (
-                                                        <li key={`${sampleIdx}-${m.type}-${m.text}-${m.url ?? ''}`}>
-                                                          <div className="diagLineHead">
-                                                            <span className={`pill ${m.type}`}>{m.type}</span>
-                                                            <span className="diagLineHeadMsg">{m.text}</span>
-                                                          </div>
-                                                          <SourceLocationUrlBlock
-                                                            sourceUrl={m.sourceUrl}
-                                                            line={m.line}
-                                                            column={m.column}
-                                                            sourceSnippet={m.sourceSnippet}
-                                                          />
-                                                        </li>
-                                                      ))}
-                                                    </ul>
+                                                    <GroupedConsoleMessageList
+                                                      groups={consoleWarningSample}
+                                                      keyPrefix="h-warn"
+                                                      listClassName="miniConsoleList"
+                                                    />
+                                                  </li>
+                                                ) : null}
+                                                {legacyLibrarySample.length ? (
+                                                  <li>
+                                                    <div className="miniSectionTitle">구식 라이브러리 사용</div>
+                                                    <GroupedConsoleMessageList
+                                                      groups={legacyLibrarySample}
+                                                      keyPrefix="h-legacylib"
+                                                      listClassName="miniConsoleList"
+                                                    />
+                                                  </li>
+                                                ) : null}
+                                                {legacySyntaxSample.length ? (
+                                                  <li>
+                                                    <div className="miniSectionTitle">오래된 문법 사용</div>
+                                                    <GroupedConsoleMessageList
+                                                      groups={legacySyntaxSample}
+                                                      keyPrefix="h-legacy"
+                                                      listClassName="miniConsoleList"
+                                                      showPill={false}
+                                                    />
                                                   </li>
                                                 ) : null}
                                                 {consoleLogSample.length ? (
                                                   <li>
                                                     <div className="miniSectionTitle">콘솔 log / info 내용</div>
-                                                    <ul className="miniConsoleList">
-                                                      {consoleLogSample.map((m, sampleIdx) => (
-                                                        <li key={`${sampleIdx}-${m.type}-${m.text}-${m.url ?? ''}`}>
-                                                          <div className="diagLineHead">
-                                                            <span className={`pill ${m.type}`}>{m.type}</span>
-                                                            <span className="diagLineHeadMsg">{m.text}</span>
-                                                          </div>
-                                                          <SourceLocationUrlBlock
-                                                            sourceUrl={m.sourceUrl}
-                                                            line={m.line}
-                                                            column={m.column}
-                                                            sourceSnippet={m.sourceSnippet}
-                                                          />
-                                                        </li>
-                                                      ))}
-                                                    </ul>
+                                                    <GroupedConsoleMessageList
+                                                      groups={consoleLogSample}
+                                                      keyPrefix="h-log"
+                                                      listClassName="miniConsoleList"
+                                                    />
                                                   </li>
                                                 ) : null}
                                                 {devToolsConsoleSample.length ? (
@@ -955,22 +1238,11 @@ export function MonitorReportPanel({
                                                       <div className="diagSectionTitle">
                                                         <HeadlessNetworkLogTitle />
                                                       </div>
-                                                      <ul className="diagList">
-                                                        {devToolsConsoleSample.map((m, sampleIdx) => {
-                                                          return (
-                                                            <li key={`${sampleIdx}-devtools-${m.text}`}>
-                                                              <div className="diagLineHead">
-                                                                <span className="diagLineHeadMsg">{m.text}</span>
-                                                              </div>
-                                                              <SourceLocationUrlBlock
-                                                                sourceUrl={m.sourceUrl}
-                                                                line={m.line}
-                                                                column={m.column}
-                                                              />
-                                                            </li>
-                                                          )
-                                                        })}
-                                                      </ul>
+                                                      <GroupedConsoleMessageList
+                                                        groups={devToolsConsoleSample}
+                                                        keyPrefix="h-devtools"
+                                                        showPill={false}
+                                                      />
                                                     </div>
                                                   </li>
                                                 ) : null}
@@ -1053,6 +1325,7 @@ export function MonitorReportPanel({
                   </div>
                 </div>
               ) : null}
+              <MessageExplainLegend texts={currentFailureMessageTexts} />
               <ul className="failList">
                 {state.report.failures.map((f, idx) => (
                   <li key={`${idx}-${f}`}>
@@ -1094,6 +1367,8 @@ export function MonitorReportPanel({
                     {currentConsoleWarnings.length +
                       currentMixedContentWarnings.length +
                       currentRequestFailures.length +
+                      currentLegacyLibraryWarnings.length +
+                      currentLegacySyntaxMessages.length +
                       currentConsoleLogs.length +
                       currentDevToolsConsole.length}
                   </span>
@@ -1111,6 +1386,8 @@ export function MonitorReportPanel({
                     </div>
                   </div>
                 ) : null}
+
+                <MessageExplainLegend texts={currentDiagMessageTexts} />
 
                 <div className="diagSections">
                   {currentPerformanceMetrics ? (
@@ -1136,33 +1413,21 @@ export function MonitorReportPanel({
                       </ul>
                     </div>
                   ) : null}
+                  {currentConsoleWarnings.length || currentMixedContentWarnings.length ? (
                   <div className="diagSection">
                     <div className="diagSectionTitle">콘솔 경고</div>
                     {currentConsoleWarnings.length ? (
-                      <ul className="diagList">
-                        {currentConsoleWarnings.map((m, idx) => (
-                          <li key={`${idx}-${m.type}-${m.text}-${m.url ?? ''}`}>
-                            <div className="diagLineHead">
-                              <span className={`pill ${m.type}`}>{m.type}</span>
-                              <span className="diagLineHeadMsg">{m.text}</span>
-                              {m.dupeCount > 1 ? <span className="diagDupeCount">×{m.dupeCount}</span> : null}
-                            </div>
-                            <SourceLocationUrlBlock
-                              sourceUrl={m.sourceUrl}
-                              line={m.line}
-                              column={m.column}
-                              sourceSnippet={m.sourceSnippet}
-                            />
-                          </li>
-                        ))}
-                      </ul>
+                      <GroupedConsoleMessageList groups={currentConsoleWarnings} keyPrefix="warn" />
                     ) : null}
                     {currentMixedContentWarnings.length ? (
                       <details className="mixedContentGroup">
                         <summary className="mixedContentSummary">
                           <span className="mixedContentSummaryLabel">
                             <span className="pill warning">warning</span>
-                            <span className="diagLineHeadMsg">Mixed Content</span>
+                            <span className="diagLineHeadMsg">
+                              <MessageExplainBadge text="Mixed Content" />
+                              Mixed Content
+                            </span>
                             <span className="count">{currentMixedContentWarningCount}</span>
                             <span className="mixedContentSummaryHint">내용 보기</span>
                           </span>
@@ -1177,84 +1442,63 @@ export function MonitorReportPanel({
                             ))}
                           </div>
                         ) : null}
-                        <ul className="diagList">
-                          {currentMixedContentWarnings.map((m, idx) => (
-                            <li key={`mixed-${idx}-${m.type}-${m.text}-${m.url ?? ''}`}>
-                              <div className="diagLineHead">
-                                <span className="diagLineHeadMsg">{m.text}</span>
-                                {m.dupeCount > 1 ? <span className="diagDupeCount">×{m.dupeCount}</span> : null}
-                              </div>
-                              <SourceLocationUrlBlock
-                                sourceUrl={m.sourceUrl}
-                                line={m.line}
-                                column={m.column}
-                                sourceSnippet={m.sourceSnippet}
-                              />
-                            </li>
-                          ))}
-                        </ul>
+                        <GroupedConsoleMessageList
+                          groups={currentMixedContentWarnings}
+                          keyPrefix="mixed"
+                          showPill={false}
+                        />
                       </details>
                     ) : null}
-                    {!currentConsoleWarnings.length && !currentMixedContentWarnings.length ? (
-                      <p className="muted">없음</p>
-                    ) : null}
                   </div>
-                  <div className="diagSection">
-                    <div className="diagSectionTitle">
-                      <RequestFailureTitle />
-                    </div>
-                    <RequestFailureList items={currentRequestFailures} />
-                  </div>
-                  <div className="diagSection">
-                    <div className="diagSectionTitle">콘솔 log / info</div>
-                    {currentConsoleLogs.length ? (
-                      <ul className="diagList">
-                        {currentConsoleLogs.map((m, idx) => (
-                          <li key={`${idx}-${m.type}-${m.text}`}>
-                            <div className="diagLineHead">
-                              <span className={`pill ${m.type}`}>{m.type}</span>
-                              <span className="diagLineHeadMsg">{m.text}</span>
-                              {m.dupeCount > 1 ? <span className="diagDupeCount">×{m.dupeCount}</span> : null}
-                            </div>
-                            <SourceLocationUrlBlock
-                              sourceUrl={m.sourceUrl}
-                              line={m.line}
-                              column={m.column}
-                              sourceSnippet={m.sourceSnippet}
-                            />
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="muted">없음</p>
-                    )}
-                  </div>
-                  <div className="diagSection">
-                    <div className="diagSectionTitle">
-                      <HeadlessNetworkLogTitle />
-                    </div>
-                    {currentDevToolsConsole.length ? (
-                      <ul className="diagList">
-                        {currentDevToolsConsole.map((m, idx) => {
-                          return (
-                            <li key={`${idx}-devtools-${m.text}`}>
-                              <div className="diagLineHead">
-                                <span className="diagLineHeadMsg">{m.text}</span>
-                                {m.dupeCount > 1 ? <span className="diagDupeCount">×{m.dupeCount}</span> : null}
-                              </div>
-                              <SourceLocationUrlBlock
-                                sourceUrl={m.sourceUrl}
-                                line={m.line}
-                                column={m.column}
-                              />
-                            </li>
-                          )
-                        })}
-                      </ul>
-                    ) : (
-                      <p className="muted">없음</p>
-                    )}
-                  </div>
+                  ) : null}
+                  {currentRequestFailures.length ? (
+                    <DiagSection title={<RequestFailureTitle />}>
+                      <RequestFailureList items={currentRequestFailures} />
+                    </DiagSection>
+                  ) : null}
+                  {currentLegacyLibraryWarnings.length ? (
+                    <DiagSection
+                      title="구식 라이브러리 사용"
+                      count={currentLegacyLibraryCount}
+                      help={LEGACY_LIBRARY_HELP_TEXT}
+                    >
+                      <GroupedConsoleMessageList groups={currentLegacyLibraryWarnings} keyPrefix="legacylib" />
+                    </DiagSection>
+                  ) : null}
+                  {currentLegacySyntaxMessages.length ? (
+                    <DiagSection
+                      title="오래된 문법 사용"
+                      count={currentLegacySyntaxCount}
+                      help={LEGACY_SYNTAX_HELP_TEXT}
+                    >
+                      <GroupedConsoleMessageList
+                        groups={currentLegacySyntaxMessages}
+                        keyPrefix="legacy"
+                        showPill={false}
+                      />
+                    </DiagSection>
+                  ) : null}
+                  {currentConsoleLogs.length ? (
+                    <DiagSection
+                      title="콘솔 log / info"
+                      count={currentConsoleLogs.length}
+                      collapsible
+                      defaultOpen={hasNoteworthyMessage(currentConsoleLogs)}
+                    >
+                      <GroupedConsoleMessageList groups={currentConsoleLogs} keyPrefix="log" />
+                    </DiagSection>
+                  ) : null}
+                  {currentDevToolsConsole.length ? (
+                    <DiagSection
+                      title="헤드리스가 기록한 네트워크 로그"
+                      count={currentDevToolsConsole.length}
+                      help={HEADLESS_NETWORK_LOG_HELP_TEXT}
+                      collapsible
+                      defaultOpen={hasNoteworthyMessage(currentDevToolsConsole)}
+                    >
+                      <GroupedConsoleMessageList groups={currentDevToolsConsole} keyPrefix="devtools" showPill={false} />
+                    </DiagSection>
+                  ) : null}
                 </div>
               </div>
 
