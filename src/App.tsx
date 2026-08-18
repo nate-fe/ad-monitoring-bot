@@ -82,7 +82,7 @@ const TARGET_GROUPS: { id: string; title: string; targetIds: TargetId[] }[] = [
 
 type AppView =
   | { kind: 'home' }
-  | { kind: 'dashboard' }
+  | { kind: 'dashboard'; query?: string }
   | { kind: 'adTagDetail'; tag: string }
   | { kind: 'report'; targetId: TargetId }
   | { kind: 'occurrence'; targetId: TargetId }
@@ -97,6 +97,11 @@ function parseAppView(): AppView {
   if (!hash) return { kind: 'home' }
 
   if (hash === 'dashboard') return { kind: 'dashboard' }
+  if (hash.startsWith('dashboard?')) {
+    const query = hash.slice(hash.indexOf('?') + 1)
+    const q = new URLSearchParams(query).get('q')?.trim()
+    return { kind: 'dashboard', query: q || undefined }
+  }
 
   // dashboard/ad?tag=... : 광고태그별(업체 분류) 상세 페이지
   if (hash.startsWith('dashboard/ad?')) {
@@ -125,7 +130,9 @@ function parseAppView(): AppView {
 
 function hashForView(view: AppView): string {
   if (view.kind === 'home') return ''
-  if (view.kind === 'dashboard') return 'dashboard'
+  if (view.kind === 'dashboard') {
+    return view.query ? `dashboard?q=${encodeURIComponent(view.query)}` : 'dashboard'
+  }
   if (view.kind === 'adTagDetail') return `dashboard/ad?tag=${encodeURIComponent(view.tag)}`
   if (view.kind === 'report') return view.targetId
   if (view.kind === 'lifecycle') return `${view.targetId}/lifecycle`
@@ -145,6 +152,8 @@ function App() {
     typeof window === 'undefined' ? { kind: 'home' } : parseAppView(),
   )
   const [heroReportMeta, setHeroReportMeta] = useState<HeroReportMetaPayload | null>(null)
+  // 광고태그 상세에서 대시보드로 되돌아온 경우(스크롤 복원 중)인지. 이때는 검색창 자동 포커스를 건너뛴다.
+  const [dashboardRestoring, setDashboardRestoring] = useState(false)
   const dashboardScrollYRef = useRef(0)
   const appViewRef = useRef(appView)
 
@@ -172,6 +181,7 @@ function App() {
         dashboardScrollYRef.current = window.scrollY
       }
       const next = parseAppView()
+      setDashboardRestoring(next.kind === 'dashboard' && previous.kind === 'adTagDetail')
       appViewRef.current = next
       setAppView(next)
       setHeroReportMeta(next.kind === 'report' ? { status: 'loading' } : null)
@@ -209,6 +219,7 @@ function App() {
         '',
       )
     }
+    setDashboardRestoring(view.kind === 'dashboard' && previous.kind === 'adTagDetail')
     const nextUrl = `${window.location.pathname}${window.location.search}${hashForView(view) ? `#${hashForView(view)}` : ''}`
     window.history.pushState({ dashboardScrollY: dashboardScrollYRef.current }, '', nextUrl)
     appViewRef.current = view
@@ -405,7 +416,11 @@ function App() {
             targetLabel={target.label}
           />
         ) : appView.kind === 'dashboard' ? (
-          <AdDashboardPage onOpenAdTag={moveToAdTag} />
+          <AdDashboardPage
+            onOpenAdTag={moveToAdTag}
+            initialQuery={appView.query ?? ''}
+            autoFocusSearch={!dashboardRestoring}
+          />
         ) : appView.kind === 'adTagDetail' ? (
           <AdTagDetailPage tag={appView.tag} onOpenAdTag={moveToAdTag} />
         ) : (
@@ -419,7 +434,7 @@ function App() {
                   <span className="targetCardText">
                     <span className="targetTitle">스크립트 대시보드</span>
                     <span className="targetDescription">
-                      작업했던 광고 스크립트를 업체·광고태그별로 모아 보고, 코드를 바로 확인합니다.
+                      작업했던 광고 스크립트를 업체·광고태그별로 모아 보고, 코드 단어·문장으로 검색합니다.
                     </span>
                   </span>
                 </button>

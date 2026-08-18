@@ -328,11 +328,106 @@ export const adScriptCatalog: AdScriptEntry[] = Object.keys(rawLoaders)
 // 백업 파일을 메인에 연결(개별 목록에서는 숨김 → 메인 카드의 아이콘/팝업으로 노출).
 attachBackups(adScriptCatalog)
 
+const sourceTextCache = new Map<string, string>()
+let allSourcesPromise: Promise<Record<string, string>> | null = null
+
+/** 코드 본문 검색을 시작할 최소 글자 수. 1글자면 거의 전부 걸려서 2글자부터. */
+export const CODE_SEARCH_MIN_LENGTH = 2
+
+export interface CodeSnippet {
+  lineNumber: number
+  text: string
+  /** 메인 파일이 아니라 묶인 백업에서 찾은 경우 백업 파일명. */
+  backupFileName?: string
+}
+
+function normalizeSearchText(value: string): string {
+  return value.toLowerCase().replace(/\s+/g, ' ').trim()
+}
+
+/** 원문에서 검색어(단어·코드 문장)가 있는지. 대소문자·연속 공백은 무시. */
+export function sourceContainsQuery(source: string, query: string): boolean {
+  const q = query.trim()
+  if (q.length < CODE_SEARCH_MIN_LENGTH) return false
+  if (source.toLowerCase().includes(q.toLowerCase())) return true
+  return normalizeSearchText(source).includes(normalizeSearchText(q))
+}
+
+/** 검색어가 들어간 줄만 뽑아 미리보기로 쓴다. */
+export function collectCodeSnippets(source: string, query: string, max = 3): CodeSnippet[] {
+  const q = query.trim()
+  if (q.length < CODE_SEARCH_MIN_LENGTH || max <= 0) return []
+  const qLower = q.toLowerCase()
+  const qNorm = normalizeSearchText(q)
+  const lines = source.split(/\r?\n/)
+  const out: CodeSnippet[] = []
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    const hit =
+      line.toLowerCase().includes(qLower) ||
+      (qNorm.length >= CODE_SEARCH_MIN_LENGTH && normalizeSearchText(line).includes(qNorm))
+    if (!hit) continue
+    out.push({ lineNumber: i + 1, text: line.trim() || line })
+    if (out.length >= max) return out
+  }
+  if (out.length === 0 && sourceContainsQuery(source, q)) {
+    const firstToken = qNorm.split(' ')[0] ?? qNorm
+    for (let i = 0; i < lines.length; i++) {
+      if (!normalizeSearchText(lines[i]).includes(firstToken)) continue
+      out.push({ lineNumber: i + 1, text: lines[i].trim() || lines[i] })
+      break
+    }
+  }
+  return out
+}
+
+/** 메인 파일(+선택적으로 백업)에서 검색 미리보기 줄을 모은다. */
+export function snippetsForEntry(
+  entry: AdScriptEntry,
+  sources: Record<string, string>,
+  query: string,
+  max = 3,
+  includeBackups = true,
+): CodeSnippet[] {
+  const own = collectCodeSnippets(sources[entry.id] ?? '', query, max)
+  if (own.length >= max || !includeBackups) return own
+  const out = [...own]
+  for (const backup of entry.backups) {
+    const more = collectCodeSnippets(sources[backup.id] ?? '', query, max - out.length)
+    for (const snip of more) out.push({ ...snip, backupFileName: backup.fileName })
+    if (out.length >= max) break
+  }
+  return out
+}
+
 /** 상세보기용 원본 스크립트 텍스트를 lazy 로 불러온다. */
 export async function loadScriptSource(id: string): Promise<string> {
+  const cached = sourceTextCache.get(id)
+  if (cached != null) return cached
   const loader = rawLoaders[id]
   if (!loader) throw new Error(`스크립트를 찾을 수 없습니다: ${id}`)
-  return loader()
+  const text = await loader()
+  sourceTextCache.set(id, text)
+  return text
+}
+
+/** 코드 검색용으로 광고 스크립트 원문을 한꺼번에 불러온다(최초 1회). */
+export function loadAllScriptSources(): Promise<Record<string, string>> {
+  if (!allSourcesPromise) {
+    allSourcesPromise = import('./adsSourceIndex')
+      .then((mod) => {
+        const sources = mod.adScriptSources
+        for (const [id, text] of Object.entries(sources)) {
+          sourceTextCache.set(id, text)
+        }
+        return sources
+      })
+      .catch((err: unknown) => {
+        allSourcesPromise = null
+        throw err
+      })
+  }
+  return allSourcesPromise
 }
 
 export type GroupKey = 'company' | 'adTag' | 'date'

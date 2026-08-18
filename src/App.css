@@ -3236,6 +3236,12 @@ details[open].historyItem .historyChevron {
   border-color: color-mix(in srgb, var(--accent2) 45%, var(--border));
 }
 
+.adSearchHint {
+  margin: -4px 2px 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
 .adCheck {
   display: inline-flex;
   align-items: center;
@@ -3350,6 +3356,54 @@ details[open].historyItem .historyChevron {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.adCardSnippet {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--panel2) 55%, transparent);
+  min-width: 0;
+}
+
+.adCardSnippetLine {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 8px;
+  min-width: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.adCardSnippetLn {
+  color: var(--muted);
+  text-align: right;
+  user-select: none;
+}
+
+.adCardSnippetText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+
+.adSnippetBackup {
+  margin-right: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  color: color-mix(in srgb, var(--text) 82%, var(--warn));
+}
+
+.adCodeMark {
+  background: color-mix(in srgb, #e8c547 72%, transparent);
+  color: inherit;
+  padding: 0 1px;
+  border-radius: 2px;
 }
 
 .adChipRow {

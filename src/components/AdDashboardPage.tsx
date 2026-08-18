@@ -1,12 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   adScriptCatalog,
   CANONICAL_COMPANIES,
+  CODE_SEARCH_MIN_LENGTH,
   groupCatalog,
   isCanonicalCompany,
+  loadAllScriptSources,
   loadScriptSource,
   MISC_GROUP,
+  snippetsForEntry,
   type AdScriptEntry,
+  type CodeSnippet,
   type GroupKey,
 } from '../adsCatalog'
 import {
@@ -53,11 +57,44 @@ function matchesQuery(entry: AdScriptEntry, q: string): boolean {
   ]
     .join(' ')
     .toLowerCase()
-  return q
-    .toLowerCase()
+  const lowered = q.toLowerCase()
+  if (haystack.includes(lowered)) return true
+  return lowered
     .split(/\s+/)
     .filter(Boolean)
     .every((term) => haystack.includes(term))
+}
+
+const MAX_HIGHLIGHTS = 80
+
+function HighlightedText({ text, query }: { text: string; query: string }) {
+  const q = query.trim()
+  if (q.length < CODE_SEARCH_MIN_LENGTH) return text
+  const lower = text.toLowerCase()
+  const needle = q.toLowerCase()
+  if (!lower.includes(needle)) return text
+
+  const parts: ReactNode[] = []
+  let i = 0
+  let marks = 0
+  let key = 0
+  while (i < text.length) {
+    const found = lower.indexOf(needle, i)
+    if (found < 0 || marks >= MAX_HIGHLIGHTS) {
+      parts.push(text.slice(i))
+      break
+    }
+    if (found > i) parts.push(text.slice(i, found))
+    parts.push(
+      <mark className="adCodeMark" key={key}>
+        {text.slice(found, found + needle.length)}
+      </mark>,
+    )
+    key += 1
+    marks += 1
+    i = found + needle.length
+  }
+  return <>{parts}</>
 }
 
 function isDashboardEntry(entry: AdScriptEntry): boolean {
@@ -67,9 +104,11 @@ function isDashboardEntry(entry: AdScriptEntry): boolean {
 function ScriptDetailModal({
   entry,
   onClose,
+  highlightQuery = '',
 }: {
   entry: AdScriptEntry
   onClose: () => void
+  highlightQuery?: string
 }) {
   const [sourceState, setSourceState] = useState<ScriptSourceState>(() => ({
     entryId: entry.id,
@@ -77,6 +116,7 @@ function ScriptDetailModal({
   }))
   const [copied, setCopied] = useState(false)
   const closeRef = useRef<HTMLButtonElement>(null)
+  const bodyRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     let alive = true
@@ -122,6 +162,12 @@ function ScriptDetailModal({
   const currentSourceState =
     sourceState.entryId === entry.id ? sourceState : ({ entryId: entry.id, status: 'loading' } as const)
 
+  useEffect(() => {
+    if (currentSourceState.status !== 'loaded') return
+    const mark = bodyRef.current?.querySelector('mark')
+    mark?.scrollIntoView({ block: 'center' })
+  }, [currentSourceState, highlightQuery])
+
   return (
     <div className="adModalBackdrop" role="presentation" onClick={onClose}>
       <div
@@ -151,14 +197,16 @@ function ScriptDetailModal({
             </button>
           </div>
         </header>
-        <div className="adModalBody">
+        <div className="adModalBody" ref={bodyRef}>
           {currentSourceState.status === 'error' ? (
             <p className="adModalStatus adModalError">불러오기 실패: {currentSourceState.message}</p>
           ) : currentSourceState.status === 'loading' ? (
             <p className="adModalStatus">스크립트를 불러오는 중…</p>
           ) : (
             <pre className="adCode">
-              <code>{currentSourceState.text}</code>
+              <code>
+                <HighlightedText text={currentSourceState.text} query={highlightQuery} />
+              </code>
             </pre>
           )}
         </div>
@@ -242,12 +290,16 @@ function AdCard({
   onOpenAdTag,
   showCompany = true,
   showTag = true,
+  snippets,
+  highlightQuery = '',
 }: {
   entry: AdScriptEntry
   onOpen: (entry: AdScriptEntry) => void
   onOpenAdTag?: (tag: string) => void
   showCompany?: boolean
   showTag?: boolean
+  snippets?: CodeSnippet[]
+  highlightQuery?: string
 }) {
   const [showBackups, setShowBackups] = useState(false)
   const backupCount = entry.backups.length
@@ -279,6 +331,19 @@ function AdCard({
       <p className="adCardWork" title={entry.work}>
         {entry.work}
       </p>
+      {snippets && snippets.length > 0 ? (
+        <div className="adCardSnippet">
+          {snippets.map((snip) => (
+            <div className="adCardSnippetLine" key={`${snip.backupFileName ?? 'main'}:${snip.lineNumber}`}>
+              <span className="adCardSnippetLn">{snip.lineNumber}</span>
+              <span className="adCardSnippetText" title={snip.text}>
+                {snip.backupFileName ? <span className="adSnippetBackup">백업 </span> : null}
+                <HighlightedText text={snip.text} query={highlightQuery} />
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : null}
       {showCompany || showTag ? (
         <div className="adChipRow">
           {showCompany ? <span className="adChip adChipCompany">{entry.company}</span> : null}
@@ -481,23 +546,88 @@ function AdLayoutView({ onOpen }: { onOpen: (entry: AdScriptEntry) => void }) {
   )
 }
 
-export function AdDashboardPage({ onOpenAdTag }: { onOpenAdTag?: (tag: string) => void }) {
+export function AdDashboardPage({
+  onOpenAdTag,
+  initialQuery = '',
+  autoFocusSearch = false,
+}: {
+  onOpenAdTag?: (tag: string) => void
+  initialQuery?: string
+  autoFocusSearch?: boolean
+}) {
   const [viewMode, setViewMode] = useState<ViewMode>('list')
   const [groupBy, setGroupBy] = useState<GroupKey>('company')
-  const [query, setQuery] = useState('')
+  const [query, setQuery] = useState(initialQuery)
   const [hideAux, setHideAux] = useState(false)
   const [selectedTab, setSelectedTab] = useState<string>(ALL_TAB)
   const [selected, setSelected] = useState<AdScriptEntry | null>(null)
+  const [sourceMap, setSourceMap] = useState<Record<string, string> | null>(null)
+  const [sourceStatus, setSourceStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  // 자동 포커스 여부는 이 화면에 처음 들어온 시점의 값으로 고정한다.
+  // (뒤로가기는 popstate·hashchange가 함께 떠서 이후에 값이 다시 바뀔 수 있다.)
+  const shouldAutoFocusRef = useRef(autoFocusSearch)
+
+  const trimmedQuery = query.trim()
+  const wantsCodeSearch = trimmedQuery.length >= CODE_SEARCH_MIN_LENGTH
+  const codeSearchPending = wantsCodeSearch && sourceStatus !== 'ready' && sourceStatus !== 'error'
+
+  useEffect(() => {
+    setQuery(initialQuery)
+  }, [initialQuery])
+
+  // 대시보드에 들어오면 곧바로 검색어를 칠 수 있게 검색창에 포커스한다.
+  // 터치 기기에서는 가상 키보드가 목록을 가려서 건너뛴다.
+  useEffect(() => {
+    if (!shouldAutoFocusRef.current) return
+    const input = searchInputRef.current
+    if (!input) return
+    if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) return
+    // 광고태그 상세에서 돌아왔을 때의 스크롤 복원을 방해하지 않도록.
+    input.focus({ preventScroll: true })
+    const end = input.value.length
+    input.setSelectionRange(end, end)
+  }, [])
+
+  useEffect(() => {
+    if (!wantsCodeSearch || sourceMap) return
+    let alive = true
+    setSourceStatus('loading')
+    loadAllScriptSources()
+      .then((map) => {
+        if (!alive) return
+        setSourceMap(map)
+        setSourceStatus('ready')
+      })
+      .catch(() => {
+        if (!alive) return
+        setSourceStatus('error')
+      })
+    return () => {
+      alive = false
+    }
+  }, [wantsCodeSearch, sourceMap])
+
+  const snippetsById = useMemo(() => {
+    const map = new Map<string, CodeSnippet[]>()
+    if (!sourceMap || !wantsCodeSearch) return map
+    for (const entry of adScriptCatalog) {
+      if (!isDashboardEntry(entry)) continue
+      const snippets = snippetsForEntry(entry, sourceMap, trimmedQuery, 3, !hideAux)
+      if (snippets.length > 0) map.set(entry.id, snippets)
+    }
+    return map
+  }, [sourceMap, wantsCodeSearch, trimmedQuery, hideAux])
 
   const filtered = useMemo(
     () =>
-      adScriptCatalog.filter(
-        (entry) =>
-          isDashboardEntry(entry) &&
-          (!hideAux || !entry.isAux) &&
-          matchesQuery(entry, query),
-      ),
-    [hideAux, query],
+      adScriptCatalog.filter((entry) => {
+        if (!isDashboardEntry(entry)) return false
+        if (hideAux && entry.isAux) return false
+        if (!trimmedQuery) return true
+        return matchesQuery(entry, trimmedQuery) || snippetsById.has(entry.id)
+      }),
+    [hideAux, trimmedQuery, snippetsById],
   )
 
   const groups = useMemo(() => groupCatalog(filtered, groupBy), [filtered, groupBy])
@@ -589,17 +719,30 @@ export function AdDashboardPage({ onOpenAdTag }: { onOpenAdTag?: (tag: string) =
           ))}
         </div>
         <input
+          ref={searchInputRef}
           type="search"
           className="adSearch"
-          placeholder="업체·광고태그·파일명·작업 검색"
+          placeholder="업체·파일명 또는 코드 단어·문장 검색"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          aria-label="광고 스크립트 검색"
         />
         <label className="adCheck">
           <input type="checkbox" checked={hideAux} onChange={(e) => setHideAux(e.target.checked)} />
           백업·테스트 숨기기
         </label>
       </div>
+      {wantsCodeSearch ? (
+        <p className="adSearchHint">
+          {codeSearchPending
+            ? '코드에서 검색하는 중… 파일명 일치는 바로 표시됩니다.'
+            : sourceStatus === 'error'
+              ? '코드 검색을 불러오지 못했습니다. 파일명·업체 검색만 적용됩니다.'
+              : `코드 일치 ${snippetsById.size}개 · 전체 결과 ${filtered.length}개`}
+        </p>
+      ) : (
+        <p className="adSearchHint">파일명뿐 아니라 스크립트 안의 단어나 코드 문장도 찾습니다.</p>
+      )}
 
       {tabs.length > 1 ? (
         <div className="adTabs" role="tablist" aria-label={groupBy === 'company' ? '업체 탭' : '광고태그 탭'}>
@@ -628,7 +771,11 @@ export function AdDashboardPage({ onOpenAdTag }: { onOpenAdTag?: (tag: string) =
       ) : null}
 
       {visibleGroups.length === 0 ? (
-        <p className="adEmpty">검색 결과가 없습니다.</p>
+        <p className="adEmpty">
+          {wantsCodeSearch && codeSearchPending
+            ? '코드에서 검색하는 중…'
+            : '검색 결과가 없습니다.'}
+        </p>
       ) : (
         <div className="adGroups">
           {visibleGroups.map((group) => (
@@ -652,6 +799,8 @@ export function AdDashboardPage({ onOpenAdTag }: { onOpenAdTag?: (tag: string) =
                     onOpenAdTag={onOpenAdTag}
                     showCompany={groupBy !== 'company'}
                     showTag={groupBy !== 'adTag'}
+                    snippets={snippetsById.get(entry.id)}
+                    highlightQuery={trimmedQuery}
                   />
                 ))}
               </div>
@@ -662,7 +811,13 @@ export function AdDashboardPage({ onOpenAdTag }: { onOpenAdTag?: (tag: string) =
       </>
       )}
 
-      {selected ? <ScriptDetailModal entry={selected} onClose={() => setSelected(null)} /> : null}
+      {selected ? (
+        <ScriptDetailModal
+          entry={selected}
+          onClose={() => setSelected(null)}
+          highlightQuery={trimmedQuery}
+        />
+      ) : null}
     </section>
   )
 }
