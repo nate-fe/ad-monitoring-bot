@@ -806,6 +806,250 @@ async function restoreStickyOverlays(page) {
 }
 
 /**
+ * 광고태그가 붙은 스크립트의 URL 경로 마지막 조각이 곧 광고태그다.
+ * 예) https://cyad1.nate.com/js.kti/mnate/news@view_middle3 → news@view_middle3
+ */
+const AD_TAG_SCRIPT_SELECTOR = 'script[src*="/js.kti/"]'
+
+/**
+ * 광고칸을 찾는 규칙. 광고사마다 표식이 다르다.
+ *
+ * coupang 은 소재 안에 `class="logo coupang"` 같은 장식 요소가 있어서 클래스 부분일치로 찾으면
+ * 광고칸이 아닌 것이 걸린다. 그래서 **스크립트 출처 호스트**로만 잡는다.
+ */
+const AD_PROVIDER_RULES = [
+  { source: 'dable', kind: 'element', selector: '[id^="dablewidget_"]' },
+  {
+    source: 'gpt',
+    kind: 'element',
+    selector: 'ins.adsbygoogle,[id^="div-gpt-ad"],[data-google-query-id]',
+  },
+  { source: 'coupang', kind: 'script-host', hostPattern: 'coupang' },
+]
+
+/**
+ * 광고 슬롯이 실제로 그려졌는지 캡쳐 직전 상태에서 잰다.
+ *
+ * 스크린샷 픽셀을 보지 않는 이유: **안 나온 광고는 흰칸을 만들지 않는다.** 칸이 비는 게 아니라
+ * 컨테이너 높이가 0으로 접히고 아래 내용이 위로 올라붙기 때문에, 이미지에는 아무 흔적이 없다.
+ * 게다가 흰칸을 찾아내도 그게 어느 광고태그인지 붙일 수 없다. 그래서 DOM 기하로 잰다.
+ *
+ * 반드시 hideStickyOverlays 보다 **먼저** 불러야 한다 — 앵커 광고가 감춰진 뒤에 재면
+ * 멀쩡한 광고가 미노출로 잡힌다.
+ */
+async function collectAdSlotGeometry(page) {
+  try {
+    return await page.evaluate(
+      ({ scriptSelector, providerRules }) => {
+        /** 광고칸이 아니라 페이지 골격을 잡은 것으로 보는 높이 */
+        const SECTION_HEIGHT_PX = 2000
+        /** 추적 픽셀·1x1 비콘을 소재로 세지 않기 위한 하한 */
+        const MIN_MEDIA_PX = 20
+        /** 이보다 얇으면 접힌 것으로 본다(높이 1px 짜리 껍데기가 남는 광고사가 있다) */
+        const MIN_SLOT_HEIGHT_PX = 10
+        /** 광고 안에 광고가 들어가는 패스백 구조가 있어 몇 겹까지만 들어간다 */
+        const MAX_FRAME_DEPTH = 4
+
+        const MEDIA_SELECTOR = 'iframe,img,ins,canvas,video,object,embed'
+        const slots = []
+
+        const measure = (box, origin, win) => {
+          const rect = box.getBoundingClientRect()
+          const sx = win.scrollX || 0
+          const sy = win.scrollY || 0
+          const toTopRect = (r) => ({
+            x: Math.round(origin.x + r.left + sx),
+            y: Math.round(origin.y + r.top + sy),
+            width: Math.round(r.width),
+            height: Math.round(r.height),
+          })
+
+          const media = []
+          for (const el of box.querySelectorAll(MEDIA_SELECTOR)) {
+            const r = el.getBoundingClientRect()
+            if (r.width < MIN_MEDIA_PX || r.height < MIN_MEDIA_PX) continue
+            const cs = win.getComputedStyle(el)
+            if (cs.visibility === 'hidden' || cs.display === 'none' || cs.opacity === '0') continue
+            media.push({ el, rect: r })
+          }
+
+          let widest = null
+          for (const m of media) if (!widest || m.rect.width > widest.rect.width) widest = m
+
+          const parentRect = box.parentElement?.getBoundingClientRect() ?? rect
+          return {
+            measurable: true,
+            rendered: rect.height >= MIN_SLOT_HEIGHT_PX && media.length > 0,
+            rect: toTopRect(rect),
+            mediaCount: media.length,
+            ...(widest
+              ? {
+                  content: {
+                    tag: widest.el.tagName.toLowerCase(),
+                    rect: toTopRect(widest.rect),
+                    /** 컨테이너 안에서 좌우가 얼마나 어긋났는지(0이면 중앙) */
+                    centerOffset: Math.round(
+                      widest.rect.left - rect.left - (rect.right - widest.rect.right),
+                    ),
+                  },
+                }
+              : {}),
+            /** 부모 안에서 컨테이너가 얼마나 어긋났는지(0이면 중앙) */
+            boxCenterOffset: Math.round(
+              rect.left - parentRect.left - (parentRect.right - rect.right),
+            ),
+          }
+        }
+
+        /**
+         * 한 문서 안의 광고칸을 모으고, 동일 출처 iframe 은 안으로 들어간다.
+         *
+         * 네이트 지면은 광고칸 상당수가 `m.news.nate.com` 로 뜬 iframe 안에 있다. 최상위 문서만 보면
+         * 광고태그의 3분의 1밖에 못 본다. 교차 출처(ep.elementunit.com 등)는 규격상 못 들어간다.
+         *
+         * @param origin 이 문서의 내용이 최상위 문서 좌표계에서 시작하는 지점
+         */
+        const walk = (doc, win, origin, depth) => {
+          if (depth > MAX_FRAME_DEPTH) return
+
+          for (const script of doc.querySelectorAll(scriptSelector)) {
+            let adTag = ''
+            try {
+              adTag = decodeURIComponent(
+                new URL(script.src).pathname.split('/').filter(Boolean).pop() ?? '',
+              )
+            } catch {
+              continue
+            }
+            // 광고태그는 `지면@슬롯` 꼴이다. @ 가 없으면 공통 로더·수집 스크립트다.
+            if (!adTag.includes('@')) continue
+
+            const box = script.parentElement
+            if (!box || box === doc.head || box === doc.body) {
+              // 앵커·팝업처럼 스크립트가 head 에 있고 요소는 다른 곳에 주입되는 종류.
+              // 잘못 「미노출」로 적는 대신 잴 수 없었다고 남긴다.
+              slots.push({ adTag, source: 'cyad', measurable: false, reason: 'no-container' })
+              continue
+            }
+            if (box.getBoundingClientRect().height > SECTION_HEIGHT_PX) {
+              // DMP·데이터 수집 스크립트는 부모가 본문 섹션 전체라 광고칸으로 볼 수 없다
+              slots.push({
+                adTag,
+                source: 'cyad',
+                measurable: false,
+                reason: 'container-is-section',
+              })
+              continue
+            }
+            slots.push({ adTag, source: 'cyad', ...measure(box, origin, win) })
+          }
+
+          for (const rule of providerRules) {
+            if (rule.kind === 'element') {
+              for (const el of doc.querySelectorAll(rule.selector)) {
+                const identity = el.id || el.getAttribute('data-ad-slot') || ''
+                const r0 = el.getBoundingClientRect()
+                // 이름도 크기도 없는 것은 광고사가 심어 둔 자리표시자다(adsbygoogle-noablate 등).
+                // 광고칸으로 세면 매 실행 미노출 한 건이 그냥 늘어난다.
+                if (!identity && r0.width < 1 && r0.height < 1) continue
+
+                const measured = measure(el, origin, win)
+                /**
+                 * AdSense 는 채웠는지 여부를 스스로 적어 둔다. 소재를 세는 것보다 이쪽이 정확하다
+                 * — 채웠는데 소재가 iframe 밖에 있거나, 안 채웠는데 자리를 잡고 있는 경우가 있다.
+                 */
+                const status = el.getAttribute('data-ad-status')
+                if (status === 'unfilled') measured.rendered = false
+                else if (status === 'filled') measured.rendered = true
+
+                slots.push({ adTag: identity || rule.source, source: rule.source, ...measured })
+              }
+              continue
+            }
+            // script-host: 스크립트를 부른 자리가 곧 광고칸
+            for (const script of doc.querySelectorAll('script[src]')) {
+              let host = ''
+              try {
+                host = new URL(script.src).hostname
+              } catch {
+                continue
+              }
+              if (!host.includes(rule.hostPattern)) continue
+              const box = script.parentElement
+              if (!box || box === doc.head || box === doc.body) {
+                slots.push({
+                  adTag: rule.source,
+                  source: rule.source,
+                  measurable: false,
+                  reason: 'no-container',
+                })
+                continue
+              }
+              if (box.getBoundingClientRect().height > SECTION_HEIGHT_PX) {
+                slots.push({
+                  adTag: rule.source,
+                  source: rule.source,
+                  measurable: false,
+                  reason: 'container-is-section',
+                })
+                continue
+              }
+              slots.push({ adTag: rule.source, source: rule.source, ...measure(box, origin, win) })
+            }
+          }
+
+          for (const frame of doc.querySelectorAll('iframe')) {
+            let childDoc = null
+            let childWin = null
+            try {
+              childDoc = frame.contentDocument
+              childWin = frame.contentWindow
+            } catch {
+              continue // 교차 출처 — 규격상 들여다볼 수 없다
+            }
+            if (!childDoc || !childWin) continue
+            const fr = frame.getBoundingClientRect()
+            walk(
+              childDoc,
+              childWin,
+              {
+                x: origin.x + fr.left + (win.scrollX || 0),
+                y: origin.y + fr.top + (win.scrollY || 0),
+              },
+              depth + 1,
+            )
+          }
+        }
+
+        walk(document, window, { x: 0, y: 0 }, 0)
+
+        /**
+         * 같은 광고태그가 여러 프레임에서 잡히면 한 줄로 합친다.
+         * 한 군데서라도 그려졌으면 그려진 것으로 본다.
+         */
+        const byTag = new Map()
+        for (const slot of slots) {
+          const key = `${slot.source}:${slot.adTag}`
+          const prev = byTag.get(key)
+          if (!prev) {
+            byTag.set(key, slot)
+            continue
+          }
+          const prevScore = prev.measurable ? (prev.rendered ? 2 : 1) : 0
+          const nextScore = slot.measurable ? (slot.rendered ? 2 : 1) : 0
+          if (nextScore > prevScore) byTag.set(key, slot)
+        }
+        return [...byTag.values()]
+      },
+      { scriptSelector: AD_TAG_SCRIPT_SELECTOR, providerRules: AD_PROVIDER_RULES },
+    )
+  } catch (err) {
+    console.warn(`[adSlots] 수집 실패: ${err instanceof Error ? err.message : String(err)}`)
+    return null
+  }
+}
+
+/**
  * 리포트를 만든 바로 그 세션에서 페이지 맨 위부터 맨 아래까지 찍는다(별도 재방문이 아니므로 checkedAt 과 같은 순간).
  * 한 장에 안 들어가는 긴 지면만 위에서부터 구간을 나눈다.
  * 하단 앵커 광고·고정 네비는 본문을 가리므로 캡쳐 동안 감춘다.
@@ -995,6 +1239,8 @@ async function main() {
   let requestFailuresForReport = []
   /** @type {{ approxTbtMs: number, longTaskCount: number, avgAdScriptResourceDurationMs: number, adScriptResourceCount: number } | null} */
   let performanceMetrics = null
+  /** 광고 슬롯별 노출 여부(캡쳐 직전 DOM 기하) */
+  let adSlots = null
   /** @type {{ latencyTop5: object[], errorRateTop5: object[] } | null} */
   let domainInsights = null
   /** CDP Log 도메인(violation/intervention 등, console.* 호출이 아닌 브라우저 자체 진단 메시지) — 메인 프레임과 모든 iframe(광고 iframe 포함)에서 수집 */
@@ -1284,6 +1530,9 @@ async function main() {
         await page.waitForTimeout(afterLoadWaitMs)
       }
 
+      // 앵커 광고를 감추기 전에 재야 한다(캡쳐 함수가 안에서 감춘다)
+      adSlots = await collectAdSlotGeometry(page)
+
       if (screenshotEnabled && reportPath && reportPath !== '0' && reportPath.toLowerCase() !== 'none') {
         const captured = await captureFullPageScreenshot(page, {
           outDir: screenshotDirForReport(reportPath),
@@ -1531,6 +1780,7 @@ async function main() {
       consoleMessages: dedupedConsoleMessages,
       requestFailures: requestFailuresForReport,
       scriptIssueTop10,
+      ...(adSlots != null && adSlots.length ? { adSlots } : {}),
       ...(performanceMetrics != null ? { performanceMetrics } : {}),
       ...(domainInsights != null ? { domainInsights } : {}),
     },

@@ -1,6 +1,8 @@
 import './App.css'
 import { MonitorReportPanel, type HeroReportMetaPayload } from './components/MonitorReportPanel'
 import { IssueOccurrencePage } from './components/IssueOccurrencePage'
+import { IssueLifecyclePage } from './components/IssueLifecyclePage'
+import { HomeIcon } from './components/HomeIcon'
 import { AdDashboardPage, AdTagDetailPage } from './components/AdDashboardPage'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
@@ -84,6 +86,7 @@ type AppView =
   | { kind: 'adTagDetail'; tag: string }
   | { kind: 'report'; targetId: TargetId }
   | { kind: 'occurrence'; targetId: TargetId }
+  | { kind: 'lifecycle'; targetId: TargetId }
 
 function isTargetId(value: string): value is TargetId {
   return value in TARGETS
@@ -108,6 +111,11 @@ function parseAppView(): AppView {
     return { kind: 'occurrence', targetId: occurrenceMatch[1] }
   }
 
+  const lifecycleMatch = hash.match(/^(.+)\/lifecycle$/)
+  if (lifecycleMatch?.[1] && isTargetId(lifecycleMatch[1])) {
+    return { kind: 'lifecycle', targetId: lifecycleMatch[1] }
+  }
+
   if (isTargetId(hash)) {
     return { kind: 'report', targetId: hash }
   }
@@ -120,6 +128,7 @@ function hashForView(view: AppView): string {
   if (view.kind === 'dashboard') return 'dashboard'
   if (view.kind === 'adTagDetail') return `dashboard/ad?tag=${encodeURIComponent(view.tag)}`
   if (view.kind === 'report') return view.targetId
+  if (view.kind === 'lifecycle') return `${view.targetId}/lifecycle`
   return `${view.targetId}/occurrence`
 }
 
@@ -140,7 +149,11 @@ function App() {
   const appViewRef = useRef(appView)
 
   const target = useMemo(() => {
-    if (appView.kind === 'report' || appView.kind === 'occurrence') {
+    if (
+      appView.kind === 'report' ||
+      appView.kind === 'occurrence' ||
+      appView.kind === 'lifecycle'
+    ) {
       return TARGETS[appView.targetId]
     }
     return null
@@ -216,6 +229,10 @@ function App() {
     navigateToView({ kind: 'occurrence', targetId })
   }
 
+  const moveToLifecycle = (targetId: TargetId) => {
+    navigateToView({ kind: 'lifecycle', targetId })
+  }
+
   const moveToHome = () => {
     navigateToView({ kind: 'home' })
   }
@@ -228,10 +245,25 @@ function App() {
     navigateToView({ kind: 'adTagDetail', tag })
   }, [])
 
+  /** 홈 말고는 어느 화면에서든 처음으로 돌아갈 수 있게, 같은 자리에 같은 모양으로 둔다 */
+  const homeButton = (
+    <button
+      type="button"
+      className="homeIconButton"
+      onClick={moveToHome}
+      aria-label="전체 보기"
+      title="전체 보기"
+    >
+      <HomeIcon />
+    </button>
+  )
+
   const subtitle = target
     ? appView.kind === 'occurrence'
       ? `${target.label} — 발생 일시·매체 데이터`
-      : `${target.label} 모니터링 결과를 확인합니다.`
+      : appView.kind === 'lifecycle'
+        ? `${target.label} — 오류 생애주기`
+        : `${target.label} 모니터링 결과를 확인합니다.`
     : appView.kind === 'dashboard'
       ? '광고 스크립트를 업체·광고태그별로 모아 봅니다.'
       : appView.kind === 'adTagDetail'
@@ -275,21 +307,27 @@ function App() {
                     </dl>
                   )}
                 </div>
+              ) : appView.kind === 'lifecycle' ? (
+                <p className="heroReportMetaStatus">
+                  새로 생긴 오류와 매번 반복되는 오류를 신규·만성·간헐·해소로 나눠 봅니다.
+                </p>
               ) : (
                 <p className="heroReportMetaStatus">
                   달력으로 일별 검사·감지 현황을 보고, 매체별·URL별 발생 데이터를 확인합니다.
                 </p>
               )}
               <div className="heroActions">
-                {appView.kind === 'occurrence' ? (
+                {homeButton}
+                {appView.kind !== 'report' ? (
                   <button
                     type="button"
                     className="btnBackHome"
-                    onClick={() => moveToTarget(appView.targetId)}
+                    onClick={() => moveToTarget(target.id)}
                   >
                     모니터링 결과
                   </button>
-                ) : (
+                ) : null}
+                {appView.kind !== 'occurrence' ? (
                   <button
                     type="button"
                     className="btnOccurrenceLog"
@@ -297,25 +335,25 @@ function App() {
                   >
                     발생 일시 기록
                   </button>
-                )}
-                <button type="button" className="btnBackHome" onClick={moveToHome}>
-                  전체 보기
-                </button>
+                ) : null}
+                {appView.kind !== 'lifecycle' ? (
+                  <button
+                    type="button"
+                    className="btnOccurrenceLog"
+                    onClick={() => moveToLifecycle(target.id)}
+                  >
+                    오류 생애주기
+                  </button>
+                ) : null}
               </div>
             </>
           ) : appView.kind === 'dashboard' ? (
-            <div className="heroActions">
-              <button type="button" className="btnBackHome" onClick={moveToHome}>
-                전체 보기
-              </button>
-            </div>
+            <div className="heroActions">{homeButton}</div>
           ) : appView.kind === 'adTagDetail' ? (
             <div className="heroActions">
+              {homeButton}
               <button type="button" className="btnBackHome" onClick={moveToDashboard}>
                 대시보드
-              </button>
-              <button type="button" className="btnBackHome" onClick={moveToHome}>
-                전체 보기
               </button>
             </div>
           ) : null}
@@ -356,6 +394,12 @@ function App() {
           />
         ) : appView.kind === 'occurrence' && target ? (
           <IssueOccurrencePage
+            reportPaths={target.reportPaths as unknown as string[]}
+            historyPaths={target.historyPaths as unknown as string[]}
+            targetLabel={target.label}
+          />
+        ) : appView.kind === 'lifecycle' && target ? (
+          <IssueLifecyclePage
             reportPaths={target.reportPaths as unknown as string[]}
             historyPaths={target.historyPaths as unknown as string[]}
             targetLabel={target.label}

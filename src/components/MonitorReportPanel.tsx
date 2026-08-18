@@ -10,11 +10,14 @@ import {
   type IssueSourceCandidate,
 } from '../monitor/issueSources'
 import { AdIssueBreakdown } from './AdIssueBreakdown'
+import { AdSlotVisibilitySection } from './AdSlotVisibilitySection'
 import { RefreshIcon } from './RefreshIcon'
 import { DomainSourceTop5 } from './DomainSourceTop5'
 import { ScriptIssueTop10, SCRIPT_ISSUE_TOP10_HELP_TEXT } from './ScriptIssueTop10'
 import { InlineHelpTooltip } from './InlineHelpTooltip'
 import { MessageExplainBadge, MessageExplainLegend } from './MessageExplainBadge'
+import { IssueLifecycleBadge, IssueLifecycleProvider } from './IssueLifecycleBadge'
+import { buildIssueLifecycleModel, buildLifecycleLookup } from '../monitor/issueLifecycle'
 import { HistoryMonthlyConsoleSection } from './HistoryMonthlyConsoleSection'
 import { HistoryPerformanceSection } from './HistoryPerformanceSection'
 import { ScreenshotViewer } from './ScreenshotViewer'
@@ -516,6 +519,7 @@ function GroupedConsoleMessageList({
             {showPill && g.type ? <span className={`pill ${g.type}`}>{g.type}</span> : null}
             <span className="diagLineHeadMsg">
               <MessageExplainBadge text={g.text} />
+              <IssueLifecycleBadge text={g.text} />
               {g.text}
             </span>
             {g.totalCount > 1 ? <span className="diagDupeCount">×{g.totalCount}</span> : null}
@@ -676,6 +680,7 @@ export function MonitorReportPanel({
           <span className={`pill ${item.type}`}>{item.type}</span>
           <span className="diagLineHeadMsg">
             <MessageExplainBadge text={item.text} />
+            <IssueLifecycleBadge text={item.text} />
             {item.text}
           </span>
         </div>
@@ -956,6 +961,11 @@ export function MonitorReportPanel({
     )
   }, [state])
 
+  const currentAdSlots = useMemo(() => {
+    if (state.kind !== 'loaded') return []
+    return state.report.diagnostics?.adSlots ?? []
+  }, [state])
+
   const currentPerformanceMetrics = useMemo(() => {
     if (state.kind !== 'loaded') return null
     return state.report.diagnostics?.performanceMetrics ?? null
@@ -998,6 +1008,19 @@ export function MonitorReportPanel({
     return buildAggregatedRankings(items, report, {
       sinceMs: Date.now() - RANKING_WINDOW_DAYS * 24 * 60 * 60 * 1000,
     })
+  }, [history, state])
+
+  /**
+   * 메시지 옆 「신규/만성/간헐」 배지용.
+   *
+   * 월 필터(historyItemsForView)가 아니라 **전체 기록**으로 만든다 — 생애주기는 최근 며칠을
+   * 보는 것이라, 화면에서 6월을 고르면 배지가 사라지는 식으로 따라 움직이면 안 된다.
+   */
+  const lifecycleLookup = useMemo(() => {
+    const items = history.kind === 'loaded' ? history.items : []
+    const report = state.kind === 'loaded' ? state.report : null
+    if (!items.length && !report) return null
+    return buildLifecycleLookup(buildIssueLifecycleModel(items, report))
   }, [history, state])
 
   const currentFailureBuckets = useMemo(() => {
@@ -1097,6 +1120,9 @@ export function MonitorReportPanel({
                                         </div>
                                       </summary>
 
+                                      {/* 지난 실행 안쪽에는 생애주기 배지를 달지 않는다 — 배지는 「지금」 상태라
+                                          6월 기록 옆에 「신규」가 붙으면 그때 새로 났다는 말로 읽힌다 */}
+                                      <IssueLifecycleProvider lookup={null}>
                                       <div className="historyBody">
                                         <ScreenshotViewer screenshot={it.screenshot} />
                                         {(() => {
@@ -1259,6 +1285,7 @@ export function MonitorReportPanel({
                                           )
                                         })()}
                                       </div>
+                                      </IssueLifecycleProvider>
                                     </details>
                                   </li>
                                 ))}
@@ -1282,6 +1309,7 @@ export function MonitorReportPanel({
   }
 
   return (
+    <IssueLifecycleProvider lookup={lifecycleLookup}>
     <section className="panel">
       <div className="panelHeader">
         <div className="panelHeaderText">
@@ -1390,6 +1418,7 @@ export function MonitorReportPanel({
                 <MessageExplainLegend texts={currentDiagMessageTexts} />
 
                 <div className="diagSections">
+                  {currentAdSlots.length ? <AdSlotVisibilitySection slots={currentAdSlots} /> : null}
                   {currentPerformanceMetrics ? (
                     <div className="diagSection">
                       <div className="diagSectionTitle diagSectionTitleWithHelp">
@@ -1555,6 +1584,7 @@ export function MonitorReportPanel({
         </div>
       )}
     </section>
+    </IssueLifecycleProvider>
   )
 }
 

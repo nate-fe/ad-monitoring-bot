@@ -334,10 +334,15 @@ function buildConsoleAdChartByBucket(
 /**
  * 콘솔 샘플(실행당 오류·경고)을 월 단위로 집계합니다.
  * 막대는 오류·경고 개수(스택 2단), 광고·영역별 내역은 UI 툴팁용 points.byAd.
+ * 기본 최근 12개월만 축에 표시합니다.
  */
-export function buildMonthlyConsoleAdChartModel(items: MonitorHistoryEntry[]): MonthlyConsoleAdChartModel {
+export function buildMonthlyConsoleAdChartModel(
+  items: MonitorHistoryEntry[],
+  options?: { maxMonths?: number },
+): MonthlyConsoleAdChartModel {
   const r = buildConsoleAdChartByBucket(items, {
     bucketFromCheckedAt: monthKeyFromCheckedAt,
+    maxBuckets: options?.maxMonths ?? 12,
   })
   return {
     monthKeys: r.bucketKeys,

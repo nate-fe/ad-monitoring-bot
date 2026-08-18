@@ -1197,6 +1197,7 @@
   row-gap: 4px;
   width: 100%;
   max-width: 100%;
+  line-height:26px;
 }
 
 .diagLineHead:has(.pill) {
@@ -1209,6 +1210,7 @@
 
 .diagLineHead:has(.pill) .pill {
   grid-column: 1;
+  line-height:19px;
 }
 
 .diagLineHead:has(.pill) .diagLineHeadMsg {
@@ -4426,4 +4428,496 @@ details[open] > .screenshotSummary::before {
 .diagUrlWrap button:focus-visible,
 .diagUrlWrap button:active {
   box-shadow: none;
+}
+
+
+/* ── 오류 생애주기 ───────────────────────────────────────
+   메시지 옆 배지(신규/만성/간헐)와 생애주기 화면의 그룹 목록.
+   뜻풀이 배지(.msgExplainBadge)와 나란히 서므로 크기·모양을 맞추고,
+   색만 달리해 「무슨 오류인가(뜻풀이)」와 「언제부터인가(생애주기)」를 구분한다. */
+.lifecycleBadgeWrap {
+  display: inline;
+}
+
+.lifecycleBadge {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: 2px;
+  margin: 0 6px 0 0;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.5;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: none;
+  transform: none;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+
+.lifecycleBadge:hover,
+.lifecycleBadge:focus-visible {
+  transform: none;
+  box-shadow: none;
+}
+
+.lifecycleBadge--new {
+  color: color-mix(in srgb, var(--accent2) 78%, var(--text));
+  border: 1px solid color-mix(in srgb, var(--accent2) 52%, var(--border));
+  background: color-mix(in srgb, var(--accent2) 14%, transparent);
+}
+
+.lifecycleBadge--new:hover,
+.lifecycleBadge--new:focus-visible {
+  border-color: color-mix(in srgb, var(--accent2) 80%, var(--border));
+  background: color-mix(in srgb, var(--accent2) 24%, transparent);
+}
+
+.lifecycleBadge--chronic,
+.lifecycleBadge--intermittent {
+  color: var(--muted);
+  border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
+  background: color-mix(in srgb, var(--panel2) 60%, transparent);
+}
+
+.lifecycleBadge--chronic:hover,
+.lifecycleBadge--chronic:focus-visible,
+.lifecycleBadge--intermittent:hover,
+.lifecycleBadge--intermittent:focus-visible {
+  border-color: color-mix(in srgb, var(--border) 100%, transparent);
+  background: color-mix(in srgb, var(--panel2) 100%, transparent);
+}
+
+.lifecycleBadge--resolved {
+  color: color-mix(in srgb, var(--ok) 70%, var(--text));
+  border: 1px solid color-mix(in srgb, var(--ok) 46%, var(--border));
+  background: color-mix(in srgb, var(--ok) 12%, transparent);
+}
+
+/* 그룹 제목 안의 배지는 누를 수 없는 견본이다 */
+.lifecycleBadge--static {
+  cursor: default;
+  margin-right: 0;
+}
+
+.lifecycleBadgeTooltip {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(320px, 100%);
+  white-space: normal;
+  text-align: left;
+}
+
+.lifecycleBadgeTooltipStatus {
+  align-self: flex-start;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.lifecycleBadgeTooltipStatus--new {
+  color: color-mix(in srgb, var(--accent2) 78%, var(--text));
+  background: color-mix(in srgb, var(--accent2) 16%, transparent);
+}
+
+.lifecycleBadgeTooltipStatus--chronic,
+.lifecycleBadgeTooltipStatus--intermittent {
+  color: var(--muted);
+  background: color-mix(in srgb, var(--panel2) 80%, transparent);
+}
+
+.lifecycleBadgeTooltipBody {
+  display: block;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: color-mix(in srgb, var(--text) 88%, var(--muted));
+}
+
+.lifecycleBadgeTooltipBody b {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+/* 생애주기 화면 */
+.lifecycleWindowBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--panel2) 40%, transparent);
+}
+
+.lifecycleWindowMain {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.lifecycleWindowSub {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.lifecycleNotice {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-left: 3px solid color-mix(in srgb, var(--border) 100%, transparent);
+  border-radius: 0 8px 8px 0;
+  background: color-mix(in srgb, var(--panel2) 45%, transparent);
+  font-size: 13px;
+  line-height: 1.55;
+  color: color-mix(in srgb, var(--text) 82%, var(--muted));
+}
+
+.lifecycleNotice--warn {
+  border-left-color: color-mix(in srgb, var(--warn) 70%, var(--border));
+  background: color-mix(in srgb, var(--warn) 10%, transparent);
+}
+
+.lifecycleGroups {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  margin-top: 20px;
+}
+
+.lifecycleGroupHead {
+  margin-bottom: 10px;
+}
+
+.lifecycleGroupTitle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 16px;
+}
+
+.lifecycleGroupCount {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.lifecycleGroupHint {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.lifecycleGroupDesc {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+.lifecycleItemList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lifecycleItem {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--panel2) 28%, transparent);
+}
+
+.lifecycleItemHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.lifecycleItemLabel {
+  font-size: 14.5px;
+  font-weight: 700;
+}
+
+.lifecycleItemText {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: color-mix(in srgb, var(--text) 80%, var(--muted));
+  overflow-wrap: anywhere;
+}
+
+.lifecycleItemStats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 22px;
+  margin: 10px 0 0;
+}
+
+.lifecycleItemStats dt {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.lifecycleItemStats dd {
+  margin: 2px 0 0;
+  font-size: 13px;
+}
+
+.lifecycleItemSources {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+/* 광고 태그 메시지·URL 은 한 줄이 수천 자인 것이 있어 카드가 화면을 삼킨다 */
+.lifecycleItemText {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+}
+
+.lifecycleItemSources li {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 그룹 제목은 메시지 옆 배지(.lifecycleBadge, 11px)와 크기를 맞추면 안 된다.
+   배지는 문장 사이에 끼는 것이고 이쪽은 목록의 머리라서, 제목 크기로 따로 세운다. */
+.lifecycleGroupName {
+  position: relative;
+  padding-left: 14px;
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.lifecycleGroupName::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  margin-top: -4px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.lifecycleGroupName--new {
+  color: color-mix(in srgb, var(--accent2) 82%, var(--text));
+}
+
+.lifecycleGroupName--chronic,
+.lifecycleGroupName--intermittent {
+  color: color-mix(in srgb, var(--text) 82%, var(--muted));
+}
+
+.lifecycleGroupName--resolved {
+  color: color-mix(in srgb, var(--ok) 72%, var(--text));
+}
+
+.lifecycleGroupCount {
+  font-size: 14px;
+}
+
+.lifecycleGroupHint {
+  font-size: 12.5px;
+}
+
+.lifecycleGroupHead {
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+
+/* ── 배지가 눌린다는 신호 ────────────────────────────────
+   바로 왼쪽 .pill 과 테두리·배경이 거의 같아서(둘 다 warn 52%/12~14%)
+   죽은 라벨로 읽힌다. 점선 밑줄은 「이 말에는 정의가 있다」는 오래된 관습이라
+   아이콘을 한 개도 늘리지 않고 둘을 갈라놓는다. 캐럿은 쓰지 않는다 —
+   툴팁이 위로 뜨는데 아래로 열릴 것처럼 보인다. */
+.msgExplainBadge:not(.msgExplainBadge--static),
+.lifecycleBadge:not(.lifecycleBadge--static) {
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+  text-decoration-color: currentColor;
+}
+
+.msgExplainBadge:not(.msgExplainBadge--static):hover,
+.msgExplainBadge:not(.msgExplainBadge--static):focus-visible,
+.lifecycleBadge:not(.lifecycleBadge--static):hover,
+.lifecycleBadge:not(.lifecycleBadge--static):focus-visible {
+  text-decoration-style: solid;
+}
+
+
+
+/* ── 광고 노출 판정 ──────────────────────────────────────
+   「미노출」과 「확인 불가」를 색으로도 갈라 둔다. 못 쟀다는 것을
+   고장으로 읽으면 멀쩡한 앵커 광고가 매번 장애로 보고된다. */
+.adSlotSummary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-bottom: 10px;
+}
+
+.adSlotStat {
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.adSlotStat b {
+  margin-left: 4px;
+  font-size: 13.5px;
+  color: color-mix(in srgb, var(--text) 90%, var(--muted));
+}
+
+.adSlotStat--ok {
+  border-color: color-mix(in srgb, var(--ok) 42%, var(--border));
+  background: color-mix(in srgb, var(--ok) 10%, transparent);
+}
+
+.adSlotStat--fail {
+  border-color: color-mix(in srgb, var(--fail) 50%, var(--border));
+  background: color-mix(in srgb, var(--fail) 12%, transparent);
+}
+
+.adSlotStat--fail b {
+  color: color-mix(in srgb, var(--fail) 82%, var(--text));
+}
+
+.adSlotStat--unknown {
+  border-style: dashed;
+}
+
+.adSlotList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.adSlotList li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+
+.adSlotList--missing li {
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--fail) 32%, var(--border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--fail) 7%, transparent);
+}
+
+.adSlotName {
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.adSlotTag {
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--panel2) 70%, transparent);
+  font-size: 12px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.adSlotDetail {
+  font-size: 12px;
+}
+
+.adSlotDetails {
+  margin-top: 10px;
+}
+
+.adSlotDetails summary {
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.adSlotDetails > .adSlotList {
+  margin-top: 8px;
+}
+
+/* 광고칸을 어느 방식으로 찾았는지 — 광고태그(cyad)만 지면 이름을 붙일 수 있다 */
+.adSlotSource {
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.adSlotSource--cyad {
+  border-color: color-mix(in srgb, var(--accent2) 40%, var(--border));
+  color: color-mix(in srgb, var(--accent2) 72%, var(--text));
+}
+
+/* 홈으로 가는 집 아이콘 — 나란히 서는 텍스트 버튼과 높이를 맞추고 정사각으로 둔다 */
+.homeIconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  padding: 0;
+  margin: 0;
+  /* 옆 텍스트 버튼과 높이를 맞춘다 — 글자 크기가 바뀌어도 따라간다 */
+  align-self: stretch;
+  border-color: color-mix(in srgb, var(--accent2) 30%, var(--border));
+  background:
+    linear-gradient(135deg, rgba(124, 136, 255, 0.2), rgba(82, 209, 255, 0.12)),
+    color-mix(in srgb, var(--panel2) 54%, transparent);
+  box-shadow: 0 8px 18px rgba(6, 10, 25, 0.12);
+  color: color-mix(in srgb, var(--text) 88%, var(--muted));
+}
+
+.homeIconButton svg {
+  width: 20px;
+  height: 20px;
+}
+
+.homeIconButton:hover,
+.homeIconButton:focus-visible {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--accent2) 60%, var(--border));
+}
+
+@media (max-width: 640px) {
+  .homeIconButton {
+    width: 44px;
+    min-height: 44px;
+  }
 }

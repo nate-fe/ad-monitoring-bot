@@ -8,6 +8,7 @@ import {
   VictoryVoronoiContainer,
 } from 'victory'
 import { useChartWrapWidth } from '../hooks/useChartWrapWidth'
+import { isLabeledTickIndex, pickTickStride } from './chartAxisTicks'
 import type { MonitorHistoryEntry } from '../monitor/types'
 import {
   buildDailyConsoleAdChartModel,
@@ -103,6 +104,9 @@ function ConsoleHistoryErrorWarnChart({
   const xDomainPadding: [number, number] =
     bucketCount <= 1 ? [72, 72] : bucketCount <= 3 ? [36, 36] : [24, 24]
   const barWidth = bucketCount <= 1 ? 56 : bucketCount <= 3 ? 40 : undefined
+  const chartPadding = { left: 68, right: 40, top: 28, bottom: tiltTicks ? 76 : 48 }
+  /** 카테고리(문자열) 축이라 눈금 자체는 두고 라벨만 솎아 낸다 — tickValues를 줄이면 막대 위치가 어긋남 */
+  const tickStride = pickTickStride(bucketCount, chartWidth - chartPadding.left - chartPadding.right)
 
   return (
     <div className="adIssueMonthlyChartBlock">
@@ -113,7 +117,7 @@ function ConsoleHistoryErrorWarnChart({
           height={chartHeight}
           domainPadding={{ x: xDomainPadding }}
           domain={{ y: [0, yMax * 1.08] }}
-          padding={{ left: 68, right: 40, top: 28, bottom: tiltTicks ? 76 : 48 }}
+          padding={chartPadding}
           containerComponent={
             <VictoryVoronoiContainer
               responsive={false}
@@ -148,7 +152,9 @@ function ConsoleHistoryErrorWarnChart({
         >
           <VictoryAxis
             tickValues={bucketKeys}
-            tickFormat={(k) => formatBucketLabel(String(k))}
+            tickFormat={(k, index) =>
+              isLabeledTickIndex(index, bucketCount, tickStride) ? formatBucketLabel(String(k)) : ''
+            }
             style={{
               ...axisStyle,
               tickLabels: {

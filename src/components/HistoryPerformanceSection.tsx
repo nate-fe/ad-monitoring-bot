@@ -8,6 +8,7 @@ import {
   VictoryVoronoiContainer,
 } from 'victory'
 import { useChartWrapWidth } from '../hooks/useChartWrapWidth'
+import { isLabeledTickIndex, pickTickStride } from './chartAxisTicks'
 import type { MonitorHistoryEntry } from '../monitor/types'
 import {
   buildDailyPerformanceChartModel,
@@ -121,6 +122,9 @@ function HistoryPerformanceLineChart({
   const chartHeight = Math.min(360, Math.max(240, 220))
   const tiltTicks = dayKeys.length > 6
   const xDomain: [number, number] = n === 1 ? [0, 1] : [0, Math.max(0, n - 1)]
+  const chartPadding = { left: 58, right: 36, top: 28, bottom: tiltTicks ? 76 : 48 }
+  /** 눈금선은 매일 두고 날짜 라벨만 솎아 냄 — 90일 축에서 글자가 겹치지 않게 */
+  const tickStride = pickTickStride(n, chartWidth - chartPadding.left - chartPadding.right)
   const xTickValues = n === 1 ? [0.5] : dayKeys.map((_, i) => i)
 
   return (
@@ -132,7 +136,7 @@ function HistoryPerformanceLineChart({
           height={chartHeight}
           domainPadding={{ x: [20, 20] }}
           domain={{ x: xDomain, y: [0, yMax] }}
-          padding={{ left: 58, right: 36, top: 28, bottom: tiltTicks ? 76 : 48 }}
+          padding={chartPadding}
           containerComponent={
             <VictoryVoronoiContainer
               responsive={false}
@@ -166,6 +170,7 @@ function HistoryPerformanceLineChart({
             tickValues={xTickValues}
             tickFormat={(v) => {
               const idx = n === 1 ? 0 : Math.round(Number(v))
+              if (!isLabeledTickIndex(idx, n, tickStride)) return ''
               const key = dayKeys[idx]
               return key ? formatDayKeyShortLabel(key) : ''
             }}

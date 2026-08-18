@@ -79,6 +79,50 @@ export type MonitorScreenshot = {
   truncated?: boolean
 }
 
+export type AdSlotRect = {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+/**
+ * 캡쳐 직전에 잰 광고 슬롯 하나. 광고태그는 스크립트 URL 마지막 조각에서 얻는다.
+ *
+ * `measurable: false` 는 「미노출」이 아니라 **잴 수 없었다**는 뜻이다. 앵커처럼 스크립트가
+ * head 에 있어 컨테이너를 못 찾은 경우라, 정상 노출 중일 수 있다. 둘을 섞으면 안 된다.
+ */
+/**
+ * 광고칸을 찾아낸 방식.
+ * cyad 만 `지면@슬롯` 형태의 광고태그를 가지며, 나머지는 위젯 id 등으로 식별한다.
+ */
+export type AdSlotSource = 'cyad' | 'gpt' | 'dable' | 'coupang'
+
+export type AdSlotVisibility =
+  | {
+      adTag: string
+      source: AdSlotSource
+      measurable: false
+      reason: 'no-container' | 'container-is-section'
+    }
+  | {
+      adTag: string
+      source: AdSlotSource
+      measurable: true
+      /** 컨테이너 높이가 있고 소재가 1개 이상 */
+      rendered: boolean
+      rect: AdSlotRect
+      mediaCount: number
+      content?: {
+        tag: string
+        rect: AdSlotRect
+        /** 컨테이너 안에서 좌우 어긋남(0이면 중앙) */
+        centerOffset: number
+      }
+      /** 부모 안에서 컨테이너 좌우 어긋남(0이면 중앙) */
+      boxCenterOffset: number
+    }
+
 export type MonitorReport = {
   ok: boolean
   url: string
@@ -113,6 +157,8 @@ export type MonitorReport = {
     performanceMetrics?: MonitorPerformanceMetrics
     domainInsights?: DomainInsights
     scriptIssueTop10?: ScriptIssueTop10Row[]
+    /** 캡쳐 직전 광고 슬롯별 노출 여부 */
+    adSlots?: AdSlotVisibility[]
   }
 }
 
