@@ -10,12 +10,23 @@ export function InfoIcon() {
   )
 }
 
-export function InlineHelpTooltip({ text }: { text: string }) {
+export function InlineHelpTooltip({
+  text,
+  ariaLabel,
+  openOnClick = false,
+}: {
+  text: string
+  ariaLabel?: string
+  /** true면 호버가 아니라 클릭으로 열고, 내용이 길면 스크롤합니다. */
+  openOnClick?: boolean
+}) {
   return (
     <ViewportInlineHelp
       triggerClassName="inlineHelpButton"
-      ariaLabel={text}
+      tooltipClassName={openOnClick ? 'inlineHelpTooltip--click' : ''}
+      ariaLabel={ariaLabel ?? text}
       trigger={<InfoIcon />}
+      openOn={openOnClick ? 'click' : 'hover'}
     >
       {text}
     </ViewportInlineHelp>

@@ -36,20 +36,16 @@ type IssueLifecyclePageProps = {
 
 /** 「기준이 뭐냐」가 화면 안에서 끝나도록, 제목 옆에 붙이는 판정 규칙 */
 const LIFECYCLE_HELP_TEXT = [
-  '콘솔 오류·경고를 「언제부터 나는가」로 나눈 화면입니다.',
+  '콘솔 오류·경고를 「언제부터 나는가」로 나눕니다.',
   '',
-  `기준이 되는 기간은 마지막 검사일부터 거슬러 ${LIFECYCLE_RESOLVED_QUIET_DAYS}일이고,`,
-  '비율의 분모는 실행 횟수가 아니라 **실제로 검사한 날 수**입니다.',
-  '하루에 여러 번 도는 날이 있어서 실행 횟수로 나누면 그 날짜 하나가 비율을 좌우합니다.',
+  `기준 기간은 마지막 검사일부터 ${LIFECYCLE_RESOLVED_QUIET_DAYS}일, 비율은 검사한 날 수입니다.`,
   '',
   `· 신규 — 최근 ${LIFECYCLE_NEW_WINDOW_DAYS}일 안에 처음 잡힌 것`,
-  `· 만성 — 검사한 날의 ${Math.round(LIFECYCLE_CHRONIC_DAY_RATIO * 100)}% 이상에서 나오는 것`,
-  '· 간헐 — 최근에도 나오지만 그만큼 잦지는 않은 것',
-  `· 해소 — 전에는 나왔지만 최근 ${LIFECYCLE_RESOLVED_QUIET_DAYS}일 동안 한 번도 안 나온 것`,
+  `· 만성 — 검사한 날의 ${Math.round(LIFECYCLE_CHRONIC_DAY_RATIO * 100)}% 이상`,
+  '· 간헐 — 최근에도 나오지만 그보다 드묾',
+  `· 해소 — 최근 ${LIFECYCLE_RESOLVED_QUIET_DAYS}일 동안 안 나온 것, 혹은 광고 종료`,
   '',
-  '신규가 만성보다 먼저입니다. 어제 생긴 오류가 그 뒤로 매번 나더라도, 먼저 알아야 할 것은 「새로 생겼다」이기 때문입니다.',
-  '',
-  '같은 오류인지는 메시지 원문이 아니라 원인 코드로 판정합니다. 원문에는 URL·시각·요청 번호가 섞여 있어 그대로 쓰면 매번 다른 오류로 잡힙니다.',
+  '신규가 만성보다 우선입니다. 같은 오류인지는 원인 코드로 판정합니다.',
 ].join('\n')
 
 function LifecycleItemRow({ item }: { item: IssueLifecycleItem }) {
@@ -173,7 +169,11 @@ export function IssueLifecyclePage({
         <div className="panelHeaderText">
           <div className="panelTitle adIssueSectionTitleWithHelp">
             <span>오류 생애주기</span>
-            <InlineHelpTooltip text={LIFECYCLE_HELP_TEXT} />
+            <InlineHelpTooltip
+              text={LIFECYCLE_HELP_TEXT}
+              ariaLabel="오류 생애주기 안내"
+              openOnClick
+            />
           </div>
           <p className="panelHeaderSub">
             {targetLabel} — 새로 생긴 오류와 매번 반복되는 오류를 나눠 봅니다.

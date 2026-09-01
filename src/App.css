@@ -1528,6 +1528,13 @@
 .inlineHelpTooltipViewport {
   pointer-events: auto;
   overflow: auto;
+  overscroll-behavior: contain;
+}
+
+/* 클릭으로 여는 긴 도움말 — 뷰포트를 덮지 않고 안에서 스크롤.
+   floating-ui가 인라인 maxHeight를 크게 잡으므로 !important로 상한을 고정한다. */
+.inlineHelpTooltip--click {
+  max-height: min(280px, calc(100vh - 32px)) !important;
 }
 
 .inlineHelpTooltipViewport::after {

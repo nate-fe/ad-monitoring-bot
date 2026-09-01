@@ -12,6 +12,7 @@ import {
   offset,
   shift,
   size,
+  useClick,
   useDismiss,
   useFloating,
   useFocus,
@@ -36,6 +37,11 @@ export type ViewportInlineHelpProps = {
    * 열린 상태에서 이미 고정된 경우 다시 클릭하면 닫힙니다. 바깥 클릭·Esc도 닫힙니다.
    */
   stayOpenOnClick?: boolean
+  /**
+   * `click`이면 호버가 아니라 버튼을 눌러 열고, 다시 누르거나 바깥·Esc로 닫습니다.
+   * 긴 설명을 스크롤해야 할 때 씁니다. `hover`(기본)보다 우선합니다.
+   */
+  openOn?: 'hover' | 'click'
 }
 
 export function ViewportInlineHelp({
@@ -47,7 +53,10 @@ export function ViewportInlineHelp({
   children,
   zIndex = 80,
   stayOpenOnClick = false,
+  openOn = 'hover',
 }: ViewportInlineHelpProps) {
+  const clickOnly = openOn === 'click'
+  const pinOnClick = !clickOnly && stayOpenOnClick
   const [open, setOpen] = useState(false)
   const [clickPinned, setClickPinned] = useState(false)
   const clickPinnedRef = useRef(false)
@@ -96,7 +105,7 @@ export function ViewportInlineHelp({
 
   /** 포커스만으로 열린 경우(호버 없이 클릭 등)에도 고정되도록 */
   useEffect(() => {
-    if (!stayOpenOnClick || !open) return
+    if (!pinOnClick || !open) return
     const id = requestAnimationFrame(() => {
       const el = referenceRef.current
       if (el && document.activeElement === el) {
@@ -104,16 +113,23 @@ export function ViewportInlineHelp({
       }
     })
     return () => cancelAnimationFrame(id)
-  }, [open, stayOpenOnClick, referenceRef])
+  }, [open, pinOnClick, referenceRef])
 
+  const click = useClick(context, { enabled: clickOnly })
   const hover = useHover(context, {
     move: false,
-    enabled: !stayOpenOnClick || !clickPinned,
+    enabled: !clickOnly && (!pinOnClick || !clickPinned),
   })
-  const focus = useFocus(context)
+  const focus = useFocus(context, { enabled: !clickOnly })
   const dismiss = useDismiss(context)
   const role = useRole(context, { role: 'tooltip' })
-  const { getReferenceProps, getFloatingProps } = useInteractions([hover, focus, dismiss, role])
+  const { getReferenceProps, getFloatingProps } = useInteractions([
+    click,
+    hover,
+    focus,
+    dismiss,
+    role,
+  ])
 
   const referenceProps = getReferenceProps() as ButtonHTMLAttributes<HTMLButtonElement>
 
@@ -125,9 +141,11 @@ export function ViewportInlineHelp({
         className={triggerClassName}
         aria-label={ariaLabel}
         {...referenceProps}
+        aria-expanded={clickOnly ? open : undefined}
+        aria-haspopup={clickOnly ? true : undefined}
         onPointerDown={(e) => {
           referenceProps.onPointerDown?.(e)
-          if (!stayOpenOnClick) return
+          if (!pinOnClick) return
           const wasAlreadyPinned = clickPinnedRef.current
           if (open) {
             setClickPinned(true)
@@ -136,7 +154,7 @@ export function ViewportInlineHelp({
         }}
         onClick={(e) => {
           referenceProps.onClick?.(e)
-          if (!stayOpenOnClick) return
+          if (!pinOnClick) return
           if (shouldCloseOnClickRef.current) {
             handleOpenChange(false)
           }
