@@ -22,6 +22,7 @@ import { HistoryMonthlyConsoleSection } from './HistoryMonthlyConsoleSection'
 import { HistoryPerformanceSection } from './HistoryPerformanceSection'
 import { ScreenshotViewer } from './ScreenshotViewer'
 import { fetchJsonFromPaths } from '../monitor/fetchJsonFromPaths'
+import { LazyDetails } from './LazyDetails'
 import type { SourceSnippet } from '../monitor/types'
 
 type LoadState =
@@ -1034,16 +1035,22 @@ export function MonitorReportPanel({
   function renderHistoryBlock() {
     return (
                 <div className="history">
-                  <details className="diagItem">
-                    <summary>
-                      최근 실행 기록{' '}
-                      <span className="count">
-                        {history.kind === 'loaded' ? historyItemsForView.length : 0}
-                      </span>
-                      {history.kind === 'loaded' && historyMonthFilter !== 'all' ? (
-                        <span className="historyMonthFilterHint"> · {formatMonthLabel(historyMonthFilter)}</span>
-                      ) : null}
-                    </summary>
+                  <LazyDetails
+                    className="diagItem"
+                    summary={
+                      <summary>
+                        최근 실행 기록{' '}
+                        <span className="count">
+                          {history.kind === 'loaded' ? historyItemsForView.length : 0}
+                        </span>
+                        {history.kind === 'loaded' && historyMonthFilter !== 'all' ? (
+                          <span className="historyMonthFilterHint"> · {formatMonthLabel(historyMonthFilter)}</span>
+                        ) : null}
+                      </summary>
+                    }
+                  >
+                    {() => (
+                    <>
                     <HistoryMonthlyConsoleSection
                       historyItems={history.kind === 'loaded' ? historyItemsForView : undefined}
                       historyStatus={history.kind}
@@ -1101,27 +1108,35 @@ export function MonitorReportPanel({
                       <ul className="diagList">
                         {groupedHistory.map((group) => (
                           <li key={group.dateKey}>
-                            <details className="historyDateGroup">
-                              <summary className="historyDateSummary">
-                                <span className="historyDateLabel">{group.label}</span>
-                              </summary>
-
+                            <LazyDetails
+                              className="historyDateGroup"
+                              summary={
+                                <summary className="historyDateSummary">
+                                  <span className="historyDateLabel">{group.label}</span>
+                                </summary>
+                              }
+                            >
+                              {() => (
                               <ul className="historyDateList">
                                 {group.items.map((it, idx) => (
                                   <li key={`${idx}-${it.checkedAt}`}>
-                                    <details className="historyItem">
-                                      <summary className="historySummaryRow">
-                                        <div className="historySummaryText">
-                                          <div className="historyWhen">{formatTimeOnly(it.checkedAt)} · {it.durationMs}ms</div>
-                                          <div className="historyMeta">{summarizeHistoryLine(it)}</div>
-                                        </div>
-                                        <div className="historySummaryRight" aria-hidden="true">
-                                          <span className="historyChevron">▾</span>
-                                        </div>
-                                      </summary>
-
+                                    <LazyDetails
+                                      className="historyItem"
+                                      summary={
+                                        <summary className="historySummaryRow">
+                                          <div className="historySummaryText">
+                                            <div className="historyWhen">{formatTimeOnly(it.checkedAt)} · {it.durationMs}ms</div>
+                                            <div className="historyMeta">{summarizeHistoryLine(it)}</div>
+                                          </div>
+                                          <div className="historySummaryRight" aria-hidden="true">
+                                            <span className="historyChevron">▾</span>
+                                          </div>
+                                        </summary>
+                                      }
+                                    >
                                       {/* 지난 실행 안쪽에는 생애주기 배지를 달지 않는다 — 배지는 「지금」 상태라
                                           6월 기록 옆에 「신규」가 붙으면 그때 새로 났다는 말로 읽힌다 */}
+                                      {() => (
                                       <IssueLifecycleProvider lookup={null}>
                                       <div className="historyBody">
                                         <ScreenshotViewer screenshot={it.screenshot} />
@@ -1286,11 +1301,13 @@ export function MonitorReportPanel({
                                         })()}
                                       </div>
                                       </IssueLifecycleProvider>
-                                    </details>
+                                      )}
+                                    </LazyDetails>
                                   </li>
                                 ))}
                               </ul>
-                            </details>
+                              )}
+                            </LazyDetails>
                           </li>
                         ))}
                       </ul>
@@ -1303,7 +1320,9 @@ export function MonitorReportPanel({
                     ) : (
                       <p className="muted">불러오는 중…</p>
                     )}
-                  </details>
+                    </>
+                    )}
+                  </LazyDetails>
                 </div>
     )
   }
