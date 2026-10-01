@@ -106,6 +106,15 @@ jobs:
         if: steps.schedule_gate.outputs.should_run != 'false' && (github.event_name != 'workflow_dispatch' || inputs.backfill_only != true)
         run: npm run history:update:all
 
+      # 새로 잡힌 오류·광고칸 연속 미노출만 네이트온 팀룸으로 보낸다(히스토리 갱신 뒤에 돌아야 함).
+      # 웹훅 시크릿이 없는 저장소에서는 보내지 않고 로그만 남긴다. 실패해도 배포는 계속한다.
+      - name: Notify NateOn teamroom
+        if: steps.schedule_gate.outputs.should_run != 'false' && (github.event_name != 'workflow_dispatch' || inputs.backfill_only != true)
+        continue-on-error: true
+        env:
+          NATEON_TEAMROOM_WEBHOOK_URL: ${{ secrets.NATEON_TEAMROOM_WEBHOOK_URL }}
+        run: npm run notify:teamroom
+
       - name: Write legacy flat aliases
         if: steps.schedule_gate.outputs.should_run != 'false'
         run: npm run aliases:flat

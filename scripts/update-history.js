@@ -134,6 +134,21 @@ function summarize(report) {
     }
   })
 
+  /**
+   * 광고칸 노출 여부는 태그·판정만 남긴다(좌표·소재 정보는 최신 리포트에만).
+   * 팀룸 알림이 「연속 N회 미노출」을 따지려면 실행마다 남아 있어야 한다.
+   */
+  const rawSlots = report?.diagnostics?.adSlots
+  const adSlots = Array.isArray(rawSlots)
+    ? rawSlots
+        .filter((s) => s && typeof s.adTag === 'string' && s.adTag)
+        .map((s) =>
+          s.measurable
+            ? { adTag: s.adTag, measurable: true, rendered: Boolean(s.rendered) }
+            : { adTag: s.adTag, measurable: false },
+        )
+    : []
+
   /** 화면 전체 캡쳐는 파일 경로 메타만 옮긴다(이미지는 screenshots/ 에, 보존 기간이 지나면 링크가 끊긴다). */
   const rawShot = report?.screenshot
   const screenshot =
@@ -180,6 +195,7 @@ function summarize(report) {
     ...(Array.isArray(report?.diagnostics?.scriptIssueTop10) && report.diagnostics.scriptIssueTop10.length
       ? { scriptIssueTop10: report.diagnostics.scriptIssueTop10 }
       : {}),
+    ...(adSlots.length ? { adSlots } : {}),
   }
 }
 

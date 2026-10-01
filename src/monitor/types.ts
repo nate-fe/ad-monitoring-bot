@@ -232,5 +232,11 @@ export type MonitorHistoryEntry = {
   domainInsights?: DomainInsights
   /** 해당 시점 스크립트 Top10 스냅샷(히스토리 합산용) */
   scriptIssueTop10?: ScriptIssueTop10Row[]
+  /** 광고칸 노출 여부 요약(팀룸 알림의 연속 미노출 판정용). 2026-10 이전 실행에는 없음 */
+  adSlots?: MonitorHistoryAdSlot[]
 }
+
+export type MonitorHistoryAdSlot =
+  | { adTag: string; measurable: false }
+  | { adTag: string; measurable: true; rendered: boolean }
 

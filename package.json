@@ -30,6 +30,7 @@
     "json:sync": "node ./scripts/check-node.cjs && node ./scripts/sync-public-json.js",
     "screenshots:sync": "node ./scripts/check-node.cjs && node ./scripts/sync-screenshots.js",
     "aliases:flat": "node ./scripts/check-node.cjs && node ./scripts/write-legacy-flat-aliases.js",
+    "notify:teamroom": "node ./scripts/check-node.cjs && node ./scripts/notify-teamroom.js",
     "preview": "node ./scripts/check-node.cjs && vite preview",
     "test:local": "npm run monitor:all && npm run history:update:all && npm run aliases:flat && npm run dev"
   },
@@ -48,6 +49,7 @@
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
+    "esbuild": "^0.27.3",
     "eslint": "^9.39.1",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",

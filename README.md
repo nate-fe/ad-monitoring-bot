@@ -182,6 +182,27 @@ npm run dev
 - **`MONITOR_TARGET_URL_PANN_PC_VIEW`**
 - **`MONITOR_TARGET_URL_PANN_PC_HOME`**
 
+## 네이트온 팀룸 알림
+
+매 실행 후 `npm run notify:teamroom`(`scripts/notify-teamroom.js`)이 **새로 생긴 문제만** 팀룸으로 보냅니다. 보낼 게 없으면 아무것도 보내지 않습니다.
+
+- **새로 잡힌 오류**: 이 지면의 전체 기록에서 한 번도 나온 적 없는 오류·경고가 이번 실행에 나왔을 때. 같은 오류인지는 생애주기 화면과 같은 원인 코드로 판정하고, `무시 가능` 단계는 보내지 않습니다. 이전 기록이 3일 치 미만이면 판정하지 않습니다.
+- **광고칸 연속 미노출**: 잘 나오던 광고태그가 3회 연속 미노출이 된 실행에 한 번, 다시 나온 실행에 한 번. `확인 불가`(잴 수 없음)는 미노출로 세지 않습니다. 히스토리에 광고칸 기록(`adSlots`)이 4회 이상 쌓인 뒤부터 동작합니다.
+
+상태 파일 없이 히스토리만으로 판정하므로 같은 알림이 반복되지 않습니다. 판정 기준은 `src/monitor/alertDetection.ts`에 있습니다.
+
+설정:
+
+1. 네이트온 팀룸 대화창 → `팀룸 오픈API 연동하기` → Incoming Webhook 추가 후 URL 복사
+2. GitHub 저장소 Secrets에 **`NATEON_TEAMROOM_WEBHOOK_URL`** 로 등록 (알림을 보낼 저장소 한 곳에만 — 두 저장소에 모두 넣으면 두 번 옵니다)
+3. 대시보드 링크 주소를 바꾸려면 `DASHBOARD_BASE_URL` (기본: 해당 저장소의 GitHub Pages 주소)
+
+로컬에서 보내지 않고 메시지만 확인:
+
+```bash
+npm run notify:teamroom -- --dry-run
+```
+
 ## GitLab CI (참고)
 
 `.gitlab-ci.yml`이 포함되어 있습니다(Playwright 이미지 기반).  

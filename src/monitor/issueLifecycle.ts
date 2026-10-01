@@ -158,13 +158,14 @@ function shortenText(text: string, maxLen = 80): string {
   return t.length > maxLen ? `${t.slice(0, maxLen - 1)}…` : t
 }
 
-type LifecycleKeyInfo = {
+export type LifecycleKeyInfo = {
   key: string
   label: string
   explainLevel: MessageExplainLevel | null
 }
 
-function lifecycleKeyFromMessage(text: string): LifecycleKeyInfo {
+/** 팀룸 알림(alertDetection)도 같은 키로 「처음 잡힌 오류」를 판정한다 */
+export function lifecycleKeyFromMessage(text: string): LifecycleKeyInfo {
   const info = explainMessage(text)
   if (info) return { key: `cause:${info.key}`, label: info.title, explainLevel: info.level }
   return { key: `text:${normalizeMessageSignature(text)}`, label: shortenText(text), explainLevel: null }
