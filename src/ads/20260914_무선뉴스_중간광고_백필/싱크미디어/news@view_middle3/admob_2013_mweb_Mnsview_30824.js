@@ -1,4 +1,6 @@
 (function() {
+    var _adWidth = 320;
+    var _adHeight = 250;
     // 3초 이후에도 광고가 미노출될 경우
     var TIMEOUT = 3000;
     var googleAlternateAdUrl = location.protocol+'//cyad1.nate.com/html.kti/mnate/google@house_x13'
@@ -47,8 +49,8 @@
       
       google_ad_client = 'ca-pub-8710503230568572';
       google_ad_slot = _slot;
-      google_ad_height = '250';
-      google_ad_width = '320';
+      google_ad_height = _adHeight;
+      google_ad_width = _adWidth;
       google_adtest = 'off';
       google_ad_type= 'image,flash';
       google_color_bg = 'ffffff';

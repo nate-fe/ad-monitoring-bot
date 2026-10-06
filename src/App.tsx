@@ -438,6 +438,18 @@ function App() {
                     </span>
                   </span>
                 </button>
+                <button
+                  type="button"
+                  className="targetCard"
+                  onClick={() => window.location.assign(`${import.meta.env.BASE_URL}make/`)}
+                >
+                  <span className="targetCardText">
+                    <span className="targetTitle">스크립트 생성기</span>
+                    <span className="targetDescription">
+                      광고 업체 태그나 요청 값을 넣으면 애즈에 바로 라이브할 수 있는 광고 스크립트를 만들고 미리 실행해 봅니다.
+                    </span>
+                  </span>
+                </button>
               </div>
             </section>
             {TARGET_GROUPS.map((group) => (
