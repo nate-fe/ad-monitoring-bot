@@ -59,8 +59,13 @@ export function MakeApp() {
             </p>
           )}
 
-          <RunCheck code={code} config={config} blocked={blocked} />
-          <CodeTab code={code} blocked={blocked} />
+          {/* 태그를 붙여넣기 전에는 만들 코드가 없다 */}
+          {config.source.trim() ? (
+            <>
+              <RunCheck code={code} config={config} blocked={blocked} />
+              <CodeTab code={code} blocked={blocked} />
+            </>
+          ) : null}
         </div>
       </div>
     </div>

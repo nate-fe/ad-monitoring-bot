@@ -39,7 +39,8 @@
         frame.style.height = '0px';
         var h = Math.max(doc.body.scrollHeight, doc.documentElement.scrollHeight);
         frame.style.height = prev;
-        requestAnimationFrame(function () { busy = false; });
+        // rAF는 화면이 안 그려지는 동안(백그라운드 탭·웹뷰 등) 멈춰 busy가 풀리지 않는다
+        setTimeout(function () { busy = false; }, 0);
         return h;
     }
 

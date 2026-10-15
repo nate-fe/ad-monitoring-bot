@@ -53,7 +53,7 @@
 .mkForm,
 .mkOutput {
   display: grid;
-  gap: 12px;
+  gap: 16px;
   min-width: 0;
 }
 
@@ -70,8 +70,8 @@
 
 .mkSection {
   display: grid;
-  gap: 10px;
-  padding: 14px;
+  gap: 18px;
+  padding: 18px;
   border: 1px solid var(--border);
   border-radius: 4px;
   background: var(--panel);
@@ -129,15 +129,26 @@ summary.mkSectionTitle::after {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 6px 0 0;
-  font-size: 13px;
-  color: var(--muted);
+  margin: 0;
+  font-size: 14px;
+  color: var(--text);
+}
+
+/* <details> 의 내용에는 grid gap 이 먹지 않아 여백을 직접 준다 */
+.mkAdvanced > :not(summary) {
+  margin-top: 16px;
+}
+
+.mkAdvanced > .mkGroupTitle {
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
 }
 
 .mkGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 20px 16px;
 }
 
 .mkGrid3 {
@@ -157,7 +168,7 @@ summary.mkSectionTitle::after {
 
 .mkField {
   display: grid;
-  gap: 4px;
+  gap: 8px;
   min-width: 0;
   align-content: start;
 }
@@ -167,7 +178,7 @@ summary.mkSectionTitle::after {
 }
 
 .mkFieldLabel {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 650;
   color: var(--muted);
 }
@@ -415,8 +426,8 @@ select.mkInput option {
 
 .mkOptionPanel {
   display: grid;
-  gap: 8px;
-  padding: 10px 12px;
+  gap: 16px;
+  padding: 16px;
   border-radius: 6px;
   border: 1px dashed var(--border);
   background: var(--panel2);
@@ -446,7 +457,7 @@ select.mkInput option {
 
 .mkParentAreas {
   display: grid;
-  gap: 6px;
+  gap: 8px;
   justify-items: start;
 }
 

@@ -14,6 +14,8 @@ export interface ParentArea {
 }
 
 export interface AdConfig {
+  /** 광고 업체가 준 마크업·스크립트. 종류와 종류별 값은 여기서 분석해 채운다 */
+  source: string
   kind: AdKind
   width: string
   height: string
@@ -69,6 +71,7 @@ export interface AdConfig {
 }
 
 export const DEFAULT_CONFIG: AdConfig = {
+  source: '',
   kind: 'iframe',
   width: '300',
   height: '250',
@@ -122,6 +125,17 @@ export const DEFAULT_CONFIG: AdConfig = {
   extraCss: '',
 }
 
+/** 붙여넣은 태그가 바뀌면 이전 태그에서 채운 종류별 값을 지우고 다시 채운다 */
+const KIND_KEYS = [
+  'kind',
+  'iframeUrl', 'iframeScrolling', 'iframeReferrerPolicy', 'iframeTitle', 'iframeFrameborder', 'iframeExtraAttrs',
+  'adClient', 'adSlot', 'adFormat', 'adLayoutKey', 'adFullWidthResponsive',
+  'scriptUrl', 'scriptTagName', 'scriptTagClass', 'scriptTagAttrs', 'scriptTagStyle', 'scriptInit', 'scriptInitTiming',
+  'rawHtml',
+] as const satisfies readonly (keyof AdConfig)[]
+
+export const KIND_DEFAULTS = Object.fromEntries(KIND_KEYS.map((k) => [k, DEFAULT_CONFIG[k]])) as Partial<AdConfig>
+
 export const KIND_LABELS: Record<AdKind, string> = {
   iframe: 'iframe',
   adsense: '애드센스',
@@ -129,10 +143,10 @@ export const KIND_LABELS: Record<AdKind, string> = {
   raw: '원본 태그',
 }
 
-/** 광고 종류를 고를 때 아래에 보여 주는 설명 */
+/** 붙여넣은 태그를 인식한 결과 아래에 보여 주는 설명 */
 export const KIND_DESCRIPTIONS: Record<AdKind, string> = {
-  iframe: '업체가 준 광고 URL을 iframe으로 넣습니다. ',
-  adsense: '구글 애드센스 광고(ins 태그)를 넣습니다. client·slot만 있으면 됩니다.',
+  iframe: '업체가 준 광고 URL을 iframe으로 넣습니다.',
+  adsense: '구글 애드센스 광고(ins 태그)를 넣고 adsbygoogle.js를 불러옵니다.',
   script: '업체 스크립트(SDK)를 불러온 뒤 광고 태그를 그리게 합니다.',
   raw: 'document.write 등 업체가 준 태그를 고치지 않고 iframe 안에서 그대로 실행합니다.',
 }

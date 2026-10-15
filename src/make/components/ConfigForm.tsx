@@ -1,7 +1,6 @@
-import { useState } from 'react'
-import { type AdConfig, type AdKind, type AdsenseFormat, type ParentArea, FORMAT_LABELS, KIND_DESCRIPTIONS, KIND_LABELS, needsSize } from '../config'
+import { useMemo, useState } from 'react'
+import { type AdConfig, type ParentArea, KIND_DEFAULTS, needsSize } from '../config'
 import {
-  ADSENSE_CLIENT_CHOICES,
   AREA_HEIGHT_CHOICES,
   AREA_MARGIN_CHOICES,
   AREA_WIDTH_CHOICES,
@@ -21,46 +20,40 @@ import { Check, Choice, Field, Segmented, SizeInput, TextArea, TextInput } from 
 
 type Set = (patch: Partial<AdConfig>) => void
 
-const KIND_OPTIONS = (Object.keys(KIND_LABELS) as AdKind[]).map((k) => ({ value: k, label: KIND_LABELS[k] }))
-const FORMAT_OPTIONS = (Object.keys(FORMAT_LABELS) as AdsenseFormat[]).map((k) => ({ value: k, label: FORMAT_LABELS[k] }))
+/** 붙여넣을 때마다 분석해서 종류와 종류별 값을 채운다. 크기는 태그에서 찾았을 때만 바꾼다 */
+function SourceField({ c, set }: { c: AdConfig; set: Set }) {
+  const parsed = useMemo(() => parseTag(c.source), [c.source])
 
-function TagFill({ set }: { set: Set }) {
-  const [text, setText] = useState('')
-  const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null)
-
-  const fill = () => {
-    const parsed = parseTag(text)
-    if (!parsed) {
-      setResult({ ok: false, message: '태그를 인식하지 못했습니다. 아래에서 종류를 고르고 값을 넣으세요.' })
-      return
-    }
-    set(parsed.patch)
-    setResult({ ok: true, message: `${parsed.summary} — 아래 값을 채웠습니다.` })
+  const change = (source: string) => {
+    const next = parseTag(source)
+    set({ ...KIND_DEFAULTS, ...(next?.patch ?? {}), source })
   }
 
   return (
     <section className="mkSection">
       <h2 className="mkSectionTitle">
-        <span className="mkStep">1</span>광고 업체 태그로 채우기 <span className="mkOptional">선택</span>
+        <span className="mkStep">1</span>광고 업체 태그
       </h2>
-      <TextArea
-        value={text}
-        onChange={setText}
-        rows={4}
-        placeholder={'요청서의 예시 태그나 URL을 붙여넣으세요.\n<iframe src="…" width="300" height="250"></iframe>'}
-      />
-      <div className="mkRow">
-        <button type="button" className="mkBtn" onClick={fill} disabled={!text.trim()}>
-          태그로 채우기
-        </button>
-        <span className="mkHint">분석만 하고 실행하지 않습니다. 태그가 없으면 건너뛰고 아래에서 고르세요.</span>
-      </div>
-      {result ? <p className={`mkParseResult ${result.ok ? 'isOk' : 'isFail'}`}>{result.message}</p> : null}
+      <Field label="업체가 준 태그 또는 광고 URL">
+        <TextArea
+          value={c.source}
+          onChange={change}
+          rows={6}
+          placeholder={'<iframe src="…" width="300" height="250"></iframe>\n<script src="…"></script>'}
+        />
+      </Field>
+      {!c.source.trim() ? null : parsed ? (
+        <p className="mkParseResult isOk">
+          인식 결과: <b>{parsed.summary}</b>
+        </p>
+      ) : (
+        <p className="mkParseResult isFail">태그를 인식하지 못했습니다. 업체가 준 HTML 태그나 광고 URL을 그대로 붙여넣으세요.</p>
+      )}
     </section>
   )
 }
 
-function SizeChoice({ c, set, label = '크기' }: { c: AdConfig; set: Set; label?: string }) {
+function SizeChoice({ c, set, label = '광고 크기 (가로×세로)' }: { c: AdConfig; set: Set; label?: string }) {
   return (
     <Field label={label} group wide>
       <Choice
@@ -77,90 +70,16 @@ function SizeChoice({ c, set, label = '크기' }: { c: AdConfig; set: Set; label
   )
 }
 
-function KindFields({ c, set }: { c: AdConfig; set: Set }) {
-  if (c.kind === 'iframe') {
-    return (
-      <div className="mkGrid">
-        <Field label="광고 URL" wide>
-          <TextInput mono value={c.iframeUrl} onChange={(iframeUrl) => set({ iframeUrl })} placeholder="https://" />
-        </Field>
-        <SizeChoice c={c} set={set} />
-      </div>
-    )
-  }
-  if (c.kind === 'adsense') {
-    return (
-      <div className="mkGrid">
-        <Field label="client" group wide>
-          <Choice
-            label="client"
-            mono
-            value={c.adClient}
-            options={ADSENSE_CLIENT_CHOICES}
-            onChange={(adClient) => set({ adClient })}
-            placeholder="ca-pub-0000000000000000"
-          />
-        </Field>
-        <Field label="slot (애즈 코드)">
-          <TextInput mono value={c.adSlot} onChange={(adSlot) => set({ adSlot })} placeholder="1234567890" />
-        </Field>
-        <Field label="형식" group wide>
-          <Segmented label="애드센스 형식" value={c.adFormat} options={FORMAT_OPTIONS} onChange={(adFormat) => set({ adFormat })} />
-        </Field>
-        {c.adFormat === 'infeed' ? (
-          <Field label="layout-key" hint="애드센스 관리 화면의 인피드 코드에 있습니다.">
-            <TextInput mono value={c.adLayoutKey} onChange={(adLayoutKey) => set({ adLayoutKey })} placeholder="-6t+ed+2i-1n-4w" />
-          </Field>
-        ) : null}
-        {c.adFormat === 'responsive' ? (
-          <Field label="화면 너비 꽉 채우기" group>
-            <Check checked={c.adFullWidthResponsive} onChange={(adFullWidthResponsive) => set({ adFullWidthResponsive })}>
-              full-width-responsive
-            </Check>
-          </Field>
-        ) : null}
-        {needsSize(c) ? <SizeChoice c={c} set={set} /> : null}
-      </div>
-    )
-  }
+/** 반응형 애드센스는 크기를 쓰지 않아 크기 단계를 보이지 않는다 */
+function hasSizeStep(c: AdConfig): boolean {
+  return needsSize(c) || c.kind === 'script'
+}
+
+function SizeField({ c, set }: { c: AdConfig; set: Set }) {
   if (c.kind === 'script') {
     return (
       <div className="mkGrid">
-        <Field label="스크립트 URL" wide>
-          <TextInput mono value={c.scriptUrl} onChange={(scriptUrl) => set({ scriptUrl })} placeholder="https://" />
-        </Field>
-        <Field label="광고 태그" group>
-          <Segmented
-            label="광고 태그 종류"
-            value={c.scriptTagName}
-            onChange={(scriptTagName) => set({ scriptTagName })}
-            options={[
-              { value: 'ins', label: '<ins>' },
-              { value: 'div', label: '<div>' },
-            ]}
-          />
-        </Field>
-        <Field label="광고 태그 class">
-          <TextInput mono value={c.scriptTagClass} onChange={(scriptTagClass) => set({ scriptTagClass })} />
-        </Field>
-        <Field label="태그 속성" hint="key=value 한 줄에 하나. {w} {h}는 크기로 바뀝니다." wide>
-          <TextArea value={c.scriptTagAttrs} onChange={(scriptTagAttrs) => set({ scriptTagAttrs })} placeholder="data-unit-id=12345" />
-        </Field>
-        <Field label="초기화 코드" wide>
-          <TextArea value={c.scriptInit} onChange={(scriptInit) => set({ scriptInit })} rows={3} placeholder="(window.ads = window.ads || []).push({});" />
-        </Field>
-        <Field label="초기화 시점" group>
-          <Segmented
-            label="초기화 시점"
-            value={c.scriptInitTiming}
-            onChange={(scriptInitTiming) => set({ scriptInitTiming })}
-            options={[
-              { value: 'onload', label: '스크립트 로드 후' },
-              { value: 'immediate', label: '바로' },
-            ]}
-          />
-        </Field>
-        <Field label="크기 (선택)" group wide hint="태그 속성의 {w} {h}에 들어갑니다. 쓰지 않으면 비워 두세요.">
+        <Field label="광고 크기 (가로×세로, 선택)" group wide>
           <Choice
             label="크기"
             value={c.width || c.height ? `${c.width}x${c.height}` : ''}
@@ -177,9 +96,6 @@ function KindFields({ c, set }: { c: AdConfig; set: Set }) {
   }
   return (
     <div className="mkGrid">
-      <Field label="광고 업체 원본 HTML" wide>
-        <TextArea value={c.rawHtml} onChange={(rawHtml) => set({ rawHtml })} rows={5} />
-      </Field>
       <SizeChoice c={c} set={set} />
     </div>
   )
@@ -223,9 +139,9 @@ function AdTagField({ c, set }: { c: AdConfig; set: Set }) {
   }
 
   return (
-    <div className="mkField mkFieldWide" role="group" aria-label="광고 태그">
-      <div className="mkAreaPick">
-        <select className="mkInput" aria-label="서비스" value={pick.service} onChange={(e) => chooseService(e.target.value)}>
+    <div className="mkGrid">
+      <Field label="서비스">
+        <select className="mkInput" value={pick.service} onChange={(e) => chooseService(e.target.value)}>
           <option value="">지정 안 함 (스크립트 자리)</option>
           {AD_TAG_SERVICES.map((s) => (
             <option key={s.id} value={s.id}>
@@ -234,8 +150,10 @@ function AdTagField({ c, set }: { c: AdConfig; set: Set }) {
           ))}
           <option value={CUSTOM}>직접 입력</option>
         </select>
-        {service ? (
-          <select className="mkInput mkMono" aria-label="광고 태그" value={pick.tag} onChange={(e) => chooseTag(e.target.value)}>
+      </Field>
+      {service ? (
+        <Field label="광고 태그">
+          <select className="mkInput mkMono" value={pick.tag} onChange={(e) => chooseTag(e.target.value)}>
             <option value="" disabled>
               광고 태그를 고르세요
             </option>
@@ -245,22 +163,13 @@ function AdTagField({ c, set }: { c: AdConfig; set: Set }) {
               </option>
             ))}
           </select>
-        ) : null}
-        {pick.service === CUSTOM ? (
+        </Field>
+      ) : null}
+      {pick.service === CUSTOM ? (
+        <Field label="광고를 넣을 요소 (선택자)">
           <TextInput mono value={c.areaSelector} onChange={(areaSelector) => set({ areaSelector })} placeholder="#ad_area 또는 .ad_area" />
-        ) : null}
-      </div>
-      <span className="mkHint">
-        {pick.service === CUSTOM
-          ? c.areaSelector.trim()
-            ? `${c.areaSelector.trim()} 요소 안에 넣습니다. 페이지에 요소가 없으면 광고를 넣지 않고 멈춥니다.`
-            : '광고를 넣을 요소의 선택자를 입력하세요. 비우면 스크립트를 넣은 자리에 넣습니다.'
-          : service && !adTag
-            ? '광고 태그를 고르세요. 고른 태그에 맞는 위치가 코드에 들어갑니다.'
-            : adTag
-              ? `${adTag.tag} 자리에 광고를 넣습니다.${adTag.selector ? ' 페이지에 그 자리가 없으면 광고를 넣지 않고 멈춥니다.' : ''}${adTag.parentAreas ? ' 광고를 감싼 영역의 높이도 광고 높이에 맞춥니다.' : ''}`
-              : '스크립트를 넣은 자리에 광고를 넣습니다.'}
-      </span>
+        </Field>
+      ) : null}
     </div>
   )
 }
@@ -278,8 +187,8 @@ function ParentAreasEditor({ areas, onChange }: { areas: ParentArea[]; onChange:
             value={a.depth}
             onChange={(e) => update(i, { depth: Number(e.target.value) === 2 ? 2 : 1 })}
           >
-            <option value={1}>상위 문서 (parent)</option>
-            <option value={2}>그 위 문서 (parent.parent)</option>
+            <option value={1}>한 단계 위</option>
+            <option value={2}>두 단계 위</option>
           </select>
           <TextInput mono value={a.selector} onChange={(selector) => update(i, { selector })} placeholder="#ifr_main_banner" />
           <button type="button" className="mkBtn" aria-label="이 요소 빼기" onClick={() => onChange(areas.filter((_, j) => j !== i))}>
@@ -290,6 +199,63 @@ function ParentAreasEditor({ areas, onChange }: { areas: ParentArea[]; onChange:
       <button type="button" className="mkBtn" onClick={() => onChange([...areas, { depth: 1, selector: '' }])}>
         요소 추가
       </button>
+    </div>
+  )
+}
+
+type FitMode = 'window' | 'parent' | 'areas'
+
+/** 맞출 대상을 하나 고르면 그 대상에 필요한 칸만 보인다 */
+function ParentFitPanel({ c, set }: { c: AdConfig; set: Set }) {
+  const mode: FitMode = c.parentTarget === 'none' ? 'areas' : c.parentTarget
+  const chooseMode = (next: FitMode) =>
+    set(
+      next === 'areas'
+        ? { parentTarget: 'none', parentIframeName: '', parentAreas: c.parentAreas.length ? c.parentAreas : [{ depth: 1, selector: '' }] }
+        : { parentTarget: next, parentAreas: [] },
+    )
+  return (
+    <div className="mkOptionPanel">
+      <h3 className="mkGroupTitle">상위 프레임 높이 맞춤</h3>
+      <div className="mkGrid">
+        <Field label="맞출 대상" group wide>
+          <Segmented
+            label="맞출 대상"
+            value={mode}
+            onChange={chooseMode}
+            options={[
+              { value: 'window', label: '광고를 감싼 iframe' },
+              { value: 'parent', label: '그 바깥 iframe' },
+              { value: 'areas', label: '지정한 요소' },
+            ]}
+          />
+        </Field>
+        {mode === 'areas' ? (
+          <Field label="높이를 맞출 요소" group wide>
+            <ParentAreasEditor areas={c.parentAreas} onChange={(parentAreas) => set({ parentAreas })} />
+          </Field>
+        ) : (
+          <Field label="iframe name (선택)" group wide>
+            <Choice
+              label="iframe name"
+              mono
+              value={c.parentIframeName}
+              options={PARENT_IFRAME_NAME_CHOICES}
+              onChange={(parentIframeName) => set({ parentIframeName })}
+              placeholder="ad_mid"
+            />
+          </Field>
+        )}
+        <Field label="맞출 높이" group wide>
+          <Choice
+            label="맞출 높이"
+            value={c.parentHeight}
+            options={PARENT_HEIGHT_CHOICES}
+            onChange={(parentHeight) => set({ parentHeight: parentHeight.replace(/[^\d]/g, '') })}
+            placeholder="px 숫자 (예: 200)"
+          />
+        </Field>
+      </div>
     </div>
   )
 }
@@ -309,7 +275,7 @@ function OptionChips({ c, set }: { c: AdConfig; set: Set }) {
   const hideOn = c.hideEmpty && c.kind === 'adsense'
   return (
     <>
-      <h3 className="mkGroupTitle">옵션</h3>
+      <h3 className="mkGroupTitle">추가 기능</h3>
       <div className="mkChips">
         {chips.map((chip) => {
           const on = c[chip.key] && !chip.disabled
@@ -328,16 +294,15 @@ function OptionChips({ c, set }: { c: AdConfig; set: Set }) {
           )
         })}
       </div>
-      <p className="mkHint">켠 옵션의 세부 설정이 아래에 열립니다.</p>
 
       {c.label ? (
         <div className="mkOptionPanel">
           <h3 className="mkGroupTitle">AD 라벨</h3>
           <div className="mkGrid">
-            <Field label="문구" group>
+            <Field label="라벨 문구" group>
               <Choice label="라벨 문구" value={c.labelText} options={LABEL_TEXT_CHOICES} onChange={(labelText) => set({ labelText })} />
             </Field>
-            <Field label="위치" group>
+            <Field label="라벨 위치" group>
               <Segmented
                 label="라벨 위치"
                 value={c.labelPos}
@@ -358,16 +323,7 @@ function OptionChips({ c, set }: { c: AdConfig; set: Set }) {
         <div className="mkOptionPanel">
           <h3 className="mkGroupTitle">광고 없으면 숨김</h3>
           <div className="mkGrid">
-            <Field
-              label="숨기는 방식"
-              group
-              wide
-              hint={
-                c.hideMode === 'css'
-                  ? '빈 광고(ins)만 CSS로 숨깁니다. 감싼 영역의 여백은 남습니다.'
-                  : '응답을 지켜보다가 광고가 없으면 지정한 영역까지 숨기고, 있으면 펼칩니다.'
-              }
-            >
+            <Field label="숨기는 방식" group wide>
               <Segmented
                 label="숨기는 방식"
                 value={c.hideMode}
@@ -389,7 +345,7 @@ function OptionChips({ c, set }: { c: AdConfig; set: Set }) {
                     onChange={(unfilledHideSelector) => set({ unfilledHideSelector })}
                   />
                 </Field>
-                <Field label="응답 전에 접어 둘 영역" group wide hint="광고가 오기 전 빈 자리가 보이지 않게 높이 0으로 접어 둡니다.">
+                <Field label="광고가 오기 전 접어 둘 영역" group wide>
                   <Choice
                     label="응답 전에 접어 둘 영역"
                     mono
@@ -413,91 +369,43 @@ function OptionChips({ c, set }: { c: AdConfig; set: Set }) {
         </div>
       ) : null}
 
-      {c.parentFit ? (
-        <div className="mkOptionPanel">
-          <h3 className="mkGroupTitle">상위 프레임 높이 맞춤</h3>
-          <div className="mkGrid">
-            <Field
-              label="높이를 바꿀 상위 문서 요소"
-              group
-              wide
-              hint="광고 태그를 고르면 그 태그에 맞게 자동으로 채워집니다. 요소마다 따로 시도해서, 한 단계가 다른 도메인이어도 나머지는 맞춥니다."
-            >
-              <ParentAreasEditor areas={c.parentAreas} onChange={(parentAreas) => set({ parentAreas })} />
-            </Field>
-            <Field label="frameElement로 높이를 바꿀 iframe" group wide>
-              <Segmented
-                label="frameElement로 높이를 바꿀 iframe"
-                value={c.parentTarget}
-                onChange={(parentTarget) => set({ parentTarget })}
-                options={[
-                  { value: 'none', label: '바꾸지 않음' },
-                  { value: 'window', label: '광고를 감싼 iframe' },
-                  { value: 'parent', label: '그 바깥 iframe' },
-                ]}
-              />
-            </Field>
-            {c.parentTarget !== 'none' ? (
-              <Field label="iframe name" group wide hint="이 이름일 때만 높이를 바꿉니다.">
-                <Choice
-                  label="iframe name"
-                  mono
-                  value={c.parentIframeName}
-                  options={PARENT_IFRAME_NAME_CHOICES}
-                  onChange={(parentIframeName) => set({ parentIframeName })}
-                  placeholder="ad_mid"
-                />
-              </Field>
-            ) : null}
-            <Field label="높이" group wide>
-              <Choice
-                label="높이"
-                value={c.parentHeight}
-                options={PARENT_HEIGHT_CHOICES}
-                onChange={(parentHeight) => set({ parentHeight: parentHeight.replace(/[^\d]/g, '') })}
-                placeholder="px 숫자 (예: 200)"
-              />
-            </Field>
-          </div>
-        </div>
-      ) : null}
+      {c.parentFit ? <ParentFitPanel c={c} set={set} /> : null}
     </>
   )
 }
 
-function Advanced({ c, set }: { c: AdConfig; set: Set }) {
+function Advanced({ c, set, step }: { c: AdConfig; set: Set; step: number }) {
   // 접혀 있어도 켜 둔 옵션이 있는지 알 수 있게 제목 옆에 개수를 보여 준다
   const onCount = [c.label, c.lazy, c.hideEmpty && c.kind === 'adsense', c.parentFit].filter(Boolean).length
   return (
     <details className="mkSection mkAdvanced">
       <summary className="mkSectionTitle">
-        <span className="mkStep">4</span>고급 설정 {onCount ? <span className="mkOptional">옵션 {onCount}개 켜짐</span> : null}
+        <span className="mkStep">{step}</span>고급 설정 {onCount ? <span className="mkOptional">옵션 {onCount}개 켜짐</span> : null}
       </summary>
 
       <OptionChips c={c} set={set} />
 
-      <h3 className="mkGroupTitle">광고 위치 요소(_adArea) 스타일</h3>
+      <h3 className="mkGroupTitle">광고 영역 스타일</h3>
       <div className="mkGrid">
-        <Field label="너비" group>
-          <Choice label="너비" value={c.areaWidth} options={AREA_WIDTH_CHOICES} onChange={(areaWidth) => set({ areaWidth })} placeholder="320" />
+        <Field label="광고 영역 너비" group>
+          <Choice label="광고 영역 너비" value={c.areaWidth} options={AREA_WIDTH_CHOICES} onChange={(areaWidth) => set({ areaWidth })} placeholder="320" />
         </Field>
-        <Field label="여백 margin" group>
-          <Choice label="여백" value={c.areaMargin} options={AREA_MARGIN_CHOICES} onChange={(areaMargin) => set({ areaMargin })} placeholder="0 auto" />
+        <Field label="광고 영역 바깥 여백 (margin)" group>
+          <Choice label="광고 영역 바깥 여백" value={c.areaMargin} options={AREA_MARGIN_CHOICES} onChange={(areaMargin) => set({ areaMargin })} placeholder="0 auto" />
         </Field>
-        <Field label="높이" group>
-          <Choice label="높이" value={c.areaHeight} options={AREA_HEIGHT_CHOICES} onChange={(areaHeight) => set({ areaHeight })} placeholder="250" />
+        <Field label="광고 영역 높이" group>
+          <Choice label="광고 영역 높이" value={c.areaHeight} options={AREA_HEIGHT_CHOICES} onChange={(areaHeight) => set({ areaHeight })} placeholder="250" />
         </Field>
-        <Field label="광고 div class">
+        <Field label="광고를 감싼 div의 class">
           <TextInput mono value={c.boxClass} onChange={(boxClass) => set({ boxClass })} />
         </Field>
       </div>
-      <p className="mkHint">지정한 것만 코드에 들어갑니다. 숫자만 쓰면 px로 붙습니다.</p>
 
       {c.kind === 'iframe' ? (
         <>
           <h3 className="mkGroupTitle">iframe 속성</h3>
           <div className="mkGrid">
-            <Field label="scrolling" group>
+            <Field label="스크롤바 (scrolling)" group>
               <Segmented
                 label="scrolling"
                 value={c.iframeScrolling}
@@ -510,12 +418,12 @@ function Advanced({ c, set }: { c: AdConfig; set: Set }) {
                 ]}
               />
             </Field>
-            <Field label="frameborder" group>
+            <Field label="테두리 (frameborder)" group>
               <Check checked={c.iframeFrameborder} onChange={(iframeFrameborder) => set({ iframeFrameborder })}>
                 frameborder="0" 넣기
               </Check>
             </Field>
-            <Field label="referrerpolicy" group wide>
+            <Field label="리퍼러 정책 (referrerpolicy)" group wide>
               <Choice
                 label="referrerpolicy"
                 mono
@@ -524,10 +432,10 @@ function Advanced({ c, set }: { c: AdConfig; set: Set }) {
                 onChange={(iframeReferrerPolicy) => set({ iframeReferrerPolicy })}
               />
             </Field>
-            <Field label="title" group>
+            <Field label="iframe 제목 (title)" group>
               <Choice label="title" value={c.iframeTitle} options={IFRAME_TITLE_CHOICES} onChange={(iframeTitle) => set({ iframeTitle })} />
             </Field>
-            <Field label="추가 속성" hint="key=value 한 줄에 하나" wide>
+            <Field label="추가 속성 (한 줄에 key=value 하나)" wide>
               <TextArea value={c.iframeExtraAttrs} onChange={(iframeExtraAttrs) => set({ iframeExtraAttrs })} placeholder="marginwidth=0" />
             </Field>
           </div>
@@ -537,13 +445,13 @@ function Advanced({ c, set }: { c: AdConfig; set: Set }) {
       {c.kind === 'script' ? (
         <>
           <h3 className="mkGroupTitle">외부 script</h3>
-          <Field label="광고 태그 스타일" wide>
+          <Field label="광고 태그 스타일 (CSS)" wide>
             <TextInput mono value={c.scriptTagStyle} onChange={(scriptTagStyle) => set({ scriptTagStyle })} placeholder="display:block;width:100%" />
           </Field>
         </>
       ) : null}
 
-      <h3 className="mkGroupTitle">코드</h3>
+      <h3 className="mkGroupTitle">코드 옵션</h3>
       <div className="mkChecks">
         <Check checked={c.tryCatch} onChange={(tryCatch) => set({ tryCatch })}>
           try/catch로 감싸기
@@ -554,30 +462,34 @@ function Advanced({ c, set }: { c: AdConfig; set: Set }) {
       </div>
 
       <h3 className="mkGroupTitle">추가 CSS</h3>
-      <TextArea value={c.extraCss} onChange={(extraCss) => set({ extraCss })} rows={3} placeholder=".my-ad{margin:0 auto;}" />
+      <Field label="광고와 함께 넣을 CSS">
+        <TextArea value={c.extraCss} onChange={(extraCss) => set({ extraCss })} rows={3} placeholder=".my-ad{margin:0 auto;}" />
+      </Field>
     </details>
   )
 }
 
 export function ConfigForm({ config, onChange }: { config: AdConfig; onChange: Set }) {
+  const sizeStep = hasSizeStep(config)
+  const tagStep = sizeStep ? 3 : 2
   return (
     <div className="mkForm">
-      <TagFill set={onChange} />
+      <SourceField c={config} set={onChange} />
+      {sizeStep ? (
+        <section className="mkSection">
+          <h2 className="mkSectionTitle">
+            <span className="mkStep">2</span>크기
+          </h2>
+          <SizeField c={config} set={onChange} />
+        </section>
+      ) : null}
       <section className="mkSection">
         <h2 className="mkSectionTitle">
-          <span className="mkStep">2</span>광고 태그
+          <span className="mkStep">{tagStep}</span>광고 위치 <span className="mkOptional">선택</span>
         </h2>
         <AdTagField c={config} set={onChange} />
       </section>
-      <section className="mkSection">
-        <h2 className="mkSectionTitle">
-          <span className="mkStep">3</span>광고 종류
-        </h2>
-        <Segmented label="광고 종류" value={config.kind} options={KIND_OPTIONS} onChange={(kind) => onChange({ kind })} />
-        <p className="mkHint">{KIND_DESCRIPTIONS[config.kind]}</p>
-        <KindFields c={config} set={onChange} />
-      </section>
-      <Advanced c={config} set={onChange} />
+      <Advanced c={config} set={onChange} step={tagStep + 1} />
     </div>
   )
 }

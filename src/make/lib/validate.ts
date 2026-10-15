@@ -1,4 +1,5 @@
 import { type AdConfig, needsSize } from '../config'
+import { parseTag } from './parseTag'
 
 export type WarningLevel = 'error' | 'warn' | 'info'
 
@@ -32,24 +33,30 @@ function checkUrl(label: string, url: string, out: Warning[]) {
 export function validate(c: AdConfig): Warning[] {
   const out: Warning[] = []
 
+  // 태그가 없거나 인식하지 못하면 나머지 값은 아직 의미가 없다
+  if (!c.source.trim()) return [{ level: 'error', message: '광고 업체가 준 태그를 붙여넣으세요.' }]
+  if (!parseTag(c.source)) {
+    return [{ level: 'error', message: '태그를 인식하지 못했습니다. 업체가 준 HTML 태그나 광고 URL을 그대로 붙여넣으세요.' }]
+  }
+
   if (needsSize(c)) {
     const w = parseInt(c.width, 10)
     const h = parseInt(c.height, 10)
-    if (!(w > 0) || !(h > 0)) out.push({ level: 'error', message: '크기(W×H)를 입력하세요.' })
+    if (!(w > 0) || !(h > 0)) out.push({ level: 'error', message: '크기(W×H)를 고르세요. 태그에서 크기를 찾지 못했습니다.' })
   }
 
   if (c.kind === 'iframe') {
-    if (!c.iframeUrl.trim()) out.push({ level: 'error', message: 'iframe URL을 입력하세요.' })
+    if (!c.iframeUrl.trim()) out.push({ level: 'error', message: '태그의 iframe에 src가 없습니다.' })
     checkUrl('iframe URL', c.iframeUrl, out)
   }
 
   if (c.kind === 'adsense') {
     if (!/^ca-pub-\d+$/.test(c.adClient.trim())) {
-      out.push({ level: 'error', message: '애드센스 client는 ca-pub-숫자 형식이어야 합니다.' })
+      out.push({ level: 'error', message: '태그의 data-ad-client가 ca-pub-숫자 형식이 아닙니다.' })
     }
-    if (!c.adSlot.trim()) out.push({ level: 'error', message: '애드센스 slot을 입력하세요.' })
+    if (!c.adSlot.trim()) out.push({ level: 'error', message: '태그에 data-ad-slot이 없습니다.' })
     if (c.adFormat === 'infeed' && !c.adLayoutKey.trim()) {
-      out.push({ level: 'error', message: '인피드 형식은 layout-key가 필요합니다.' })
+      out.push({ level: 'error', message: '인피드 광고인데 태그에 data-ad-layout-key가 없습니다.' })
     }
   }
 
@@ -85,12 +92,7 @@ export function validate(c: AdConfig): Warning[] {
   if (c.parentFit) {
     const hasAreas = c.parentAreas.some((a) => a.selector.trim())
     if (c.parentTarget === 'none' && !hasAreas) {
-      out.push({ level: 'warn', message: '상위 프레임 높이 맞춤: 높이를 바꿀 iframe도, 상위 문서 요소도 없어 아무것도 바꾸지 않습니다.' })
-    } else if (c.parentTarget !== 'none' && !hasAreas && !c.parentIframeName.trim()) {
-      out.push({
-        level: 'warn',
-        message: '상위 프레임 높이 맞춤: 상위 문서 요소와 iframe name이 둘 다 없어 frameElement를 이름 확인 없이 바꿉니다.',
-      })
+      out.push({ level: 'warn', message: '상위 프레임 높이 맞춤: 높이를 맞출 요소의 선택자를 입력하세요.' })
     }
     out.push({ level: 'info', message: '상위 문서가 다른 도메인이면 높이 맞춤은 건너뜁니다(오류 없이 무시).' })
   }

@@ -23,10 +23,13 @@ export type NewIssueAlert = {
 
 export type SlotAlert = {
   adTag: string
-  kind: 'down' | 'recovered'
+  /** bounced: 같은 묶음 안에서 끊겼다가 다시 나옴 */
+  kind: 'down' | 'recovered' | 'bounced'
 }
 
 export type TargetAlerts = {
+  /** 판정한 실행 중 가장 이른 것 */
+  firstCheckedAt: string
   /** 판정 기준이 된 마지막 실행 */
   latestCheckedAt: string
   /** 비교할 기록이 모자라 새 오류 판정을 건너뛰었는지 */
@@ -53,38 +56,45 @@ function messagesOf(entry: MonitorHistoryEntry): EntryMessage[] {
 }
 
 /**
- * 마지막 실행에서 처음 잡힌 오류.
+ * startIndex 이후 실행에서 처음 잡힌 오류.
  *
  * 「처음」은 이 지면의 전체 기록 기준이다(생애주기의 firstSeenDay 와 같은 기준).
  * 비교할 이전 기록이 며칠 치 안 되면 전부 처음으로 보이므로 판정하지 않는다.
  * 「무시 가능」 단계는 광고사·브라우저가 남긴 기록이라 알리지 않는다.
  */
-function detectNewIssues(sorted: MonitorHistoryEntry[]): { skipped: boolean; items: NewIssueAlert[] } {
-  const latest = sorted[sorted.length - 1]
-  const previous = sorted.slice(0, -1)
-
-  const previousDays = new Set(previous.map((it) => it.checkedAt.slice(0, 10)))
-  if (previousDays.size < LIFECYCLE_MIN_OBSERVED_DAYS) return { skipped: true, items: [] }
-
+function detectNewIssues(
+  sorted: MonitorHistoryEntry[],
+  startIndex: number,
+): { skipped: boolean; items: NewIssueAlert[] } {
+  const previousDays = new Set(sorted.slice(0, startIndex).map((it) => it.checkedAt.slice(0, 10)))
   const seen = new Set<string>()
-  for (const entry of previous) {
+  for (const entry of sorted.slice(0, startIndex)) {
     for (const m of messagesOf(entry)) seen.add(lifecycleKeyFromMessage(m.text).key)
   }
 
+  // 묶음 안의 실행을 차례로 「마지막 실행」으로 보고 판정한다. 앞 실행에서 처음 나온 오류는
+  // 뒤 실행에서는 이미 본 것이 되므로 묶음 안에서 한 번만 실린다.
+  let skipped = true
   const found = new Map<string, NewIssueAlert>()
-  for (const m of messagesOf(latest)) {
-    const info = lifecycleKeyFromMessage(m.text)
-    if (seen.has(info.key) || found.has(info.key)) continue
-    if (info.explainLevel === 'noise') continue
-    found.set(info.key, {
-      key: info.key,
-      label: info.label,
-      explainLevel: info.explainLevel,
-      sampleText: m.text,
-      sourceUrl: m.sourceUrl,
-    })
+  for (const entry of sorted.slice(startIndex)) {
+    const judgeable = previousDays.size >= LIFECYCLE_MIN_OBSERVED_DAYS
+    if (judgeable) skipped = false
+    for (const m of messagesOf(entry)) {
+      const info = lifecycleKeyFromMessage(m.text)
+      if (seen.has(info.key)) continue
+      seen.add(info.key)
+      if (!judgeable || info.explainLevel === 'noise') continue
+      found.set(info.key, {
+        key: info.key,
+        label: info.label,
+        explainLevel: info.explainLevel,
+        sampleText: m.text,
+        sourceUrl: m.sourceUrl,
+      })
+    }
+    previousDays.add(entry.checkedAt.slice(0, 10))
   }
-  return { skipped: false, items: Array.from(found.values()) }
+  return { skipped, items: Array.from(found.values()) }
 }
 
 /**
@@ -105,7 +115,7 @@ function slotStateOf(entry: MonitorHistoryEntry): Map<string, boolean> {
  * 다시 나온 실행에서만 알린다. 원래부터 비어 있던 칸은 「나오던」 실행이 없어 알리지 않는다.
  * 광고칸 기록이 없는 실행(2026-10 이전)은 건너뛰고, 기록이 있는 실행끼리만 연속을 센다.
  */
-function detectSlotAlerts(sorted: MonitorHistoryEntry[]): SlotAlert[] {
+function detectSlotAlertsAt(sorted: MonitorHistoryEntry[]): SlotAlert[] {
   const latest = sorted[sorted.length - 1]
   if (!latest.adSlots?.length) return []
   const withSlots = sorted.filter((it) => it.adSlots?.length).map(slotStateOf)
@@ -131,14 +141,42 @@ function detectSlotAlerts(sorted: MonitorHistoryEntry[]): SlotAlert[] {
   return alerts.sort((a, b) => a.adTag.localeCompare(b.adTag))
 }
 
-export function detectTargetAlerts(historyItems: MonitorHistoryEntry[]): TargetAlerts | null {
+/** 묶음 안의 실행마다 광고칸 전이를 보고, 태그별로 묶음 전체의 결과 하나로 줄인다 */
+function detectSlotAlerts(sorted: MonitorHistoryEntry[], startIndex: number): SlotAlert[] {
+  const byTag = new Map<string, SlotAlert['kind']>()
+  for (let i = startIndex; i < sorted.length; i++) {
+    for (const alert of detectSlotAlertsAt(sorted.slice(0, i + 1))) {
+      const prev = byTag.get(alert.adTag)
+      const kind = alert.kind === 'recovered' && (prev === 'down' || prev === 'bounced') ? 'bounced' : alert.kind
+      byTag.set(alert.adTag, kind)
+    }
+  }
+  return Array.from(byTag, ([adTag, kind]) => ({ adTag, kind })).sort((a, b) => a.adTag.localeCompare(b.adTag))
+}
+
+/**
+ * since 보다 뒤에 실행된 기록을 한 묶음으로 판정한다(팀룸은 하루 두 번만 보내므로 그 사이 실행을 모은다).
+ * since 가 없으면 마지막 실행 하나만 본다.
+ */
+export function detectTargetAlerts(
+  historyItems: MonitorHistoryEntry[],
+  { since }: { since?: string } = {},
+): TargetAlerts | null {
   const sorted = sortByCheckedAt(historyItems)
   if (!sorted.length) return null
-  const newIssues = detectNewIssues(sorted)
+  const sinceMs = since ? Date.parse(since) : NaN
+  let startIndex = sorted.length - 1
+  if (Number.isFinite(sinceMs)) {
+    const idx = sorted.findIndex((it) => Date.parse(it.checkedAt) > sinceMs)
+    if (idx === -1) return null
+    startIndex = idx
+  }
+  const newIssues = detectNewIssues(sorted, startIndex)
   return {
+    firstCheckedAt: sorted[startIndex].checkedAt,
     latestCheckedAt: sorted[sorted.length - 1].checkedAt,
     newIssuesSkipped: newIssues.skipped,
     newIssues: newIssues.items,
-    slots: detectSlotAlerts(sorted),
+    slots: detectSlotAlerts(sorted, startIndex),
   }
 }

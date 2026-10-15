@@ -1,14 +1,13 @@
 import { useState, type ReactNode } from 'react'
 
+/** 항목 하나. 처음 쓰는 사람도 알 수 있게 제목은 항상 보인다 (설명 문구는 두지 않음) */
 export function Field({
   label,
-  hint,
   children,
   wide,
   group,
 }: {
   label: string
-  hint?: ReactNode
   children: ReactNode
   wide?: boolean
   /** 버튼 여러 개를 담을 때. <label> 이면 글자를 눌렀을 때 첫 버튼이 눌린다 */
@@ -19,7 +18,6 @@ export function Field({
     <>
       <span className="mkFieldLabel">{label}</span>
       {children}
-      {hint ? <span className="mkHint">{hint}</span> : null}
     </>
   )
   return group ? (
