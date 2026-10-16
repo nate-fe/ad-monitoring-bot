@@ -5,6 +5,8 @@
     var TIMEOUT = 3000;
     var googleAlternateAdUrl = location.protocol+'//cyad1.nate.com/html.kti/mnate/google@house_x13'
 
+    var $ad_view = document.getElementById('ad_innerView');
+    
     setTimeout(function() {
         var host = document.querySelector('div[id^="aswift_"][id$="_host"]');
 
@@ -12,7 +14,8 @@
 
         if (!empty) return;
 
-        var target = host ? host.parentNode : document.body;
+        var target = $ad_view;
+        if (!target) return;
         var url = googleAlternateAdUrl;
 
         var f = document.createElement('iframe');
@@ -29,7 +32,6 @@
         target.appendChild(f);
     }, TIMEOUT);
 
-    var $ad_view = document.getElementById('ad_innerView');
     if($ad_view) {
       var _css = 'div.news_view div.view_cont #ad_innerView {margin:0 auto;} #ad_innerView{width:320px;height:auto;text-align:center;position:relative;}.ad_inner_view_box{position:absolute;top:0;left:10px;width:28px;height:18px;border:1px solid rgba(255,255,255,0.2);background:rgba(0,0,0,0.5);font-size:12px;font-weight:500;color:#fff !important;line-height:18px !important;z-index:1;}#ad_innerView ins.adsbygoogle[data-ad-status="unfilled"] {display:block !important}',
           _style = document.createElement('style');

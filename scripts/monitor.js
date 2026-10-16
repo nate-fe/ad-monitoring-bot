@@ -1050,6 +1050,30 @@ async function collectAdSlotGeometry(page) {
 }
 
 /**
+ * 캡쳐 전·후 두 번 잰 광고칸을 합친다. 한 번이라도 그려졌으면 그려진 것으로 본다.
+ *
+ * 한 번만 재면 그 순간 아직 안 뜬 칸(화면에 들어와야 불러오는 위젯, 뷰포트가 바뀌어야 다시 채우는
+ * 애드센스 등)이 캡쳐에는 멀쩡히 보이는데 미노출로 남는다. 같은 점수면 먼저 잰 쪽을 둔다.
+ */
+function mergeAdSlotMeasurements(before, after) {
+  if (!before?.length) return after
+  if (!after?.length) return before
+  const score = (slot) => (slot.measurable ? (slot.rendered ? 2 : 1) : 0)
+  const byTag = new Map()
+  const lateRendered = []
+  for (const slot of [...before, ...after]) {
+    const key = `${slot.source}:${slot.adTag}`
+    const prev = byTag.get(key)
+    if (prev && score(slot) === 2 && score(prev) === 1) lateRendered.push(slot.adTag)
+    if (!prev || score(slot) > score(prev)) byTag.set(key, slot)
+  }
+  if (lateRendered.length) {
+    console.log(`[adSlots] 캡쳐 뒤 다시 재서 노출로 확인된 칸: ${lateRendered.join(', ')}`)
+  }
+  return [...byTag.values()]
+}
+
+/**
  * 리포트를 만든 바로 그 세션에서 페이지 맨 위부터 맨 아래까지 찍는다(별도 재방문이 아니므로 checkedAt 과 같은 순간).
  * 한 장에 안 들어가는 긴 지면만 위에서부터 구간을 나눈다.
  * 하단 앵커 광고·고정 네비는 본문을 가리므로 캡쳐 동안 감춘다.
@@ -1549,6 +1573,9 @@ async function main() {
           screenshot = { ...captured, viewport }
         }
       }
+
+      // 캡쳐하는 몇 초 사이에 뜬 칸을 놓치지 않도록 한 번 더 잰다(앵커 감춤은 캡쳐 함수가 이미 되돌렸다)
+      adSlots = mergeAdSlotMeasurements(adSlots, await collectAdSlotGeometry(page))
 
       const capturedConsoleMessages = await page.evaluate(() => {
         const key = '__adMonitorConsoleMessages__'
