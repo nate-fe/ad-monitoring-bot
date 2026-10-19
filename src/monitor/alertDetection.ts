@@ -23,8 +23,12 @@ export type NewIssueAlert = {
 
 export type SlotAlert = {
   adTag: string
+  /** 다른 광고사 칸이면 그 칸을 띄운 네이트 광고태그(`지면@슬롯`) */
+  parentAdTag?: string
   /** bounced: 같은 묶음 안에서 끊겼다가 다시 나옴 */
   kind: 'down' | 'recovered' | 'bounced'
+  /** 연속으로 미노출이었던 실행 시각(오래된 것부터). 다시 나온 경우엔 끊겼던 동안 전부 */
+  missedAt: string[]
 }
 
 export type TargetAlerts = {
@@ -101,13 +105,21 @@ function detectNewIssues(
  * 광고태그별 노출 여부. 같은 태그가 여러 칸이면 하나라도 나오면 노출로 본다.
  * 잴 수 없었던 칸(measurable: false)은 미노출이 아니므로 판정에서 뺀다(undefined).
  */
-function slotStateOf(entry: MonitorHistoryEntry): Map<string, boolean> {
-  const map = new Map<string, boolean>()
+type SlotRun = {
+  checkedAt: string
+  states: Map<string, boolean>
+  parents: Map<string, string>
+}
+
+function slotRunOf(entry: MonitorHistoryEntry): SlotRun {
+  const states = new Map<string, boolean>()
+  const parents = new Map<string, string>()
   for (const slot of entry.adSlots ?? []) {
+    if (slot.parentAdTag) parents.set(slot.adTag, slot.parentAdTag)
     if (!slot.measurable) continue
-    map.set(slot.adTag, (map.get(slot.adTag) ?? false) || slot.rendered)
+    states.set(slot.adTag, (states.get(slot.adTag) ?? false) || slot.rendered)
   }
-  return map
+  return { checkedAt: entry.checkedAt, states, parents }
 }
 
 /**
@@ -118,24 +130,28 @@ function slotStateOf(entry: MonitorHistoryEntry): Map<string, boolean> {
 function detectSlotAlertsAt(sorted: MonitorHistoryEntry[]): SlotAlert[] {
   const latest = sorted[sorted.length - 1]
   if (!latest.adSlots?.length) return []
-  const withSlots = sorted.filter((it) => it.adSlots?.length).map(slotStateOf)
+  const runs = sorted.filter((it) => it.adSlots?.length).map(slotRunOf)
   const needed = SLOT_DOWN_STREAK + 1
 
   const alerts: SlotAlert[] = []
-  for (const adTag of withSlots[withSlots.length - 1].keys()) {
+  for (const adTag of runs[runs.length - 1].states.keys()) {
     // 이 태그를 잴 수 있었던 실행끼리만 잇는다 — 중간에 한 번 못 잰 것으로 연속이 끊기지 않게
-    const states = withSlots
-      .map((m) => m.get(adTag))
-      .filter((s): s is boolean => s !== undefined)
-      .slice(-needed)
-    if (states.length < needed) continue
-    const first = states[0]
-    const latestState = states[states.length - 1]
+    const measured = runs
+      .filter((r) => r.states.has(adTag))
+      .map((r) => ({ checkedAt: r.checkedAt, rendered: r.states.get(adTag) === true }))
+    const recent = measured.slice(-needed)
+    if (recent.length < needed) continue
+    // 광고태그 기록이 생기기 전 실행도 섞여 있으므로 가장 최근에 남은 것을 쓴다
+    const parentAdTag = [...runs].reverse().find((r) => r.parents.has(adTag))?.parents.get(adTag)
+    const base = { adTag, ...(parentAdTag ? { parentAdTag } : {}) }
 
-    if (first === true && states.slice(1).every((s) => s === false)) {
-      alerts.push({ adTag, kind: 'down' })
-    } else if (latestState === true && states.slice(0, -1).every((s) => s === false)) {
-      alerts.push({ adTag, kind: 'recovered' })
+    if (recent[0].rendered && recent.slice(1).every((s) => !s.rendered)) {
+      alerts.push({ ...base, kind: 'down', missedAt: recent.slice(1).map((s) => s.checkedAt) })
+    } else if (recent[recent.length - 1].rendered && recent.slice(0, -1).every((s) => !s.rendered)) {
+      // 끊겼던 동안 전부(SLOT_DOWN_STREAK 회보다 길 수 있다)
+      let from = measured.length - 1
+      while (from > 0 && !measured[from - 1].rendered) from -= 1
+      alerts.push({ ...base, kind: 'recovered', missedAt: measured.slice(from, -1).map((s) => s.checkedAt) })
     }
   }
   return alerts.sort((a, b) => a.adTag.localeCompare(b.adTag))
@@ -143,15 +159,15 @@ function detectSlotAlertsAt(sorted: MonitorHistoryEntry[]): SlotAlert[] {
 
 /** 묶음 안의 실행마다 광고칸 전이를 보고, 태그별로 묶음 전체의 결과 하나로 줄인다 */
 function detectSlotAlerts(sorted: MonitorHistoryEntry[], startIndex: number): SlotAlert[] {
-  const byTag = new Map<string, SlotAlert['kind']>()
+  const byTag = new Map<string, SlotAlert>()
   for (let i = startIndex; i < sorted.length; i++) {
     for (const alert of detectSlotAlertsAt(sorted.slice(0, i + 1))) {
-      const prev = byTag.get(alert.adTag)
+      const prev = byTag.get(alert.adTag)?.kind
       const kind = alert.kind === 'recovered' && (prev === 'down' || prev === 'bounced') ? 'bounced' : alert.kind
-      byTag.set(alert.adTag, kind)
+      byTag.set(alert.adTag, { ...alert, kind })
     }
   }
-  return Array.from(byTag, ([adTag, kind]) => ({ adTag, kind })).sort((a, b) => a.adTag.localeCompare(b.adTag))
+  return Array.from(byTag.values()).sort((a, b) => a.adTag.localeCompare(b.adTag))
 }
 
 /**

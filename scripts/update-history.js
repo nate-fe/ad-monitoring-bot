@@ -142,11 +142,12 @@ function summarize(report) {
   const adSlots = Array.isArray(rawSlots)
     ? rawSlots
         .filter((s) => s && typeof s.adTag === 'string' && s.adTag)
-        .map((s) =>
-          s.measurable
-            ? { adTag: s.adTag, measurable: true, rendered: Boolean(s.rendered) }
-            : { adTag: s.adTag, measurable: false },
-        )
+        .map((s) => {
+          const parent = typeof s.parentAdTag === 'string' && s.parentAdTag ? { parentAdTag: s.parentAdTag } : {}
+          return s.measurable
+            ? { adTag: s.adTag, ...parent, measurable: true, rendered: Boolean(s.rendered) }
+            : { adTag: s.adTag, ...parent, measurable: false }
+        })
     : []
 
   /** 화면 전체 캡쳐는 파일 경로 메타만 옮긴다(이미지는 screenshots/ 에, 보존 기간이 지나면 링크가 끊긴다). */

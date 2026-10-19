@@ -144,26 +144,6 @@ export function Check({ checked, onChange, children }: { checked: boolean; onCha
   )
 }
 
-export function Select<T extends string>({
-  value,
-  options,
-  onChange,
-}: {
-  value: T
-  options: { value: T; label: string }[]
-  onChange: (v: T) => void
-}) {
-  return (
-    <select className="mkInput" value={value} onChange={(e) => onChange(e.target.value as T)}>
-      {options.map((o) => (
-        <option key={o.value} value={o.value}>
-          {o.label}
-        </option>
-      ))}
-    </select>
-  )
-}
-
 /**
  * 자주 쓰는 값을 칩으로 고르고, 목록에 없으면 "직접 입력"으로 넣는다.
  * 값이 목록에 없으면(태그로 채우기 등) 자동으로 직접 입력 상태로 보인다.

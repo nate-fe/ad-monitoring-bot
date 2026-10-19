@@ -45,12 +45,6 @@ const DEFAULT_IGNORE_ERROR_PATTERNS = [
   "Cannot read properties of null (reading 'getBoundingClientRect') https://cyad1.nate.com/js.kti/mnate/mob@pann_Middle1",
 ]
 
-function safeSnippet(s, maxLen = 120) {
-  const oneLine = String(s).replaceAll(/\s+/g, ' ').trim()
-  if (oneLine.length <= maxLen) return oneLine
-  return `${oneLine.slice(0, maxLen - 1)}…`
-}
-
 function extractHttpUrlFromText(text) {
   const m = String(text).match(/https?:\/\/[^\s)\]}>'"]+/i)
   return m ? m[0] : undefined
@@ -853,6 +847,50 @@ async function collectAdSlotGeometry(page) {
         const MEDIA_SELECTOR = 'iframe,img,ins,canvas,video,object,embed'
         const slots = []
 
+        /** 광고태그는 `지면@슬롯` 꼴이다. @ 가 없으면 공통 로더·수집 스크립트라 빈 문자열 */
+        const cyadTagOf = (script) => {
+          try {
+            const tag = decodeURIComponent(new URL(script.src).pathname.split('/').filter(Boolean).pop() ?? '')
+            return tag.includes('@') ? tag : ''
+          } catch {
+            return ''
+          }
+        }
+
+        /**
+         * 다른 광고사 칸(애드센스·데이블 등)을 띄운 네이트 광고태그.
+         *
+         * 모바일은 광고태그 스크립트가 칸 바로 옆에 있다. PC 는 지면이 광고 iframe(AdRightTop 등)을
+         * 따로 띄우고 그 문서 안에 광고태그를 넣어서, 칸 → 그 칸이 든 iframe 순으로 거슬러 올라간다.
+         * 광고 iframe 하나가 광고 자리 하나라, 안에 태그가 여럿이면(패스백으로 이어 부름) 전부 적는다.
+         * 최상위 문서에는 서로 다른 자리의 광고태그가 섞여 있어 옆에서 못 찾으면 추측하지 않는다.
+         */
+        const enclosingAdTag = (el) => {
+          let node = el
+          for (let depth = 0; node && depth <= MAX_FRAME_DEPTH; depth += 1) {
+            const doc = node.ownerDocument
+            for (let n = node; n && n !== doc.body && n !== doc.documentElement; n = n.parentElement) {
+              for (const script of n.querySelectorAll(`:scope > ${scriptSelector}`)) {
+                const tag = cyadTagOf(script)
+                if (tag) return tag
+              }
+            }
+            if (doc === document) return ''
+            const tags = new Set([...doc.querySelectorAll(scriptSelector)].map(cyadTagOf).filter(Boolean))
+            if (tags.size) return [...tags].join(', ')
+            try {
+              node = doc.defaultView?.frameElement ?? null
+            } catch {
+              node = null
+            }
+          }
+          return ''
+        }
+        const withParentTag = (el) => {
+          const parentAdTag = enclosingAdTag(el)
+          return parentAdTag ? { parentAdTag } : {}
+        }
+
         const measure = (box, origin, win) => {
           const rect = box.getBoundingClientRect()
           const sx = win.scrollX || 0
@@ -913,16 +951,8 @@ async function collectAdSlotGeometry(page) {
           if (depth > MAX_FRAME_DEPTH) return
 
           for (const script of doc.querySelectorAll(scriptSelector)) {
-            let adTag = ''
-            try {
-              adTag = decodeURIComponent(
-                new URL(script.src).pathname.split('/').filter(Boolean).pop() ?? '',
-              )
-            } catch {
-              continue
-            }
-            // 광고태그는 `지면@슬롯` 꼴이다. @ 가 없으면 공통 로더·수집 스크립트다.
-            if (!adTag.includes('@')) continue
+            const adTag = cyadTagOf(script)
+            if (!adTag) continue
 
             const box = script.parentElement
             if (!box || box === doc.head || box === doc.body) {
@@ -962,7 +992,7 @@ async function collectAdSlotGeometry(page) {
                 if (status === 'unfilled') measured.rendered = false
                 else if (status === 'filled') measured.rendered = true
 
-                slots.push({ adTag: identity || rule.source, source: rule.source, ...measured })
+                slots.push({ adTag: identity || rule.source, source: rule.source, ...withParentTag(el), ...measured })
               }
               continue
             }
@@ -994,7 +1024,7 @@ async function collectAdSlotGeometry(page) {
                 })
                 continue
               }
-              slots.push({ adTag: rule.source, source: rule.source, ...measure(box, origin, win) })
+              slots.push({ adTag: rule.source, source: rule.source, ...withParentTag(box), ...measure(box, origin, win) })
             }
           }
 

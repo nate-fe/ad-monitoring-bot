@@ -109,6 +109,8 @@ export type AdSlotVisibility =
   | {
       adTag: string
       source: AdSlotSource
+      /** 다른 광고사 칸을 띄운 네이트 광고태그(`지면@슬롯`). 못 찾았거나 cyad 칸이면 없음 */
+      parentAdTag?: string
       measurable: true
       /** 컨테이너 높이가 있고 소재가 1개 이상 */
       rendered: boolean
@@ -237,7 +239,8 @@ export type MonitorHistoryEntry = {
   adSlots?: MonitorHistoryAdSlot[]
 }
 
-export type MonitorHistoryAdSlot =
-  | { adTag: string; measurable: false }
-  | { adTag: string; measurable: true; rendered: boolean }
+export type MonitorHistoryAdSlot = { adTag: string; parentAdTag?: string } & (
+  | { measurable: false }
+  | { measurable: true; rendered: boolean }
+)
 

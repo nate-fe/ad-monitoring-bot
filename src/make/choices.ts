@@ -21,8 +21,6 @@ export const SIZE_CHOICES: ChoiceOption[] = [
   { value: '160x600', label: '160×600' },
 ]
 
-export const ADSENSE_CLIENT_CHOICES: ChoiceOption[] = [{ value: NATE_ADSENSE_CLIENT, label: `네이트 (${NATE_ADSENSE_CLIENT})` }]
-
 export const FOLD_CHOICES: ChoiceOption[] = [
   { value: '', label: '접지 않음' },
   { value: '.feed-item.ad', label: '.feed-item.ad' },

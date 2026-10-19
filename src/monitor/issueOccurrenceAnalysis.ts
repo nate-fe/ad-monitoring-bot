@@ -281,17 +281,6 @@ export function collectIssueEvents(
     .sort((a, b) => a.checkedAt.localeCompare(b.checkedAt))
 }
 
-export function listMonthsWithIssueEvents(
-  historyItems: MonitorHistoryEntry[],
-  currentReport: MonitorReport | null,
-): string[] {
-  const set = new Set<string>()
-  for (const e of collectIssueEvents(historyItems, currentReport)) {
-    if (e.monthKey) set.add(e.monthKey)
-  }
-  return Array.from(set).sort((a, b) => b.localeCompare(a))
-}
-
 export type MonitorRunRef = {
   checkedAt: string
   monthKey: string
@@ -762,13 +751,6 @@ export function buildMediaOccurrenceAnalysis(
   }
 }
 
-export type OccurrenceDateGroup = {
-  dateKey: string
-  dateLabel: string
-  times: string[]
-  count: number
-}
-
 export function formatOccurrenceDateLabel(iso: string) {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return iso
@@ -778,45 +760,3 @@ export function formatOccurrenceDateLabel(iso: string) {
   return `${yy}년 ${month}월 ${day}일`
 }
 
-export function formatOccurrenceTimeLabel(iso: string) {
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return iso
-  const hour = String(d.getHours()).padStart(2, '0')
-  const minute = String(d.getMinutes()).padStart(2, '0')
-  return `${hour}:${minute}`
-}
-
-/** 타임라인용: 날짜별 시각 목록 + 건수 */
-export function groupOccurrencesByDate(occurrences: UrlOccurrenceTimelineItem[]): OccurrenceDateGroup[] {
-  const map = new Map<string, { dateLabel: string; items: { checkedAt: string; time: string }[] }>()
-
-  for (const occ of occurrences) {
-    const dateKey = occurrenceDayKeyFromCheckedAt(occ.checkedAt)
-    if (!dateKey) continue
-    const cur = map.get(dateKey) ?? {
-      dateLabel: formatOccurrenceDateLabel(occ.checkedAt),
-      items: [],
-    }
-    cur.items.push({
-      checkedAt: occ.checkedAt,
-      time: formatOccurrenceTimeLabel(occ.checkedAt),
-    })
-    map.set(dateKey, cur)
-  }
-
-  return [...map.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([dateKey, value]) => {
-      const items = [...value.items].sort((a, b) => a.checkedAt.localeCompare(b.checkedAt))
-      return {
-        dateKey,
-        dateLabel: value.dateLabel,
-        times: items.map((item) => item.time),
-        count: items.length,
-      }
-    })
-}
-
-export function formatOccurrenceTimelineLabel(iso: string) {
-  return `${formatOccurrenceDateLabel(iso)} - ${formatOccurrenceTimeLabel(iso)}`
-}

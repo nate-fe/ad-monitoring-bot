@@ -136,28 +136,6 @@ const KIND_KEYS = [
 
 export const KIND_DEFAULTS = Object.fromEntries(KIND_KEYS.map((k) => [k, DEFAULT_CONFIG[k]])) as Partial<AdConfig>
 
-export const KIND_LABELS: Record<AdKind, string> = {
-  iframe: 'iframe',
-  adsense: '애드센스',
-  script: '외부 script',
-  raw: '원본 태그',
-}
-
-/** 붙여넣은 태그를 인식한 결과 아래에 보여 주는 설명 */
-export const KIND_DESCRIPTIONS: Record<AdKind, string> = {
-  iframe: '업체가 준 광고 URL을 iframe으로 넣습니다.',
-  adsense: '구글 애드센스 광고(ins 태그)를 넣고 adsbygoogle.js를 불러옵니다.',
-  script: '업체 스크립트(SDK)를 불러온 뒤 광고 태그를 그리게 합니다.',
-  raw: 'document.write 등 업체가 준 태그를 고치지 않고 iframe 안에서 그대로 실행합니다.',
-}
-
-export const FORMAT_LABELS: Record<AdsenseFormat, string> = {
-  fixed: '고정',
-  responsive: '반응형',
-  inarticle: '인아티클',
-  infeed: '인피드',
-}
-
 /** 크기(W×H)를 반드시 써야 하는 광고인지 */
 export function needsSize(c: AdConfig): boolean {
   if (c.kind === 'iframe' || c.kind === 'raw') return true

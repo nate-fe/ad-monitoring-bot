@@ -4,23 +4,19 @@
     _div.setAttribute('id', 'dablewidget_GlYqmWal');
     _div.setAttribute('data-dable-widget', 'GlYqmWal');
     _body.appendChild(_div);
+    _body.style.margin = '0';
+    _body.style.padding = '0';
 
     var _script = document.createElement('script');
     _script.innerHTML = `
     (function(d,a,b,l,e,r) {
-        if(d[b]&&d[b].q)return;d[b]=function()
+if(d[b]&&d[b].q)return;d[b]=function(){(d[b].q=d[b].q||[]).push(arguments)};e=a.createElement(l);
+e.async=1;e.charset='utf-8';e.src='//static.dable.io/dist/plugin.min.js';
+r=a.getElementsByTagName(l)[0];r.parentNode.insertBefore(e,r);
 
-        {(d[b].q=d[b].q||[]).push(arguments)}
-        ;e=a.createElement(l);
-        e.async=1;e.charset='utf-8';e.src='//static.dable.io/dist/plugin.min.js';
-        r=a.getElementsByTagName(l)[0];r.parentNode.insertBefore(e,r);
-
-        })(window,document,'dable','script');
-        dable('setService', 'news.nate.com');
-        dable('renderWidget', 'dablewidget_GlYqmWal',
-
-        {ignore_items: true}
-        );
+})(window,document,'dable','script');
+dable('setService', 'news.nate.com');
+dable('renderWidget', 'dablewidget_GlYqmWal', {ignore_items: true});
     `;
     
     _div.appendChild(_script);

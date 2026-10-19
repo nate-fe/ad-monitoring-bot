@@ -209,13 +209,6 @@ export function formatDayKeyShortLabel(dayKey: string): string {
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
-export type MonthlyStackSeries = {
-  key: string
-  label: string
-  colorIndex: number
-  data: { x: string; y: number }[]
-}
-
 /** 일·월 버킷 한 칸: 막대는 오류/경고 개수만, byAd는 툴팁용 */
 export type ConsoleHistoryBucketPoint = {
   x: string
@@ -235,17 +228,6 @@ export type DailyConsoleAdChartModel = {
   points: ConsoleHistoryBucketPoint[]
   hasAnyConsoleSample: boolean
 }
-
-export const MONTHLY_AD_CHART_FILLS = [
-  '#7c88ff',
-  '#52d1ff',
-  '#f97316',
-  '#22c55e',
-  '#a78bfa',
-  '#fb7185',
-  '#eab308',
-  '#64748b',
-] as const
 
 function buildConsoleAdChartByBucket(
   items: MonitorHistoryEntry[],
@@ -422,62 +404,3 @@ export function buildDailyPerformanceChartModel(
   return { dayKeys, points, hasAnyPerformanceSample }
 }
 
-/** 모니터 실행 시점에 잡힌 오류·경고 1건 이상이 있는 기록(페이지 오류·콘솔 오류·경고만, 요청 실패 제외) */
-export type IssueOccurrenceRecord = {
-  checkedAt: string
-  pageErrors: number
-  consoleErrors: number
-  consoleWarnings: number
-  total: number
-  /** 동일 checkedAt에 현재 리포트가 있으면 true */
-  isCurrent?: boolean
-}
-
-function countReportIssueTotals(report: MonitorReport): Omit<IssueOccurrenceRecord, 'checkedAt' | 'isCurrent'> | null {
-  const diag = report.diagnostics
-  if (!diag) return null
-  const pageErrors = diag.pageErrors?.length ?? 0
-  const consoleErrors = (diag.consoleMessages ?? []).filter(
-    (m) => m.type === 'error' && m.source !== 'devtools',
-  ).length
-  const consoleWarnings = (diag.consoleMessages ?? []).filter((m) => m.type === 'warning').length
-  const total = pageErrors + consoleErrors + consoleWarnings
-  if (total <= 0) return null
-  return { pageErrors, consoleErrors, consoleWarnings, total }
-}
-
-function countHistoryIssueTotals(entry: MonitorHistoryEntry): Omit<IssueOccurrenceRecord, 'checkedAt' | 'isCurrent'> | null {
-  const pageErrors = entry.counts?.pageErrors ?? 0
-  const consoleErrors = entry.counts?.consoleErrors ?? 0
-  const consoleWarnings = entry.counts?.consoleWarnings ?? 0
-  const total = pageErrors + consoleErrors + consoleWarnings
-  if (total <= 0) return null
-  return { pageErrors, consoleErrors, consoleWarnings, total }
-}
-
-/** 저장된 실행 기록과 현재 리포트를 checkedAt 단위로 합쳐, 최신순 목록을 만듭니다. */
-export function buildIssueOccurrenceRecords(
-  historyItems: MonitorHistoryEntry[],
-  currentReport: MonitorReport | null,
-): IssueOccurrenceRecord[] {
-  const byAt = new Map<string, IssueOccurrenceRecord>()
-
-  for (const it of historyItems) {
-    const totals = countHistoryIssueTotals(it)
-    if (!totals) continue
-    byAt.set(it.checkedAt, { checkedAt: it.checkedAt, ...totals })
-  }
-
-  if (currentReport) {
-    const totals = countReportIssueTotals(currentReport)
-    if (totals) {
-      byAt.set(currentReport.checkedAt, {
-        checkedAt: currentReport.checkedAt,
-        ...totals,
-        isCurrent: true,
-      })
-    }
-  }
-
-  return Array.from(byAt.values()).sort((a, b) => b.checkedAt.localeCompare(a.checkedAt))
-}

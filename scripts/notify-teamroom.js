@@ -141,6 +141,32 @@ function formatKst(iso) {
   })
 }
 
+/** 미노출 시각을 이보다 많이 나열하면 처음 ~ 마지막과 횟수로 줄인다 */
+const MAX_MISSED_TIMES = 6
+
+/** 「10. 18. 21:55, 23:55, 10. 19. 01:55」 — 날짜가 바뀔 때만 날짜를 붙인다 */
+function formatMissedTimes(isoList) {
+  if (isoList.length > MAX_MISSED_TIMES) {
+    return `${formatKst(isoList[0])} ~ ${formatKst(isoList[isoList.length - 1])} (${isoList.length}회)`
+  }
+  let prevDay = ''
+  return isoList
+    .map((iso) => {
+      const full = formatKst(iso)
+      const [, day, time] = full.match(/^(.*?)\s*(\d{2}:\d{2})$/) ?? [full, '', full]
+      const out = day === prevDay ? time : full
+      prevDay = day
+      return out
+    })
+    .join(', ')
+}
+
+function formatSlotLine(slot) {
+  const parent = slot.parentAdTag ? ` (${slot.parentAdTag})` : ''
+  const missed = slot.missedAt?.length ? ` — 미노출 ${formatMissedTimes(slot.missedAt)}` : ''
+  return `· ${slot.adTag}${parent}${missed}`
+}
+
 function shorten(text, max = 120) {
   const t = String(text).replace(/\s+/g, ' ').trim()
   return t.length > max ? `${t.slice(0, max - 1)}…` : t
@@ -170,13 +196,16 @@ function buildMessage(sections, { base, slotStreak, firstCheckedAt, latestChecke
       lines.push(`→ ${base}/#${target.id}/lifecycle`)
     }
 
-    const down = alerts.slots.filter((s) => s.kind === 'down')
-    const recovered = alerts.slots.filter((s) => s.kind === 'recovered')
-    const bounced = alerts.slots.filter((s) => s.kind === 'bounced')
-    if (down.length) lines.push(`광고칸 ${slotStreak}회 연속 미노출: ${down.map((s) => s.adTag).join(', ')}`)
-    if (recovered.length) lines.push(`광고칸 다시 노출: ${recovered.map((s) => s.adTag).join(', ')}`)
-    if (bounced.length) {
-      lines.push(`광고칸 ${slotStreak}회 연속 미노출됐다가 다시 노출: ${bounced.map((s) => s.adTag).join(', ')}`)
+    const slotGroups = [
+      ['down', `광고칸 ${slotStreak}회 연속 미노출`],
+      ['recovered', '광고칸 다시 노출'],
+      ['bounced', `광고칸 ${slotStreak}회 연속 미노출됐다가 다시 노출`],
+    ]
+    for (const [kind, title] of slotGroups) {
+      const slots = alerts.slots.filter((s) => s.kind === kind)
+      if (!slots.length) continue
+      lines.push(title)
+      for (const slot of slots) lines.push(formatSlotLine(slot))
     }
     if (alerts.slots.length) lines.push(`→ ${base}/#${target.id}`)
   }
