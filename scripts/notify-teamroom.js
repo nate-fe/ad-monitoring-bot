@@ -1,9 +1,10 @@
 /**
- * 새로 생긴 문제만 네이트온 팀룸(Incoming Webhook)으로 보낸다.
+ * 하루 두 번(한국시간 9시·15시) 광고칸 미노출 현황과 새로 생긴 오류를 네이트온 팀룸(Incoming Webhook)으로 보낸다.
  *
- * - 보내는 건 한국시간 오전 9시·오후 3시대의 첫 실행뿐이다. 그때 지난번 보낸 실행 이후의 실행을
- *   한 묶음으로 판정하므로, 사이 시간에 생긴 문제도 빠지지 않고 다음 보낼 때 실린다.
- *   그 시간대 실행이 하나도 없으면(스케줄이 밀리거나 빠짐) 그 회차는 건너뛰고 다음 회차에 모아 보낸다.
+ * - 각 회차는 그 시각 이후의 첫 실행이 보낸다. GitHub 스케줄은 몇 시간씩 밀리거나 빠지므로 9시 회차가
+ *   10시 반 실행에서 나갈 수도 있지만, 다음 회차 시각(15시·다음날 9시) 전까지 실행이 하나라도 있으면 빠지지 않는다.
+ * - 미노출 칸이 없어도 「없음」으로 보낸다. 알림이 안 오면 모니터링이 멈춘 것으로 알 수 있게.
+ * - 오류는 지난번 보낸 실행 이후의 실행을 한 묶음으로 보고 처음 잡힌 것만 싣는다.
  * - 판정은 src/monitor/alertDetection.ts 에 있다(생애주기 화면과 같은 「같은 오류」 키를 쓰려고
  *   TS 모듈을 esbuild 로 그 자리에서 번들해 불러온다).
  * - history:update:all 이후에 돌아야 한다. 이번 실행이 히스토리 마지막 항목이어야 하기 때문이다.
@@ -26,7 +27,7 @@ const TARGETS = [
   { id: 'pann-pc-home', label: 'PC 판 홈', historyPath: 'pann/pc/home/history.json' },
 ]
 
-/** 이 시(한국시간)대의 첫 실행에서만 보낸다 */
+/** 이 시각(한국시간) 이후의 첫 실행이 보낸다 */
 const SEND_HOURS_KST = [9, 15]
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000
 const HOUR_MS = 60 * 60 * 1000
@@ -70,28 +71,18 @@ async function readHistory(relativePath) {
 function resolveDashboardBase() {
   const explicit = getEnv('DASHBOARD_BASE_URL')
   if (explicit) return explicit.replace(/\/+$/, '')
-  const owner = getEnv('GITHUB_REPOSITORY_OWNER')
-  const repo = getEnv('GITHUB_REPOSITORY').split('/')[1]
-  if (owner && repo) return `https://${owner}.github.io/${repo}`
-  return 'https://yoonzeen.github.io/ad-monitoring-bot'
+  // 어느 저장소에서 돌든 팀이 보는 nate-fe 대시보드로 연결한다
+  return 'https://nate-fe.github.io/ad-monitoring-bot'
 }
 
-/** ms 가 보내는 시간대 안이면 그 시간대 시작(ms), 아니면 null */
-function sendWindowStart(ms) {
-  const kst = new Date(ms + KST_OFFSET_MS)
-  if (!SEND_HOURS_KST.includes(kst.getUTCHours())) return null
-  kst.setUTCMinutes(0, 0, 0)
-  return kst.getTime() - KST_OFFSET_MS
-}
-
-/** before 보다 이른 보내는 시간대 시작들(가까운 것부터) */
-function* earlierSendWindows(before) {
+/** before 이하인 보내는 시각들(가까운 것부터) */
+function* sendTimesUpTo(before) {
   const day = new Date(before + KST_OFFSET_MS)
   day.setUTCHours(0, 0, 0, 0)
   for (let dayStart = day.getTime() - KST_OFFSET_MS; dayStart > before - SEND_LOOKBACK_MS; dayStart -= 24 * HOUR_MS) {
     for (const hour of [...SEND_HOURS_KST].reverse()) {
-      const start = dayStart + hour * HOUR_MS
-      if (start < before) yield start
+      const at = dayStart + hour * HOUR_MS
+      if (at <= before) yield at
     }
   }
 }
@@ -102,7 +93,7 @@ function checkedTimes(history) {
 
 /**
  * 이번 실행이 보낼 차례인지, 보낸다면 어느 시각 이후 기록을 묶을지 정한다.
- * 상태 파일 없이 히스토리만 본다: 「보내는 시간대의 첫 실행」이었던 실행이 곧 지난번 보낸 실행이다.
+ * 상태 파일 없이 히스토리만 본다: 보내는 시각 이후의 첫 실행이 곧 그 회차에 보낸 실행이다.
  */
 function planSend(timesByTarget, { ignoreSchedule }) {
   const latests = timesByTarget.map((t) => t[t.length - 1]).filter(Number.isFinite)
@@ -112,22 +103,23 @@ function planSend(timesByTarget, { ignoreSchedule }) {
   const runStart = Math.min(...latests.filter((t) => newest - t <= RUN_SPREAD_MS))
   const previous = timesByTarget.flat().filter((t) => t < runStart)
 
-  const windowStart = sendWindowStart(runStart)
-  if (!ignoreSchedule) {
-    if (windowStart == null) return { send: false, reason: `보내는 시각 아님(한국시간 ${SEND_HOURS_KST.join('·')}시대만)` }
-    if (previous.some((t) => t >= windowStart)) return { send: false, reason: '이 시간대에 이미 보낸 실행이 있음' }
+  const sendTimes = sendTimesUpTo(runStart)
+  const slotStart = sendTimes.next().value
+  if (!ignoreSchedule && previous.some((t) => t >= slotStart)) {
+    return { send: false, reason: `${formatKst(new Date(slotStart).toISOString())} 회차는 이미 앞 실행이 보냄` }
   }
 
-  for (const start of earlierSendWindows(windowStart ?? runStart)) {
-    const sentRun = previous.filter((t) => t >= start && t < start + HOUR_MS)
-    if (!sentRun.length) continue
-    const sentRunStart = Math.min(...sentRun)
+  // 지난 회차들을 거슬러 가며 그 회차에 보낸 실행(회차 시각 이후 첫 실행)을 찾는다
+  let windowEnd = slotStart
+  for (const start of sendTimes) {
+    const inWindow = previous.filter((t) => t >= start && t < windowEnd)
+    windowEnd = start
+    if (!inWindow.length) continue
+    const sentRunStart = Math.min(...inWindow)
     const sentRunEnd = Math.max(...previous.filter((t) => t >= sentRunStart && t <= sentRunStart + RUN_SPREAD_MS))
-    return { send: true, since: new Date(sentRunEnd).toISOString() }
+    return { send: true, slotStart, since: new Date(sentRunEnd).toISOString() }
   }
-  // 거슬러 찾을 기록이 없으면 바로 전 회차 시각부터 묶는다
-  const fallback = earlierSendWindows(windowStart ?? runStart).next().value
-  return { send: true, since: new Date(fallback).toISOString() }
+  return { send: true, slotStart, since: new Date(windowEnd).toISOString() }
 }
 
 function formatKst(iso) {
@@ -161,10 +153,19 @@ function formatMissedTimes(isoList) {
     .join(', ')
 }
 
+/** 다른 광고사 칸은 광고사 쪽 ID(숫자 등)라 알아볼 수 없으므로, 그 칸을 띄운 네이트 광고태그로 적는다 */
+function slotLabel(slot) {
+  return slot.parentAdTag || slot.adTag
+}
+
 function formatSlotLine(slot) {
-  const parent = slot.parentAdTag ? ` (${slot.parentAdTag})` : ''
   const missed = slot.missedAt?.length ? ` — 미노출 ${formatMissedTimes(slot.missedAt)}` : ''
-  return `· ${slot.adTag}${parent}${missed}`
+  return `· ${slotLabel(slot)}${missed}`
+}
+
+/** 「3회 연속, 10. 19. 21:55부터」 */
+function formatDownSlotLine(slot) {
+  return `· ${slotLabel(slot)} — ${slot.missedAt.length}회 연속, ${formatKst(slot.missedAt[0])}부터`
 }
 
 function shorten(text, max = 120) {
@@ -172,43 +173,71 @@ function shorten(text, max = 120) {
   return t.length > max ? `${t.slice(0, max - 1)}…` : t
 }
 
-function buildMessage(sections, { base, slotStreak, firstCheckedAt, latestCheckedAt }) {
+function buildMessage(sections, { base, slotStart, firstCheckedAt, latestCheckedAt }) {
   const range =
     firstCheckedAt === latestCheckedAt
       ? formatKst(latestCheckedAt)
       : `${formatKst(firstCheckedAt)} ~ ${formatKst(latestCheckedAt)}`
-  const lines = [`[광고 모니터링] ${range} 검사 결과`]
+  const downTotal = sections.reduce((n, { alerts }) => n + (alerts?.downSlots.filter((s) => s.everRendered).length ?? 0), 0)
+  const lines = [
+    `[광고 모니터링] ${formatKst(slotStart)} 정기 알림 — 미노출 광고칸 ${downTotal ? `${downTotal}개` : '없음'}`,
+    `검사 ${range}`,
+  ]
 
+  /** 할 말이 없는 지면은 끝에 이름만 모은다 */
+  const quiet = []
   for (const { target, alerts } of sections) {
-    lines.push('', `■ ${target.label}`)
+    if (!alerts) {
+      quiet.push(`${target.label}(지난 알림 뒤 실행 없음)`)
+      continue
+    }
+    const body = []
+
+    // 지금 안 나오는 칸. 기록상 한 번도 안 나온 칸은 원래 비는 칸일 수 있어 따로 줄인다
+    const wasRendering = alerts.downSlots.filter((s) => s.everRendered)
+    const neverRendered = alerts.downSlots.filter((s) => !s.everRendered)
+    if (!alerts.slotsMeasured) body.push('광고칸을 재지 못함(마지막 실행)')
+    if (wasRendering.length) {
+      body.push(`미노출 ${wasRendering.length}개`)
+      for (const slot of wasRendering) body.push(formatDownSlotLine(slot))
+    }
+    if (neverRendered.length) {
+      const labels = [...new Set(neverRendered.map(slotLabel))]
+      body.push(`기록상 노출된 적 없는 칸: ${labels.join(', ')}`)
+    }
+
+    // 묶음 안에서 끊겼다가 다시 나온 칸. 그 뒤 또 안 나와 위에 실린 칸은 뺀다
+    const downTags = new Set(alerts.downSlots.map((s) => s.adTag))
+    const slotGroups = [
+      ['recovered', '다시 노출'],
+      ['bounced', '끊겼다가 다시 노출'],
+    ]
+    for (const [kind, title] of slotGroups) {
+      const slots = alerts.slots.filter((s) => s.kind === kind && !downTags.has(s.adTag))
+      if (!slots.length) continue
+      body.push(title)
+      for (const slot of slots) body.push(formatSlotLine(slot))
+    }
+    if (body.length) body.push(`→ ${base}/#${target.id}`)
 
     const shown = alerts.newIssues.slice(0, MAX_ISSUES_PER_TARGET)
     if (shown.length) {
-      lines.push(`새로 잡힌 오류 ${alerts.newIssues.length}건`)
+      body.push(`새로 잡힌 오류 ${alerts.newIssues.length}건`)
       for (const issue of shown) {
         const level = issue.explainLevel ? `[${LEVEL_LABEL[issue.explainLevel]}] ` : ''
         // 사전에 없는 메시지는 label 이 원문 앞부분이라 원문을 한 번 더 적지 않는다
         const detail = issue.explainLevel ? ` — ${shorten(issue.sampleText, 80)}` : ''
-        lines.push(`· ${level}${shorten(issue.label, 80)}${detail}`)
+        body.push(`· ${level}${shorten(issue.label, 80)}${detail}`)
       }
       const rest = alerts.newIssues.length - shown.length
-      if (rest > 0) lines.push(`· 외 ${rest}건`)
-      lines.push(`→ ${base}/#${target.id}/lifecycle`)
+      if (rest > 0) body.push(`· 외 ${rest}건`)
+      body.push(`→ ${base}/#${target.id}/lifecycle`)
     }
 
-    const slotGroups = [
-      ['down', `광고칸 ${slotStreak}회 연속 미노출`],
-      ['recovered', '광고칸 다시 노출'],
-      ['bounced', `광고칸 ${slotStreak}회 연속 미노출됐다가 다시 노출`],
-    ]
-    for (const [kind, title] of slotGroups) {
-      const slots = alerts.slots.filter((s) => s.kind === kind)
-      if (!slots.length) continue
-      lines.push(title)
-      for (const slot of slots) lines.push(formatSlotLine(slot))
-    }
-    if (alerts.slots.length) lines.push(`→ ${base}/#${target.id}`)
+    if (body.length) lines.push('', `■ ${target.label}`, ...body)
+    else quiet.push(target.label)
   }
+  if (quiet.length) lines.push('', `미노출·새 오류 없음: ${quiet.join(', ')}`)
 
   return lines.join('\n')
 }
@@ -237,34 +266,36 @@ async function main() {
     console.log(`[teamroom] 보내지 않음 — ${plan.reason}`)
     return
   }
-  console.log(`[teamroom] ${formatKst(plan.since)} 이후 실행을 묶어 판정`)
+  console.log(`[teamroom] ${formatKst(new Date(plan.slotStart).toISOString())} 회차 — ${formatKst(plan.since)} 이후 실행을 묶어 판정`)
 
-  const { detectTargetAlerts, SLOT_DOWN_STREAK } = await loadDetector()
+  const { detectTargetAlerts } = await loadDetector()
   const sections = []
   let firstCheckedAt = ''
   let latestCheckedAt = ''
   for (const [i, target] of TARGETS.entries()) {
     const alerts = detectTargetAlerts(histories[i], { since: plan.since })
     if (!alerts) {
+      // 대상 URL 이 없어 아예 기록이 없는 지면은 알림에서 뺀다
       console.log(`[teamroom] ${target.id}: 묶을 실행 없음`)
+      if (histories[i].length) sections.push({ target, alerts: null })
       continue
     }
     if (!firstCheckedAt || alerts.firstCheckedAt < firstCheckedAt) firstCheckedAt = alerts.firstCheckedAt
     if (alerts.latestCheckedAt > latestCheckedAt) latestCheckedAt = alerts.latestCheckedAt
     console.log(
-      `[teamroom] ${target.id}: 새 오류 ${alerts.newIssuesSkipped ? '판정 보류(이전 기록 부족)' : `${alerts.newIssues.length}건`}, 광고칸 ${alerts.slots.length}건`,
+      `[teamroom] ${target.id}: 미노출 ${alerts.slotsMeasured ? `${alerts.downSlots.length}개` : '판정 불가'}, 새 오류 ${alerts.newIssuesSkipped ? '판정 보류(이전 기록 부족)' : `${alerts.newIssues.length}건`}`,
     )
-    if (alerts.newIssues.length || alerts.slots.length) sections.push({ target, alerts })
+    sections.push({ target, alerts })
   }
 
-  if (!sections.length) {
-    console.log('[teamroom] 보낼 내용 없음')
+  if (!latestCheckedAt) {
+    console.log('[teamroom] 보낼 내용 없음 — 지난 알림 뒤 실행 기록이 없음')
     return
   }
 
   const message = buildMessage(sections, {
     base: resolveDashboardBase(),
-    slotStreak: SLOT_DOWN_STREAK,
+    slotStart: new Date(plan.slotStart).toISOString(),
     firstCheckedAt,
     latestCheckedAt,
   })

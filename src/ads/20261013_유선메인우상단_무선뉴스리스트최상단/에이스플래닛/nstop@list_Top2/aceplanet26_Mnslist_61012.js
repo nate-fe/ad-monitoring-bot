@@ -26,33 +26,6 @@
       _iframe.style.cssText = 'border:0;vertical-align:top;max-width:100%';
       _iframe.style.width = _adWidth + 'px';
       _iframe.style.height = _adHeight + 'px';
-
-      // 광고 렌더링 결과 감지 (No Ad 체크)
-      // iframe이 다른 도메인이라 slotRenderEnded를 직접 못 받으므로, 업체 페이지가 보내는 postMessage로 받는다
-      // 업체 자체광고는 iframe 안의 iframe에서 뜨므로, 우리 iframe의 하위 프레임에서 온 메시지까지 받는다
-      function isFromAdFrame(source) {
-        try {
-          for (var w = source; w && w !== window; w = w.parent) {
-            if (w === _iframe.contentWindow) return true;
-            if (w === w.parent) break;
-          }
-        } catch (e) {}
-        return false;
-      }
-
-      var _isPassedBack = false;
-      window.addEventListener('message', function (event) {
-        if (_isPassedBack) return;
-        if (!isFromAdFrame(event.source)) return;
-        if (!event.data || event.data.type !== 'nate-ad-noad') return;
-
-        _isPassedBack = true;
-        _box.style.display = 'none';
-        var replaceScript = document.createElement('script');
-        replaceScript.src = '//cyad1.nate.com/js.kti/mnate/nextback@house_x01';
-        _adArea.appendChild(replaceScript);
-      });
-
       _box.appendChild(_iframe);
     } catch (e) {
       console.warn('[AD]', e);

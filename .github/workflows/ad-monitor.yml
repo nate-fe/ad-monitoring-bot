@@ -106,8 +106,8 @@ jobs:
         if: steps.schedule_gate.outputs.should_run != 'false' && (github.event_name != 'workflow_dispatch' || inputs.backfill_only != true)
         run: npm run history:update:all
 
-      # 새로 잡힌 오류·광고칸 연속 미노출만 네이트온 팀룸으로 보낸다(히스토리 갱신 뒤에 돌아야 함).
-      # 매번 돌지만 실제로 보내는 건 한국시간 9시·15시대 첫 실행뿐이다(그 사이 실행을 모아 보냄).
+      # 광고칸 미노출 현황과 새로 잡힌 오류를 네이트온 팀룸으로 보낸다(히스토리 갱신 뒤에 돌아야 함).
+      # 매번 돌지만 실제로 보내는 건 한국시간 9시·15시 이후 첫 실행뿐이다(스케줄이 밀리면 늦게 나간다).
       # 웹훅 시크릿이 없는 저장소에서는 보내지 않고 로그만 남긴다. 실패해도 배포는 계속한다.
       - name: Notify NateOn teamroom
         if: steps.schedule_gate.outputs.should_run != 'false' && (github.event_name != 'workflow_dispatch' || inputs.backfill_only != true)

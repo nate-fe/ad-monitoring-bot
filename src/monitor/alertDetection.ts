@@ -1,7 +1,8 @@
 /**
  * 팀룸 알림에 실을 항목을 실행 기록에서 골라낸다(scripts/notify-teamroom.js 가 번들해서 쓴다).
  *
- * 알림은 「새로 생긴 것」만 보낸다. 매 실행마다 실패를 보내면 아무도 안 보는 방이 되기 때문이다.
+ * 오류는 「새로 생긴 것」만 보낸다. 매번 같은 오류를 보내면 아무도 안 보는 방이 되기 때문이다.
+ * 광고칸은 하루 두 번 보내는 회차마다 지금 안 나오는 칸을 전부 싣는다(downSlots).
  * 상태 파일 없이 히스토리만으로 판정하므로, 같은 실행 기록이면 몇 번을 돌려도 같은 결과가 나온다
  * (다음 실행에서는 이미 히스토리에 들어가 있어 다시 「처음」이 되지 않는다).
  */
@@ -31,6 +32,16 @@ export type SlotAlert = {
   missedAt: string[]
 }
 
+/** 마지막 실행에서 안 나온 광고칸 — 새로 끊긴 것이든 오래 끊긴 것이든 매 회차 전부 싣는다 */
+export type DownSlot = {
+  adTag: string
+  parentAdTag?: string
+  /** 마지막 실행까지 연속으로 미노출이었던 실행 시각(오래된 것부터) */
+  missedAt: string[]
+  /** 기록상 한 번이라도 나온 적이 있는지. 없으면 원래부터 비어 있는 칸일 수 있다 */
+  everRendered: boolean
+}
+
 export type TargetAlerts = {
   /** 판정한 실행 중 가장 이른 것 */
   firstCheckedAt: string
@@ -40,6 +51,9 @@ export type TargetAlerts = {
   newIssuesSkipped: boolean
   newIssues: NewIssueAlert[]
   slots: SlotAlert[]
+  /** 마지막 실행에서 광고칸을 쟀는지. 못 쟀으면 downSlots 가 비어 있어도 「미노출 없음」이 아니다 */
+  slotsMeasured: boolean
+  downSlots: DownSlot[]
 }
 
 function sortByCheckedAt(items: MonitorHistoryEntry[]): MonitorHistoryEntry[] {
@@ -157,6 +171,31 @@ function detectSlotAlertsAt(sorted: MonitorHistoryEntry[]): SlotAlert[] {
   return alerts.sort((a, b) => a.adTag.localeCompare(b.adTag))
 }
 
+/** 마지막 실행에서 잰 칸 중 안 나온 것. 마지막 실행에 광고칸 기록이 없으면 판정하지 않는다 */
+function detectDownSlots(sorted: MonitorHistoryEntry[]): DownSlot[] {
+  const latest = sorted[sorted.length - 1]
+  if (!latest.adSlots?.length) return []
+  const runs = sorted.filter((it) => it.adSlots?.length).map(slotRunOf)
+
+  const down: DownSlot[] = []
+  for (const [adTag, rendered] of runs[runs.length - 1].states) {
+    if (rendered) continue
+    const measured = runs
+      .filter((r) => r.states.has(adTag))
+      .map((r) => ({ checkedAt: r.checkedAt, rendered: r.states.get(adTag) === true }))
+    let from = measured.length - 1
+    while (from > 0 && !measured[from - 1].rendered) from -= 1
+    const parentAdTag = [...runs].reverse().find((r) => r.parents.has(adTag))?.parents.get(adTag)
+    down.push({
+      adTag,
+      ...(parentAdTag ? { parentAdTag } : {}),
+      missedAt: measured.slice(from).map((s) => s.checkedAt),
+      everRendered: from > 0,
+    })
+  }
+  return down.sort((a, b) => a.adTag.localeCompare(b.adTag))
+}
+
 /** 묶음 안의 실행마다 광고칸 전이를 보고, 태그별로 묶음 전체의 결과 하나로 줄인다 */
 function detectSlotAlerts(sorted: MonitorHistoryEntry[], startIndex: number): SlotAlert[] {
   const byTag = new Map<string, SlotAlert>()
@@ -194,5 +233,7 @@ export function detectTargetAlerts(
     newIssuesSkipped: newIssues.skipped,
     newIssues: newIssues.items,
     slots: detectSlotAlerts(sorted, startIndex),
+    slotsMeasured: Boolean(sorted[sorted.length - 1].adSlots?.length),
+    downSlots: detectDownSlots(sorted),
   }
 }
