@@ -2,6 +2,16 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { parseJsonSyncUntilMs } from './json-sync-until.js'
 
+/** 예전 리포트에는 없는 성능 필드 — 숫자로 있는 것만 옮긴다 */
+function pickFiniteFields(source, keys) {
+  const out = {}
+  for (const key of keys) {
+    const n = Number(source?.[key])
+    if (source?.[key] != null && Number.isFinite(n)) out[key] = n
+  }
+  return out
+}
+
 function getEnv(name, { defaultValue = '' } = {}) {
   const v = process.env[name]
   if (v == null || v === '') return defaultValue
@@ -121,6 +131,14 @@ function summarize(report) {
           longTaskCount: Number(rawPm.longTaskCount) || 0,
           avgAdScriptResourceDurationMs: Number(rawPm.avgAdScriptResourceDurationMs) || 0,
           adScriptResourceCount: Number(rawPm.adScriptResourceCount) || 0,
+          ...pickFiniteFields(rawPm, [
+            'cls',
+            'layoutShiftCount',
+            'scriptRequestCount',
+            'scriptTransferBytes',
+            'scriptDecodedBytes',
+            'adScriptTransferBytes',
+          ]),
         }
       : undefined
   const pageErrorSample = pageErrors.map((item) => {

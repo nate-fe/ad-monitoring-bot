@@ -163,9 +163,9 @@ function formatSlotLine(slot) {
   return `· ${slotLabel(slot)}${missed}`
 }
 
-/** 「3회 연속, 10. 19. 21:55부터」 */
+/** 「검사 5회 중 5회 미노출」 — 검사 구간 밖의 기록은 세지 않는다 */
 function formatDownSlotLine(slot) {
-  return `· ${slotLabel(slot)} — ${slot.missedAt.length}회 연속, ${formatKst(slot.missedAt[0])}부터`
+  return `· ${slotLabel(slot)} — 검사 ${slot.windowMeasured}회 중 ${slot.windowMissed}회 미노출`
 }
 
 function shorten(text, max = 120) {

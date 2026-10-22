@@ -1449,6 +1449,7 @@
   font-weight: 700;
   color: var(--muted);
   font-size: 17px;
+  margin-bottom:10px;
 }
 
 .diagSectionTitleWithHelp {
@@ -1463,13 +1464,6 @@
   color: var(--muted);
   font-size: 14px;
   line-height: 1.45;
-}
-
-.requestFailureTitle,
-.headlessNetworkLogTitle {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
 }
 
 .inlineHelpWrap {
@@ -4837,44 +4831,12 @@ details[open] > .screenshotSummary::before {
 /* ── 광고 노출 판정 ──────────────────────────────────────
    「미노출」과 「확인 불가」를 색으로도 갈라 둔다. 못 쟀다는 것을
    고장으로 읽으면 멀쩡한 앵커 광고가 매번 장애로 보고된다. */
-.adSlotSummary {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 14px;
-  margin-bottom: 10px;
-}
 
-.adSlotStat {
-  padding: 3px 10px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  font-size: 12.5px;
-  color: var(--muted);
-}
 
-.adSlotStat b {
-  margin-left: 4px;
-  font-size: 13.5px;
-  color: color-mix(in srgb, var(--text) 90%, var(--muted));
-}
 
-.adSlotStat--ok {
-  border-color: color-mix(in srgb, var(--ok) 42%, var(--border));
-  background: color-mix(in srgb, var(--ok) 10%, transparent);
-}
 
-.adSlotStat--fail {
-  border-color: color-mix(in srgb, var(--fail) 50%, var(--border));
-  background: color-mix(in srgb, var(--fail) 12%, transparent);
-}
 
-.adSlotStat--fail b {
-  color: color-mix(in srgb, var(--fail) 82%, var(--text));
-}
 
-.adSlotStat--unknown {
-  border-style: dashed;
-}
 
 .adSlotList {
   display: flex;
@@ -4981,4 +4943,325 @@ details[open] > .screenshotSummary::before {
     width: 44px;
     min-height: 44px;
   }
+}
+
+/* ── 페이지 성능 (CLS·스크립트 용량) ── */
+.perfBlocks {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.perfSummary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  border: 1px solid color-mix(in srgb, var(--perf-tone) 40%, var(--border));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--perf-tone) 8%, transparent);
+  font-size: 13px;
+}
+
+.perfSummaryItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.perfMetricGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: 10px 24px;
+}
+
+.perfMetric {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.perfMetricLabel {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.perfBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--panel) 60%, transparent);
+}
+
+.perfBlockHead {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.perfBlockTitle {
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.perfStatRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  font-size: 12.5px;
+}
+
+.perfBigValue {
+  font-size: 24px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.perfGrade {
+  padding: 1px 8px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.perfTone--ok { --perf-tone: var(--ok); }
+.perfTone--warn { --perf-tone: var(--warn); }
+.perfTone--fail { --perf-tone: var(--fail); }
+
+.perfBigValue.perfTone--ok,
+.perfBigValue.perfTone--warn,
+.perfBigValue.perfTone--fail,
+.perfGrade {
+  color: color-mix(in srgb, var(--perf-tone) 85%, var(--text));
+}
+
+.perfClsScale {
+  position: relative;
+  display: flex;
+  height: 8px;
+  margin: 2px 0 16px;
+  border-radius: 999px;
+  overflow: visible;
+}
+
+.perfClsBand {
+  height: 100%;
+  background: color-mix(in srgb, var(--perf-tone) 45%, transparent);
+}
+
+.perfClsBand:first-child { border-radius: 999px 0 0 999px; }
+.perfClsBand:nth-child(3) { border-radius: 0 999px 999px 0; }
+
+.perfClsMarker {
+  position: absolute;
+  top: -4px;
+  width: 4px;
+  height: 16px;
+  margin-left: -2px;
+  border-radius: 2px;
+  background: var(--text);
+  box-shadow: 0 0 0 2px var(--bg1);
+}
+
+.perfClsTick {
+  position: absolute;
+  top: 11px;
+  transform: translateX(-50%);
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
+.perfSubTitle {
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.perfShiftList,
+.perfHostList,
+.perfScriptList {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.perfShiftList li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  padding: 5px 8px;
+  border-radius: 7px;
+  font-size: 12.5px;
+}
+
+.perfShiftList li.isWorst {
+  background: color-mix(in srgb, var(--warn) 9%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warn) 30%, var(--border));
+}
+
+.perfShiftValue {
+  min-width: 44px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.perfShiftTime,
+.perfShiftMove {
+  font-size: 12px;
+}
+
+.perfKindBar {
+  display: flex;
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--border);
+}
+
+.perfKindSeg { height: 100%; }
+
+.perfKind--ad { --perf-kind: var(--warn); }
+.perfKind--first { --perf-kind: var(--accent); }
+.perfKind--other { --perf-kind: color-mix(in srgb, var(--muted) 70%, transparent); }
+
+.perfKindSeg,
+.perfKindSwatch,
+.perfHostBar {
+  background: var(--perf-kind);
+}
+
+.perfKindLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 12.5px;
+}
+
+.perfKindLegendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.perfKindLegendItem .muted {
+  margin-bottom:0;
+}
+
+.perfKindSwatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.perfHostList li {
+  display: grid;
+  grid-template-columns: minmax(0, 17em) minmax(40px, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+}
+
+.perfHostName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.perfHostBarTrack {
+  height: 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--border) 60%, transparent);
+  overflow: hidden;
+}
+
+.perfHostBar {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+}
+
+.perfHostBytes {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  min-width: 5.5em;
+}
+
+.perfHostCount {
+  font-size: 11.5px;
+  min-width: 2.5em;
+  text-align: right;
+}
+
+.perfScriptList {
+  margin-top: 8px;
+}
+
+.perfScriptList li {
+  --perf-row-hover: color-mix(in srgb, var(--accent2) 92%, white 8%);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin: 0 -8px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12.5px;
+}
+
+/* 경로와 오른쪽 용량이 멀리 떨어져 있어, 줄 전체를 함께 강조해 같은 줄임을 보여 준다 */
+.perfScriptList li:hover {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.perfScriptList li:hover .perfScriptUrl,
+.perfScriptList li:hover .perfScriptBytes,
+.perfScriptList li:hover .perfScriptBytes .muted {
+  color: var(--perf-row-hover);
+}
+
+@media (prefers-color-scheme: light) {
+  .perfScriptList li {
+    --perf-row-hover: #3b4bff;
+  }
+}
+
+.perfKindTag {
+  padding: 0 6px;
+  border-radius: 5px;
+  font-size: 11.5px;
+  font-weight: 700;
+  background: color-mix(in srgb, var(--perf-kind) 22%, transparent);
+  border: 1px solid color-mix(in srgb, var(--perf-kind) 50%, var(--border));
+}
+
+.perfScriptUrl {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: inherit;
+}
+
+.perfScriptBytes {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 배지 범례는 콘솔 칸 바로 위에 붙여, 아래 칸의 설명임을 보여 준다 */
+.diagSections > .msgExplainLegend {
+  margin: 0 0 -8px;
 }

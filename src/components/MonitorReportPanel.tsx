@@ -14,6 +14,7 @@ import { AdSlotVisibilitySection } from './AdSlotVisibilitySection'
 import { RefreshIcon } from './RefreshIcon'
 import { DomainSourceTop5 } from './DomainSourceTop5'
 import { ScriptIssueTop10, SCRIPT_ISSUE_TOP10_HELP_TEXT } from './ScriptIssueTop10'
+import { PagePerformanceSection } from './PagePerformanceSection'
 import { InlineHelpTooltip } from './InlineHelpTooltip'
 import { MessageExplainBadge, MessageExplainLegend } from './MessageExplainBadge'
 import { IssueLifecycleBadge, IssueLifecycleProvider } from './IssueLifecycleBadge'
@@ -63,15 +64,6 @@ type ConsoleLikeMessage = {
   dupeCount?: number
   sourceSnippet?: SourceSnippet
 }
-
-const REQUEST_FAILURE_HELP_TEXT =
-  '페이지 로드 중 완료되지 못한 네트워크 요청입니다. 광고 스크립트나 광고 API 문제를 추적할 때 참고용으로 확인합니다.'
-
-const HEADLESS_NETWORK_LOG_HELP_TEXT =
-  'Playwright로 띄운 headless Chromium이 페이지를 열 때, 브라우저 엔진이 콘솔 API로 넘기는 네트워크 관련 한 줄입니다. 본문에 Failed to load resource처럼 보여도, 직접 연 크롬의 개발자 도구 Console·Network에 같은 항목이 항상 보이지는 않을 수 있습니다(자동화 전용 User-Agent·쿠키·타이밍 등이 다를 때). 크롬 UI에서 빨간 오류로 분류되지 않는 경우도 있어 참고용으로만 두었습니다. 페이지 스크립트가 찍은 console 오류와는 별도입니다.'
-
-const PERFORMANCE_METRICS_HELP_TEXT =
-  'TBT는 Long Task 기반 근사치이며, 스크립트 시간은 리소스 duration 평균입니다. CLS(레이아웃 밀림)는 placeholder 확보 등 별도 점검이 필요합니다.'
 
 const MIXED_CONTENT_HELP_TEXT =
   'HTTPS 페이지에서 업체(광고) 측 코드가 http:// 이미지·리소스를 요청해 브라우저가 경고한 경우입니다. 소재 URL을 https로 바꾸면 대개 해소됩니다.'
@@ -180,6 +172,8 @@ function getFailureBuckets(failures: string[] | undefined) {
       failure.startsWith('Console warnings:') ||
       failure.startsWith('JS page errors:') ||
       failure.startsWith('Request failures:') ||
+      failure.startsWith('Forced redirects:') ||
+      failure.startsWith('Back-button hijack:') ||
       failure.startsWith('HTTP status not OK:')
     ) {
       actionableCount += 1
@@ -386,23 +380,6 @@ function IssueUrlPreview({ url, ariaLabel }: IssueUrlPreviewProps) {
   )
 }
 
-function RequestFailureTitle({ suffix = '' }: { suffix?: string }) {
-  return (
-    <span className="requestFailureTitle">
-      요청 실패 내용{suffix}
-      <InlineHelpTooltip text={REQUEST_FAILURE_HELP_TEXT} />
-    </span>
-  )
-}
-
-function HeadlessNetworkLogTitle({ suffix = '' }: { suffix?: string }) {
-  return (
-    <span className="headlessNetworkLogTitle">
-      헤드리스가 기록한 네트워크 로그{suffix}
-      <InlineHelpTooltip text={HEADLESS_NETWORK_LOG_HELP_TEXT} />
-    </span>
-  )
-}
 function SourceLocationLineText({ line, column }: { line?: number; column?: number }) {
   const hasLine = line != null && Number.isFinite(line)
   const hasCol = column != null && Number.isFinite(column)
@@ -647,7 +624,6 @@ export function MonitorReportPanel({
     const consoleWarnings = it.counts?.consoleWarnings ?? 0
     const consoleLogs = it.counts?.consoleLogs ?? 0
     const pageErrors = it.counts?.pageErrors ?? 0
-    const requestFailures = it.counts?.requestFailures ?? 0
     const { actionableCount, collectionFailureCount } = getFailureBuckets(it.failures)
 
     const parts: string[] = []
@@ -660,7 +636,6 @@ export function MonitorReportPanel({
 
     if (pageErrors) parts.push(`페이지 오류 ${pageErrors}개`)
     if (consoleLogs) parts.push(`콘솔 log/info ${consoleLogs}개`)
-    if (requestFailures) parts.push(`요청 실패 ${requestFailures}개`)
     if (actionableCount) parts.push(`고쳐야 할 항목 ${actionableCount}개`)
     if (collectionFailureCount) parts.push(`데이터 수집 실패 ${collectionFailureCount}개`)
 
@@ -922,10 +897,6 @@ export function MonitorReportPanel({
     [currentMixedContentWarnings],
   )
 
-  const currentRequestFailures = useMemo(() => {
-    if (state.kind !== 'loaded') return []
-    return state.report.diagnostics?.requestFailures ?? []
-  }, [state])
 
   const currentConsoleLogs = useMemo(() => {
     if (state.kind !== 'loaded') return []
@@ -955,16 +926,15 @@ export function MonitorReportPanel({
     [currentLegacySyntaxMessages],
   )
 
-  const currentDevToolsConsole = useMemo(() => {
-    if (state.kind !== 'loaded') return []
-    return groupConsoleMessagesByText(
-      dedupeConsoleMessages((state.report.diagnostics?.consoleMessages ?? []).filter((m) => m.source === 'devtools')),
-    )
-  }, [state])
 
   const currentAdSlots = useMemo(() => {
     if (state.kind !== 'loaded') return []
     return state.report.diagnostics?.adSlots ?? []
+  }, [state])
+
+  const currentPagePerformance = useMemo(() => {
+    if (state.kind !== 'loaded') return null
+    return state.report.diagnostics?.pagePerformance ?? null
   }, [state])
 
   const currentPerformanceMetrics = useMemo(() => {
@@ -1145,7 +1115,6 @@ export function MonitorReportPanel({
                                           const consoleWarnings = it.counts?.consoleWarnings ?? 0
                                           const consoleLogs = it.counts?.consoleLogs ?? 0
                                           const pageErrors = it.counts?.pageErrors ?? 0
-                                          const requestFailures = it.counts?.requestFailures ?? 0
                                           const s = summarizeFailures(it.failures, 5)
                                           // 페이지 오류는 text 대신 message 라서 묶기 전에 맞춰 준다
                                           const pageErrorSample = groupConsoleMessagesByText(
@@ -1168,10 +1137,6 @@ export function MonitorReportPanel({
                                           const consoleLogSample = groupConsoleMessagesByText(
                                             (it.consoleLogSample ?? []).filter((m) => !isLegacySyntaxMessage(m.text)),
                                           )
-                                          const devToolsConsoleSample = groupConsoleMessagesByText(
-                                            it.devToolsConsoleSample ?? [],
-                                          )
-                                          const requestFailureSample = it.requestFailureSample ?? []
                                           const issueSources = classifyHistoryEntry(it)
 
                                           const hasAnyDetail =
@@ -1179,14 +1144,11 @@ export function MonitorReportPanel({
                                             consoleWarnings ||
                                             consoleLogs ||
                                             pageErrors ||
-                                            requestFailures ||
                                             s ||
                                             pageErrorSample.length ||
                                             consoleErrorSample.length ||
                                             consoleWarningSample.length ||
-                                            consoleLogSample.length ||
-                                            devToolsConsoleSample.length ||
-                                            requestFailureSample.length
+                                            consoleLogSample.length
 
                                           if (!hasAnyDetail) {
                                             return <p className="muted">이 실행에서 특별한 이상은 기록되지 않았습니다.</p>
@@ -1210,7 +1172,6 @@ export function MonitorReportPanel({
                                                 <li>페이지 오류: {pageErrors}개</li>
                                                 <li>콘솔 로그: 오류 {consoleErrors}개, 경고 {consoleWarnings}개</li>
                                                 <li>콘솔 log/info: {consoleLogs}개</li>
-                                                <li>요청 실패: {requestFailures}개</li>
                                                 {pageErrorSample.length ? (
                                                   <li>
                                                     <div className="miniSectionTitle">페이지 오류 내용</div>
@@ -1271,28 +1232,6 @@ export function MonitorReportPanel({
                                                       keyPrefix="h-log"
                                                       listClassName="miniConsoleList"
                                                     />
-                                                  </li>
-                                                ) : null}
-                                                {devToolsConsoleSample.length ? (
-                                                  <li>
-                                                    <div className="diagSection">
-                                                      <div className="diagSectionTitle">
-                                                        <HeadlessNetworkLogTitle />
-                                                      </div>
-                                                      <GroupedConsoleMessageList
-                                                        groups={devToolsConsoleSample}
-                                                        keyPrefix="h-devtools"
-                                                        showPill={false}
-                                                      />
-                                                    </div>
-                                                  </li>
-                                                ) : null}
-                                                {requestFailureSample.length ? (
-                                                  <li>
-                                                    <div className="miniSectionTitle">
-                                                      <RequestFailureTitle />
-                                                    </div>
-                                                    <RequestFailureList items={requestFailureSample} />
                                                   </li>
                                                 ) : null}
                                               </ul>
@@ -1390,7 +1329,7 @@ export function MonitorReportPanel({
               <h2 className="adIssueSectionTitle">광고·영역별 오류 / 경고</h2>
               <p className="adIssueSectionDesc">
                 페이지 스크립트 콘솔의 오류·경고와 페이지 오류 메시지·URL을 키워드로 묶어, 어떤 광고/플랫폼 쪽 이슈가 많은지 보여
-                줍니다. 요청 실패는 여기에 포함하지 않습니다.
+                줍니다.
               </p>
               <AdIssueBreakdown report={state.report} />
             </div>
@@ -1413,11 +1352,9 @@ export function MonitorReportPanel({
                   <span className="count">
                     {currentConsoleWarnings.length +
                       currentMixedContentWarnings.length +
-                      currentRequestFailures.length +
                       currentLegacyLibraryWarnings.length +
                       currentLegacySyntaxMessages.length +
-                      currentConsoleLogs.length +
-                      currentDevToolsConsole.length}
+                      currentConsoleLogs.length}
                   </span>
                 </div>
 
@@ -1434,33 +1371,13 @@ export function MonitorReportPanel({
                   </div>
                 ) : null}
 
-                <MessageExplainLegend texts={currentDiagMessageTexts} />
-
                 <div className="diagSections">
                   {currentAdSlots.length ? <AdSlotVisibilitySection slots={currentAdSlots} /> : null}
-                  {currentPerformanceMetrics ? (
-                    <div className="diagSection">
-                      <div className="diagSectionTitle diagSectionTitleWithHelp">
-                        <span>메인 스레드·광고 스크립트 (이번 실행)</span>
-                        <InlineHelpTooltip text={PERFORMANCE_METRICS_HELP_TEXT} />
-                      </div>
-                      <ul className="diagList diagPerfList">
-                        <li>
-                          <span className="diagPerfLabel">TBT(근사)</span>{' '}
-                          <strong>{Math.round(currentPerformanceMetrics.approxTbtMs)}ms</strong>
-                          <span className="muted"> · Long Task {currentPerformanceMetrics.longTaskCount}건</span>
-                        </li>
-                        <li>
-                          <span className="diagPerfLabel">광고 스크립트 평균</span>{' '}
-                          <strong>{currentPerformanceMetrics.avgAdScriptResourceDurationMs.toFixed(1)}ms</strong>
-                          <span className="muted">
-                            {' '}
-                            · 스크립트 {currentPerformanceMetrics.adScriptResourceCount}개 URL 기준
-                          </span>
-                        </li>
-                      </ul>
-                    </div>
+                  {currentPagePerformance || currentPerformanceMetrics ? (
+                    <PagePerformanceSection data={currentPagePerformance} metrics={currentPerformanceMetrics} />
                   ) : null}
+                  {/* 배지는 콘솔 메시지에만 붙으므로, 범례도 콘솔 칸들 바로 위에 둔다 */}
+                  <MessageExplainLegend texts={currentDiagMessageTexts} />
                   {currentConsoleWarnings.length || currentMixedContentWarnings.length ? (
                   <div className="diagSection">
                     <div className="diagSectionTitle">콘솔 경고</div>
@@ -1499,11 +1416,6 @@ export function MonitorReportPanel({
                     ) : null}
                   </div>
                   ) : null}
-                  {currentRequestFailures.length ? (
-                    <DiagSection title={<RequestFailureTitle />}>
-                      <RequestFailureList items={currentRequestFailures} />
-                    </DiagSection>
-                  ) : null}
                   {currentLegacyLibraryWarnings.length ? (
                     <DiagSection
                       title="구식 라이브러리 사용"
@@ -1534,17 +1446,6 @@ export function MonitorReportPanel({
                       defaultOpen={hasNoteworthyMessage(currentConsoleLogs)}
                     >
                       <GroupedConsoleMessageList groups={currentConsoleLogs} keyPrefix="log" />
-                    </DiagSection>
-                  ) : null}
-                  {currentDevToolsConsole.length ? (
-                    <DiagSection
-                      title="헤드리스가 기록한 네트워크 로그"
-                      count={currentDevToolsConsole.length}
-                      help={HEADLESS_NETWORK_LOG_HELP_TEXT}
-                      collapsible
-                      defaultOpen={hasNoteworthyMessage(currentDevToolsConsole)}
-                    >
-                      <GroupedConsoleMessageList groups={currentDevToolsConsole} keyPrefix="devtools" showPill={false} />
                     </DiagSection>
                   ) : null}
                 </div>

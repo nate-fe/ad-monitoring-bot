@@ -10,6 +10,7 @@ import {
   autoUpdate,
   flip,
   offset,
+  safePolygon,
   shift,
   size,
   useClick,
@@ -119,6 +120,9 @@ export function ViewportInlineHelp({
   const hover = useHover(context, {
     move: false,
     enabled: !clickOnly && (!pinOnClick || !clickPinned),
+    // 버튼과 툴팁 사이 틈을 지나는 동안 닫히지 않게 해서, 툴팁 위로 옮겨 스크롤할 수 있게 한다
+    handleClose: safePolygon(),
+    delay: { open: 0, close: 120 },
   })
   const focus = useFocus(context, { enabled: !clickOnly })
   const dismiss = useDismiss(context)

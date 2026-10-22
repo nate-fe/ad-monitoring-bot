@@ -49,6 +49,67 @@ export type MonitorPerformanceMetrics = {
    */
   avgAdScriptResourceDurationMs: number
   adScriptResourceCount: number
+  /** CLS(세션 창 최대값). 2026-10-21 이전 기록에는 없다 */
+  cls?: number
+  layoutShiftCount?: number
+  /** 측정 중 받은 script 요청 수와 전송(압축)·원본 바이트 합 */
+  scriptRequestCount?: number
+  scriptTransferBytes?: number
+  scriptDecodedBytes?: number
+  adScriptTransferBytes?: number
+}
+
+export type LayoutShiftSource = {
+  /** 밀린 요소(tag#id.class) */
+  node?: string
+  /** 가장 가까운 id 가 있는 조상 */
+  anchor?: string
+  /** 광고칸 안이거나 iframe 을 품은 요소 */
+  adLike: boolean
+  fromY: number
+  toY: number
+  fromHeight: number
+  toHeight: number
+}
+
+export type LayoutShiftDiagnostics = {
+  cls: number
+  /** 모든 이동의 합(세션 창으로 자르지 않음) */
+  totalShift: number
+  /** 광고 관련 요소가 낀 이동의 합 */
+  adLikeShift: number
+  shiftCount: number
+  worstWindowMs: { start: number; end: number }
+  topShifts: { value: number; atMs: number; inWorstWindow: boolean; adLike: boolean; sources: LayoutShiftSource[] }[]
+}
+
+/** first: 자사(nate) · ad: 광고(주소 패턴 또는 광고 iframe 안) · other: 그 밖의 외부 */
+export type ScriptKind = 'first' | 'ad' | 'other'
+
+type ByteTotals = { requests: number; transferBytes: number; decodedBytes: number }
+
+export type ScriptSizeDiagnostics = ByteTotals & {
+  uniqueUrls: number
+  hostCount: number
+  /** 이미 받은 파일을 캐시에서 다시 꺼낸 횟수(전송 0, 원본 크기는 셈) */
+  cachedRequests: number
+  byKind: Record<ScriptKind, ByteTotals>
+  topHosts: (ByteTotals & { host: string; kind: ScriptKind })[]
+  largest: (ByteTotals & {
+    url: string
+    host: string
+    kind: ScriptKind
+    inIframe: boolean
+    /** 메인 문서 바로 아래 iframe 주소 */
+    frameUrl?: string
+    cachedRequests: number
+    status?: number
+  })[]
+}
+
+export type PagePerformanceDiagnostics = {
+  layoutShift?: LayoutShiftDiagnostics
+  scripts?: ScriptSizeDiagnostics
 }
 
 /** 콘솔/페이지 오류의 sourceUrl+line 기준으로 측정 시 캐시한 스크립트 본문에서 자른 코드 */
@@ -112,8 +173,10 @@ export type AdSlotVisibility =
       /** 다른 광고사 칸을 띄운 네이트 광고태그(`지면@슬롯`). 못 찾았거나 cyad 칸이면 없음 */
       parentAdTag?: string
       measurable: true
-      /** 컨테이너 높이가 있고 소재가 1개 이상 */
+      /** 컨테이너 높이가 있고 소재가 1개 이상, 또는 같은 자리를 다른 광고사가 채움(filledBy) */
       rendered: boolean
+      /** 이 칸은 비었지만 패스백으로 같은 자리를 채운 광고칸의 태그 */
+      filledBy?: string
       rect: AdSlotRect
       mediaCount: number
       content?: {
@@ -162,7 +225,55 @@ export type MonitorReport = {
     scriptIssueTop10?: ScriptIssueTop10Row[]
     /** 캡쳐 직전 광고 슬롯별 노출 여부 */
     adSlots?: AdSlotVisibility[]
+    /** 강제 리다이렉트·뒤로가기 가로채기 탐지 */
+    hijack?: HijackDiagnostics
+    /** CLS·스크립트 용량 */
+    pagePerformance?: PagePerformanceDiagnostics
   }
+}
+
+/** 스크립트 호출 위치(스택의 첫 http 프레임) */
+type CallSite = { sourceUrl?: string; line?: number; column?: number }
+
+/** 측정 중 사용자 조작 없이 일어난 메인 프레임 이동(막음) 또는 새 창 */
+export type HijackRedirect = CallSite & {
+  kind: 'navigation' | 'popup'
+  url: string
+  at: string
+  /** CDP frameRequestedNavigation 의 reason(scriptInitiated·metaTagRefresh 등) */
+  reason?: string
+  blocked: boolean
+  count: number
+  /** 같은 주소로 다시 열기(지면 자체 새로고침) — 강제 이동으로 세지 않는다 */
+  selfReload?: boolean
+}
+
+type HookRecord = CallSite & {
+  atMs: number
+  pageUrl: string
+  userActivated?: boolean
+  frame: 'main' | 'iframe'
+}
+
+export type HijackDiagnostics = {
+  forcedRedirectCount: number
+  redirects: HijackRedirect[]
+  backHijack: {
+    suspected: boolean
+    reasons: string[]
+    backTest?: {
+      historyLength: number
+      wentBack: boolean
+      urlBefore?: string
+      urlAfter?: string
+      stayedOnPage: boolean
+      triggeredRedirect: boolean
+    }
+    historyCalls: (HookRecord & { method: 'pushState' | 'replaceState'; url: string; sameDocumentUrl: boolean })[]
+    listeners: (HookRecord & { type: string; via: string })[]
+    hashChanges: { atMs: number; from: string; to: string; userActivated?: boolean; frame: 'main' | 'iframe' }[]
+  }
+  windowOpens: (HookRecord & { url: string })[]
 }
 
 export type MonitorHistoryEntry = {

@@ -17,7 +17,7 @@
 
 ## 빠른 시작 (로컬)
 
-> Node.js **20 이상**이 필요합니다. (CI도 Node 20 기준)
+> Node.js **24 이상**이 필요합니다. 기준 버전은 `.nvmrc`(24.22.1)이며 GitHub Actions도 이 파일을 따릅니다. GitLab CI는 Playwright Docker 이미지에 포함된 Node 24.x를 사용합니다.
 
 ### 1) 설치
 
@@ -165,7 +165,7 @@ npm run dev
 - **스케줄**: `cron: '7,22,37,52 * * * *'` (UTC 기준 시간당 여러 fallback 시도)
   - GitHub scheduled event 누락에 대비해 한 시간에 여러 번 트리거하고, 같은 UTC 시간에 이미 성공한 scheduled run이 있으면 나머지는 자동 skip합니다.
 - **실행 대상**: 매 실행마다 모바일 `news`, `news-home`, `pann`, `pann-home`과 PC `news-pc`, `news-pc-home`, `pann-pc`, `pann-pc-home`을 모두 수집
-- **Node**: 20
+- **Node**: `.nvmrc` 기준 (24.22.1)
 - **브라우저 설치**: `npx playwright install --with-deps chromium`
 - **리포트 업로드**: Pages용 8개 타깃 `dist/*/monitor-report.json`을 artifact로 업로드
 - **Pages 배포(선택)**: `npm run build` 후 `dist/`를 GitHub Pages로 배포

@@ -12,6 +12,19 @@ import {
   toWebPath,
   writeManifest,
 } from './screenshot-store.js'
+import {
+  HIJACK_CAPTURE_SCRIPT,
+  collectHijackHooks,
+  installRedirectGuard,
+  runBackButtonTest,
+  summarizeHijack,
+} from './hijack-detection.js'
+import {
+  AD_SCRIPT_URL_RE,
+  LAYOUT_SHIFT_CAPTURE_SCRIPT,
+  collectLayoutShifts,
+  createScriptSizeTracker,
+} from './page-performance.js'
 
 function getEnv(name, { required = false, defaultValue = undefined } = {}) {
   const value = process.env[name]
@@ -891,6 +904,29 @@ async function collectAdSlotGeometry(page) {
           return parentAdTag ? { parentAdTag } : {}
         }
 
+        /**
+         * 광고 자리 하나를 가리키는 요소. 패스백(앞 광고사가 못 채우면 다음 광고사가 같은 자리를 채움)으로
+         * 한 자리에 광고칸이 여럿 생기므로, 같은 자리끼리 묶어 판정한다.
+         *  - iframe 안: 최상위 문서에 있는 그 iframe(광고 iframe 하나가 자리 하나)
+         *  - 최상위 문서: 광고태그 스크립트를 바로 품은 상자(없으면 요소 자신)
+         */
+        const spotOf = (el) => {
+          let node = el
+          for (let depth = 0; node && node.ownerDocument !== document && depth <= MAX_FRAME_DEPTH; depth += 1) {
+            try {
+              node = node.ownerDocument.defaultView?.frameElement ?? null
+            } catch {
+              node = null
+            }
+          }
+          if (!node) return el
+          if (node !== el && node.tagName === 'IFRAME') return node
+          for (let n = node; n && n !== document.body; n = n.parentElement) {
+            if (n.querySelector(`:scope > ${scriptSelector}`)) return n
+          }
+          return node
+        }
+
         const measure = (box, origin, win) => {
           const rect = box.getBoundingClientRect()
           const sx = win.scrollX || 0
@@ -916,6 +952,10 @@ async function collectAdSlotGeometry(page) {
 
           const parentRect = box.parentElement?.getBoundingClientRect() ?? rect
           return {
+            // 패스백 판정용(돌려주기 전에 지운다)
+            _el: box,
+            _media: media.map((m) => m.el),
+            _spot: spotOf(box),
             measurable: true,
             rendered: rect.height >= MIN_SLOT_HEIGHT_PX && media.length > 0,
             rect: toTopRect(rect),
@@ -1052,6 +1092,31 @@ async function collectAdSlotGeometry(page) {
         }
 
         walk(document, window, { x: 0, y: 0 }, 0)
+
+        /**
+         * 패스백: 이 칸은 비었어도 같은 자리를 다른 광고사가 채웠으면(이 칸 밖의 소재가 보이면)
+         * 사용자에게는 광고가 나온 것이다. 미노출로 세면 캡쳐와 어긋나고 팀룸 알림도 잘못 나간다.
+         */
+        for (const slot of slots) {
+          if (!slot.measurable || slot.rendered) continue
+          const filler = slots.find(
+            (other) =>
+              other !== slot &&
+              other.measurable &&
+              other.rendered &&
+              other._spot === slot._spot &&
+              other._media.some((m) => m !== slot._el && !slot._el.contains(m)),
+          )
+          if (filler) {
+            slot.rendered = true
+            slot.filledBy = filler.adTag
+          }
+        }
+        for (const slot of slots) {
+          delete slot._el
+          delete slot._media
+          delete slot._spot
+        }
 
         /**
          * 같은 광고태그가 여러 프레임에서 잡히면 한 줄로 합친다.
@@ -1248,6 +1313,11 @@ async function main() {
   /** 스크롤 상한 — 문서 끝에 닿으면 이보다 일찍 멈춘다 */
   const scrollSteps = Number(getEnv('MONITOR_SCROLL_STEPS', { defaultValue: '40' }))
   const scrollStepDelayMs = Number(getEnv('MONITOR_SCROLL_STEP_DELAY_MS', { defaultValue: '400' }))
+  /** 강제 리다이렉트·뒤로가기 가로채기 탐지(측정 중 메인 프레임 이동은 막는다) */
+  const hijackEnabled = parseBool(getEnv('MONITOR_HIJACK_ENABLED', { defaultValue: 'true' }), true)
+  /** 측정 마지막에 실제로 뒤로가기를 한 번 눌러 보는 시험 */
+  const backTestEnabled = parseBool(getEnv('MONITOR_BACK_TEST_ENABLED', { defaultValue: 'true' }), true)
+  const failOnHijack = parseBool(getEnv('MONITOR_FAIL_ON_HIJACK', { defaultValue: 'true' }), true)
 
   if (!targetScope) {
     throw new Error('Could not infer target scope from MONITOR_TARGET_URL. Set MONITOR_TARGET_SCOPE to news, news-home, pann, pann-home, news-pc, news-pc-home, pann-pc, or pann-pc-home.')
@@ -1297,6 +1367,11 @@ async function main() {
   let adSlots = null
   /** @type {{ latencyTop5: object[], errorRateTop5: object[] } | null} */
   let domainInsights = null
+  /** 강제 리다이렉트·뒤로가기 가로채기 탐지 결과 */
+  let hijack = null
+  /** CLS·스크립트 용량 */
+  let layoutShift = null
+  let scriptSizes = null
   /** CDP Log 도메인(violation/intervention 등, console.* 호출이 아닌 브라우저 자체 진단 메시지) — 메인 프레임과 모든 iframe(광고 iframe 포함)에서 수집 */
   /** @type {{ type: string, text: string, url?: string, sourceUrl?: string, line?: number, source?: string }[]} */
   const browserLogMessages = []
@@ -1334,10 +1409,16 @@ async function main() {
             },
       )
       await context.addInitScript(LONG_TASK_CAPTURE_SCRIPT)
+      await context.addInitScript(LAYOUT_SHIFT_CAPTURE_SCRIPT)
       await context.addInitScript(CONSOLE_CAPTURE_SCRIPT)
+      if (hijackEnabled) await context.addInitScript(HIJACK_CAPTURE_SCRIPT)
       const page = await context.newPage()
+      const redirectGuard = hijackEnabled ? await installRedirectGuard(context, page) : null
       page.setDefaultTimeout(Number.isFinite(timeoutMs) ? timeoutMs : 45000)
       page.setDefaultNavigationTimeout(Number.isFinite(navTimeoutMs) ? navTimeoutMs : 30000)
+
+      const scriptSizeTracker = createScriptSizeTracker(page)
+      page.on('response', scriptSizeTracker.onResponse)
 
       page.on('response', (response) => {
         let st = 0
@@ -1584,6 +1665,14 @@ async function main() {
         await page.waitForTimeout(afterLoadWaitMs)
       }
 
+      // 캡쳐는 뷰포트를 키워 지면을 다시 그리므로 그 전에 읽는다
+      try {
+        layoutShift = await collectLayoutShifts(page)
+        if (layoutShift) console.log(`[perf] CLS ${layoutShift.cls} (이동 ${layoutShift.shiftCount}회)`)
+      } catch (err) {
+        console.warn(`[perf] CLS 수집 실패: ${err instanceof Error ? err.message : String(err)}`)
+      }
+
       // 앵커 광고를 감추기 전에 재야 한다(캡쳐 함수가 안에서 감춘다)
       adSlots = await collectAdSlotGeometry(page)
 
@@ -1606,6 +1695,10 @@ async function main() {
 
       // 캡쳐하는 몇 초 사이에 뜬 칸을 놓치지 않도록 한 번 더 잰다(앵커 감춤은 캡쳐 함수가 이미 되돌렸다)
       adSlots = mergeAdSlotMeasurements(adSlots, await collectAdSlotGeometry(page))
+      const passbacks = (adSlots ?? []).filter((s) => s.filledBy)
+      if (passbacks.length) {
+        console.log(`[adSlots] 패스백으로 채워져 노출로 본 칸: ${passbacks.map((s) => `${s.adTag} → ${s.filledBy}`).join(', ')}`)
+      }
 
       const capturedConsoleMessages = await page.evaluate(() => {
         const key = '__adMonitorConsoleMessages__'
@@ -1705,7 +1798,7 @@ async function main() {
       attachSourceSnippets(pageErrors, scriptBodyByUrl)
 
       try {
-        const perfRaw = await page.evaluate(() => {
+        const perfRaw = await page.evaluate((adReSource) => {
           const key = '__adMonitorLongTasks__'
           const fromObs = Array.isArray(globalThis[key]) ? globalThis[key] : []
           const fromPerf = performance.getEntriesByType('longtask')
@@ -1726,8 +1819,7 @@ async function main() {
           for (const e of all) {
             if (e.duration > 50) approxTbtMs += e.duration - 50
           }
-          const adRe =
-            /googlesyndication|doubleclick|googletagmanager\.com\/gtag|pagead2|adservice|taboola|criteo|adnxs|amazon-adsystem|casalemedia|pubmatic|rubiconproject|openx|prebid|adform|adsafeprotected|2mdn\.net|creativecdn|spotx|outbrain|facebook\.net\/|connect\.facebook|dable|widerplanet|mobwith|googletagservices|gpt\.js|pubads\.gmpubads|securepubads\.g\.doubleclick/i
+          const adRe = new RegExp(adReSource, 'i')
           const resources = performance.getEntriesByType('resource')
           const adScripts = resources.filter((r) => r.initiatorType === 'script' && adRe.test(r.name))
           const avgAdScriptResourceDurationMs = adScripts.length
@@ -1767,7 +1859,7 @@ async function main() {
             adScriptResourceCount: adScripts.length,
             resourceByHost,
           }
-        })
+        }, AD_SCRIPT_URL_RE.source)
         if (perfRaw && typeof perfRaw === 'object') {
           const { resourceByHost, ...perfRest } = perfRaw
           performanceMetrics = perfRest
@@ -1784,6 +1876,56 @@ async function main() {
       } catch {
         performanceMetrics = null
         domainInsights = null
+      }
+
+      try {
+        scriptSizes = await scriptSizeTracker.summarize()
+        if (scriptSizes) {
+          console.log(
+            `[perf] 스크립트 ${scriptSizes.requests}개 · 전송 ${(scriptSizes.transferBytes / 1024).toFixed(0)}KB · 원본 ${(scriptSizes.decodedBytes / 1024).toFixed(0)}KB (광고 ${(scriptSizes.byKind.ad.transferBytes / 1024).toFixed(0)}KB)`,
+          )
+        }
+      } catch (err) {
+        console.warn(`[perf] 스크립트 용량 수집 실패: ${err instanceof Error ? err.message : String(err)}`)
+      }
+      if (performanceMetrics && layoutShift) {
+        performanceMetrics.cls = layoutShift.cls
+        performanceMetrics.layoutShiftCount = layoutShift.shiftCount
+      }
+      if (performanceMetrics && scriptSizes) {
+        performanceMetrics.scriptRequestCount = scriptSizes.requests
+        performanceMetrics.scriptTransferBytes = scriptSizes.transferBytes
+        performanceMetrics.scriptDecodedBytes = scriptSizes.decodedBytes
+        performanceMetrics.adScriptTransferBytes = scriptSizes.byKind.ad.transferBytes
+      }
+
+      // 뒤로가기 시험은 페이지 상태를 바꿀 수 있어 다른 수집이 다 끝난 뒤에 한다
+      if (hijackEnabled) {
+        try {
+          const hooks = await collectHijackHooks(page)
+          const backTest = backTestEnabled ? await runBackButtonTest(page, redirectGuard) : null
+          hijack = summarizeHijack({
+            redirects: redirectGuard?.redirects() ?? [],
+            hooks,
+            backTest,
+            pageUrl: targetUrl,
+          })
+          if (hijack.redirects.length) {
+            console.log(
+              `[hijack] 막은 이동: ${hijack.redirects.map((r) => `${r.kind} ${r.url}${r.sourceUrl ? ` ← ${r.sourceUrl}` : ''}`).join(', ')}`,
+            )
+          }
+          if (hijack.backHijack.suspected) console.log(`[hijack] 뒤로가기 가로채기: ${hijack.backHijack.reasons.join(' / ')}`)
+        } catch (err) {
+          console.warn(`[hijack] 수집 실패: ${err instanceof Error ? err.message : String(err)}`)
+        } finally {
+          await redirectGuard?.dispose()
+        }
+      }
+
+      if (failOnHijack && hijack) {
+        if (hijack.forcedRedirectCount > 0) failures.push(`Forced redirects: ${hijack.forcedRedirectCount}`)
+        if (hijack.backHijack.suspected) failures.push(`Back-button hijack: ${hijack.backHijack.reasons.join(' / ')}`)
       }
 
       if (failOnPageError && pageErrors.length > 0) failures.push(`JS page errors: ${pageErrors.length}`)
@@ -1840,6 +1982,10 @@ async function main() {
       ...(adSlots != null && adSlots.length ? { adSlots } : {}),
       ...(performanceMetrics != null ? { performanceMetrics } : {}),
       ...(domainInsights != null ? { domainInsights } : {}),
+      ...(hijack != null ? { hijack } : {}),
+      ...(layoutShift || scriptSizes
+        ? { pagePerformance: { ...(layoutShift ? { layoutShift } : {}), ...(scriptSizes ? { scripts: scriptSizes } : {}) } }
+        : {}),
     },
   }
 

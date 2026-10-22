@@ -38,6 +38,9 @@ export type DownSlot = {
   parentAdTag?: string
   /** 마지막 실행까지 연속으로 미노출이었던 실행 시각(오래된 것부터) */
   missedAt: string[]
+  /** 이번 묶음(검사 구간) 안에서 이 칸을 잰 횟수와 그중 안 나온 횟수 */
+  windowMeasured: number
+  windowMissed: number
   /** 기록상 한 번이라도 나온 적이 있는지. 없으면 원래부터 비어 있는 칸일 수 있다 */
   everRendered: boolean
 }
@@ -172,10 +175,11 @@ function detectSlotAlertsAt(sorted: MonitorHistoryEntry[]): SlotAlert[] {
 }
 
 /** 마지막 실행에서 잰 칸 중 안 나온 것. 마지막 실행에 광고칸 기록이 없으면 판정하지 않는다 */
-function detectDownSlots(sorted: MonitorHistoryEntry[]): DownSlot[] {
+function detectDownSlots(sorted: MonitorHistoryEntry[], startIndex: number): DownSlot[] {
   const latest = sorted[sorted.length - 1]
   if (!latest.adSlots?.length) return []
   const runs = sorted.filter((it) => it.adSlots?.length).map(slotRunOf)
+  const windowFrom = Date.parse(sorted[startIndex].checkedAt)
 
   const down: DownSlot[] = []
   for (const [adTag, rendered] of runs[runs.length - 1].states) {
@@ -183,6 +187,7 @@ function detectDownSlots(sorted: MonitorHistoryEntry[]): DownSlot[] {
     const measured = runs
       .filter((r) => r.states.has(adTag))
       .map((r) => ({ checkedAt: r.checkedAt, rendered: r.states.get(adTag) === true }))
+    const inWindow = measured.filter((s) => Date.parse(s.checkedAt) >= windowFrom)
     let from = measured.length - 1
     while (from > 0 && !measured[from - 1].rendered) from -= 1
     const parentAdTag = [...runs].reverse().find((r) => r.parents.has(adTag))?.parents.get(adTag)
@@ -190,6 +195,8 @@ function detectDownSlots(sorted: MonitorHistoryEntry[]): DownSlot[] {
       adTag,
       ...(parentAdTag ? { parentAdTag } : {}),
       missedAt: measured.slice(from).map((s) => s.checkedAt),
+      windowMeasured: inWindow.length,
+      windowMissed: inWindow.filter((s) => !s.rendered).length,
       everRendered: from > 0,
     })
   }
@@ -234,6 +241,6 @@ export function detectTargetAlerts(
     newIssues: newIssues.items,
     slots: detectSlotAlerts(sorted, startIndex),
     slotsMeasured: Boolean(sorted[sorted.length - 1].adSlots?.length),
-    downSlots: detectDownSlots(sorted),
+    downSlots: detectDownSlots(sorted, startIndex),
   }
 }
