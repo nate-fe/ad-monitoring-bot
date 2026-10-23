@@ -169,9 +169,9 @@ export function parseTag(input: string): Parsed | null {
     return {
       kind: 'raw',
       patch: { kind: 'raw', rawHtml: text, ...(hasSize ? size : {}) },
-      summary: `${hasDocWrite ? '원본 태그 (document.write 포함, 격리 실행)' : '원본 태그 (격리 실행)'} · ${
-        hasSize ? `${size.width}×${size.height}` : '크기를 찾지 못함, 직접 입력'
-      }`,
+      summary: hasDocWrite
+        ? `원본 태그 (document.write 포함, iframe 격리 실행) · ${hasSize ? `${size.width}×${size.height}` : '크기를 찾지 못함, 직접 입력'}`
+        : `원본 태그 (script ${scripts.length}개를 그대로 삽입)`,
     }
   }
 

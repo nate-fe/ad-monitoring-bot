@@ -79,8 +79,9 @@ export function validate(c: AdConfig): Warning[] {
     ['광고 위치 선택자', c.areaSelector, 'error'],
     ['접을 요소 선택자', c.kind === 'adsense' && c.hideEmpty ? c.foldSelector : '', 'error'],
     ['unfilled일 때 숨길 요소 선택자', c.kind === 'adsense' && c.hideEmpty ? c.unfilledHideSelector : '', 'error'],
+    ['광고를 감싼 요소 선택자', c.parentFit ? c.parentClosest : '', 'error'],
     ...(c.parentFit ? c.parentAreas : []).map(
-      (a): [string, string, WarningLevel] => [a.depth === 2 ? '그 위 문서 요소 선택자' : '상위 문서 요소 선택자', a.selector, 'error'],
+      (a): [string, string, WarningLevel] => [a.depth === 2 ? '두 단계 위 문서 요소 선택자' : '한 단계 위 문서 요소 선택자', a.selector, 'error'],
     ),
   ]
   for (const [label, value, level] of selectors) {
@@ -91,10 +92,10 @@ export function validate(c: AdConfig): Warning[] {
 
   if (c.parentFit) {
     const hasAreas = c.parentAreas.some((a) => a.selector.trim())
-    if (c.parentTarget === 'none' && !hasAreas) {
-      out.push({ level: 'warn', message: '상위 프레임 높이 맞춤: 높이를 맞출 요소의 선택자를 입력하세요.' })
+    if (c.parentTarget === 'none' && !hasAreas && !c.parentClosest.trim()) {
+      out.push({ level: 'warn', message: '바깥 영역 높이 맞추기: 높이를 맞출 요소의 선택자를 입력하세요.' })
     }
-    out.push({ level: 'info', message: '상위 문서가 다른 도메인이면 높이 맞춤은 건너뜁니다(오류 없이 무시).' })
+    out.push({ level: 'info', message: '바깥 문서가 다른 도메인이면 높이 맞추기는 건너뜁니다(오류 없이 무시).' })
   }
 
   return out

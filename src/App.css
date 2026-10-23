@@ -4952,25 +4952,6 @@ details[open] > .screenshotSummary::before {
   gap: 14px;
 }
 
-.perfSummary {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 16px;
-  margin-bottom: 12px;
-  padding: 8px 12px;
-  border: 1px solid color-mix(in srgb, var(--perf-tone) 40%, var(--border));
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--perf-tone) 8%, transparent);
-  font-size: 13px;
-}
-
-.perfSummaryItem {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
 .perfMetricGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));

@@ -1,4 +1,4 @@
-import { type AdConfig, usesSize } from '../config'
+import { type AdConfig, rawNeedsFrame, usesSize } from '../config'
 
 const ADSENSE_SRC = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client='
 const UNFILLED_CSS = 'ins.adsbygoogle[data-ad-status="unfilled"]{display:none !important;}'
@@ -189,7 +189,7 @@ function renderBody(w: Writer, c: AdConfig) {
   // 8. AD 라벨 홀더
   let host = '_box'
   if (c.label) {
-    const blockHolder = isFluidAdsense(c) || (c.kind === 'script' && !usesSize(c))
+    const blockHolder = isFluidAdsense(c) || ((c.kind === 'script' || c.kind === 'raw') && !usesSize(c))
     w.line("var _holder = document.createElement('div');")
     w.line(
       `_holder.style.cssText = ${q(
@@ -254,6 +254,8 @@ function renderBody(w: Writer, c: AdConfig) {
     }
     if (c.scriptTagStyle.trim()) w.line(`_tag.style.cssText = ${q(c.scriptTagStyle.trim())};`)
     w.line(`${host}.appendChild(_tag);`)
+  } else if (!rawNeedsFrame(c)) {
+    writeRawTags(w, c, host)
   } else {
     w.line("var _adFrame = document.createElement('iframe');")
     w.line('_adFrame.width = _adWidth;')
@@ -346,7 +348,7 @@ function renderBody(w: Writer, c: AdConfig) {
     w.blank()
   }
 
-  // 13. 상위 프레임 높이 맞춤
+  // 13. 바깥 영역 높이 맞추기
   if (c.parentFit) {
     const fixedHeight = toInt(c.parentHeight)
     const areas = c.parentAreas.filter((a) => a.selector.trim())
@@ -376,10 +378,30 @@ function renderBody(w: Writer, c: AdConfig) {
       w.close('}')
       w.close('} catch (e) {}')
     }
+    const closest = c.parentClosest.trim()
+    if (closest) {
+      // 광고 자리에서 위로 찾는다. 이 문서에 없으면 감싼 iframe 바깥 문서에서 이어서 찾는다
+      w.line('var _el = _box;')
+      w.line('var _win = window;')
+      w.open('while (_el) {')
+      w.line(`var _wrap = _el.closest(${q(closest)});`)
+      w.open('if (_wrap) {')
+      w.line("_wrap.style.height = _h + 'px';")
+      w.line('break;')
+      w.close('}')
+      w.open('try {')
+      w.line('_el = _win.frameElement;')
+      w.line('_win = _win.parent;')
+      w.mid('} catch (e) {')
+      w.line('break;')
+      w.close('}')
+      w.close('}')
+    }
     w.close('};')
     // 애드센스는 응답 전 높이가 0이라 응답(data-ad-status)을 받은 뒤에만 맞춘다
     if (c.kind !== 'adsense') w.line('_fitParent();')
     if (c.kind === 'iframe') w.line("_iframe.addEventListener('load', _fitParent);")
+    // 외부 script 가 있으면 마지막 script 를 불러온 뒤에도 한 번 더 맞춘다 (writeRawTags)
     if (c.kind === 'raw') w.line('setTimeout(_fitParent, 0);')
     if (c.kind === 'script') {
       w.line("_ext.addEventListener('load', function () { setTimeout(_fitParent, 0); });")
@@ -387,6 +409,80 @@ function renderBody(w: Writer, c: AdConfig) {
     if (c.kind === 'adsense' && !hideByObserver) {
       w.line("new MutationObserver(_fitParent).observe(_ins, { attributes: true, attributeFilter: ['data-ad-status'] });")
     }
+  }
+}
+
+type RawStep =
+  | { type: 'html'; html: string }
+  | { type: 'script'; attrs: [string, string][]; text: string; external: boolean }
+
+/** 붙여넣은 태그를 순서대로 나눈다. 요소 안에 든 script 는 그 요소 바로 뒤로 꺼낸다 */
+function splitRawTags(html: string): RawStep[] {
+  // template 안의 script 는 실행되지 않고, 앞쪽 script 가 head 로 옮겨지지도 않는다
+  const t = document.createElement('template')
+  t.innerHTML = html
+  const steps: RawStep[] = []
+  const pushHtml = (s: string) => {
+    if (!s.trim()) return
+    const last = steps[steps.length - 1]
+    if (last?.type === 'html') last.html += s
+    else steps.push({ type: 'html', html: s })
+  }
+  const pushScript = (s: HTMLScriptElement) => {
+    const attrs = Array.from(s.attributes).map((a) => [a.name, a.value] as [string, string])
+    steps.push({ type: 'script', attrs, text: s.textContent ?? '', external: s.hasAttribute('src') })
+  }
+  for (const node of Array.from(t.content.childNodes)) {
+    if (node instanceof HTMLScriptElement) {
+      pushScript(node)
+    } else if (node instanceof Element) {
+      const inner = Array.from(node.querySelectorAll('script'))
+      inner.forEach((s) => s.remove())
+      pushHtml(node.outerHTML)
+      inner.forEach(pushScript)
+    } else if (node.nodeType === Node.TEXT_NODE) {
+      pushHtml(node.textContent ?? '')
+    }
+  }
+  return steps
+}
+
+/**
+ * 원본 태그를 iframe 없이 그대로 넣는다. innerHTML 로 넣은 script 는 실행되지 않으므로
+ * script 는 createElement('script') 로 만든다. 외부 script 다음 코드는 그 script 를 불러온 뒤(실패해도) 실행해
+ * 원래 태그의 실행 순서를 지킨다.
+ */
+function writeRawTags(w: Writer, c: AdConfig, host: string) {
+  const steps = splitRawTags(c.rawHtml.trim())
+  let n = 0
+  // onload 콜백을 연 외부 script. 콜백을 닫은 뒤에 붙인다
+  const waiting: string[] = []
+  steps.forEach((step, i) => {
+    if (step.type === 'html') {
+      w.line(`${host}.insertAdjacentHTML('beforeend', ${q(step.html.trim())});`)
+      return
+    }
+    const v = `_s${++n}`
+    w.line(`var ${v} = document.createElement('script');`)
+    for (const [k, val] of step.attrs) {
+      const name = k.toLowerCase()
+      if (name === 'src') w.line(`${v}.src = ${q(val)};`)
+      else if (name === 'async' || name === 'defer') w.line(`${v}.${name} = true;`)
+      else w.line(`${v}.setAttribute(${q(k)}, ${q(val)});`)
+    }
+    if (step.text.trim()) w.line(`${v}.text = ${q(step.text.trim())};`)
+    // 외부 script 뒤에 실행할 것이 있으면 그 script 를 불러온 뒤로 미룬다
+    if (step.external && (i < steps.length - 1 || c.parentFit)) {
+      w.open(`${v}.onload = ${v}.onerror = function () {`)
+      waiting.push(v)
+    } else {
+      w.line(`${host}.appendChild(${v});`)
+    }
+  })
+  if (waiting.length && c.parentFit) w.line('setTimeout(_fitParent, 0);')
+  while (waiting.length) {
+    w.close('};')
+    w.line(`${host}.appendChild(${waiting.pop()});`)
   }
 }
 

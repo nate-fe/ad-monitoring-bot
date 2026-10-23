@@ -1,10 +1,10 @@
 /**
- * 하루 두 번(한국시간 9시·15시) 광고칸 미노출 현황과 새로 생긴 오류를 네이트온 팀룸(Incoming Webhook)으로 보낸다.
+ * 하루 두 번(오전·오후, 한국시간 9시·15시 이후 첫 실행) 광고칸 미노출 현황과 새로 생긴 오류를 네이트온 팀룸(Incoming Webhook)으로 보낸다.
  *
  * - 각 회차는 그 시각 이후의 첫 실행이 보낸다. GitHub 스케줄은 몇 시간씩 밀리거나 빠지므로 9시 회차가
  *   10시 반 실행에서 나갈 수도 있지만, 다음 회차 시각(15시·다음날 9시) 전까지 실행이 하나라도 있으면 빠지지 않는다.
  * - 미노출 칸이 없어도 「없음」으로 보낸다. 알림이 안 오면 모니터링이 멈춘 것으로 알 수 있게.
- * - 오류는 지난번 보낸 실행 이후의 실행을 한 묶음으로 보고 처음 잡힌 것만 싣는다.
+ * - 지난번 보낸 실행 이후의 실행을 한 묶음으로 본다. 미노출 횟수도 이 묶음 안에서만 세고, 오류는 처음 잡힌 것만 싣는다.
  * - 판정은 src/monitor/alertDetection.ts 에 있다(생애주기 화면과 같은 「같은 오류」 키를 쓰려고
  *   TS 모듈을 esbuild 로 그 자리에서 번들해 불러온다).
  * - history:update:all 이후에 돌아야 한다. 이번 실행이 히스토리 마지막 항목이어야 하기 때문이다.
@@ -106,7 +106,7 @@ function planSend(timesByTarget, { ignoreSchedule }) {
   const sendTimes = sendTimesUpTo(runStart)
   const slotStart = sendTimes.next().value
   if (!ignoreSchedule && previous.some((t) => t >= slotStart)) {
-    return { send: false, reason: `${formatKst(new Date(slotStart).toISOString())} 회차는 이미 앞 실행이 보냄` }
+    return { send: false, reason: `${formatSlotName(new Date(slotStart).toISOString())} 회차는 이미 앞 실행이 보냄` }
   }
 
   // 지난 회차들을 거슬러 가며 그 회차에 보낸 실행(회차 시각 이후 첫 실행)을 찾는다
@@ -133,24 +133,11 @@ function formatKst(iso) {
   })
 }
 
-/** 미노출 시각을 이보다 많이 나열하면 처음 ~ 마지막과 횟수로 줄인다 */
-const MAX_MISSED_TIMES = 6
-
-/** 「10. 18. 21:55, 23:55, 10. 19. 01:55」 — 날짜가 바뀔 때만 날짜를 붙인다 */
-function formatMissedTimes(isoList) {
-  if (isoList.length > MAX_MISSED_TIMES) {
-    return `${formatKst(isoList[0])} ~ ${formatKst(isoList[isoList.length - 1])} (${isoList.length}회)`
-  }
-  let prevDay = ''
-  return isoList
-    .map((iso) => {
-      const full = formatKst(iso)
-      const [, day, time] = full.match(/^(.*?)\s*(\d{2}:\d{2})$/) ?? [full, '', full]
-      const out = day === prevDay ? time : full
-      prevDay = day
-      return out
-    })
-    .join(', ')
+/** 회차 이름 — 「10월 23일 오전」. 실제 보내는 시각은 스케줄에 따라 밀리므로 시각은 적지 않는다 */
+function formatSlotName(iso) {
+  const kst = new Date(Date.parse(iso) + KST_OFFSET_MS)
+  const half = kst.getUTCHours() < 12 ? '오전' : '오후'
+  return `${kst.getUTCMonth() + 1}월 ${kst.getUTCDate()}일 ${half}`
 }
 
 /** 다른 광고사 칸은 광고사 쪽 ID(숫자 등)라 알아볼 수 없으므로, 그 칸을 띄운 네이트 광고태그로 적는다 */
@@ -158,13 +145,8 @@ function slotLabel(slot) {
   return slot.parentAdTag || slot.adTag
 }
 
+/** 「검사 5회 중 3회 미노출」 — 지난 알림 뒤 ~ 이번 알림 사이의 실행만 센다 */
 function formatSlotLine(slot) {
-  const missed = slot.missedAt?.length ? ` — 미노출 ${formatMissedTimes(slot.missedAt)}` : ''
-  return `· ${slotLabel(slot)}${missed}`
-}
-
-/** 「검사 5회 중 5회 미노출」 — 검사 구간 밖의 기록은 세지 않는다 */
-function formatDownSlotLine(slot) {
   return `· ${slotLabel(slot)} — 검사 ${slot.windowMeasured}회 중 ${slot.windowMissed}회 미노출`
 }
 
@@ -180,8 +162,8 @@ function buildMessage(sections, { base, slotStart, firstCheckedAt, latestChecked
       : `${formatKst(firstCheckedAt)} ~ ${formatKst(latestCheckedAt)}`
   const downTotal = sections.reduce((n, { alerts }) => n + (alerts?.downSlots.filter((s) => s.everRendered).length ?? 0), 0)
   const lines = [
-    `[광고 모니터링] ${formatKst(slotStart)} 정기 알림 — 미노출 광고칸 ${downTotal ? `${downTotal}개` : '없음'}`,
-    `검사 ${range}`,
+    `[광고 모니터링] ${formatSlotName(slotStart)} 정기 알림 — 미노출 광고칸 ${downTotal ? `${downTotal}개` : '없음'}`,
+    `검사 ${range} (지난 알림 뒤 실행)`,
   ]
 
   /** 할 말이 없는 지면은 끝에 이름만 모은다 */
@@ -199,7 +181,7 @@ function buildMessage(sections, { base, slotStart, firstCheckedAt, latestChecked
     if (!alerts.slotsMeasured) body.push('광고칸을 재지 못함(마지막 실행)')
     if (wasRendering.length) {
       body.push(`미노출 ${wasRendering.length}개`)
-      for (const slot of wasRendering) body.push(formatDownSlotLine(slot))
+      for (const slot of wasRendering) body.push(formatSlotLine(slot))
     }
     if (neverRendered.length) {
       const labels = [...new Set(neverRendered.map(slotLabel))]
@@ -266,7 +248,7 @@ async function main() {
     console.log(`[teamroom] 보내지 않음 — ${plan.reason}`)
     return
   }
-  console.log(`[teamroom] ${formatKst(new Date(plan.slotStart).toISOString())} 회차 — ${formatKst(plan.since)} 이후 실행을 묶어 판정`)
+  console.log(`[teamroom] ${formatSlotName(new Date(plan.slotStart).toISOString())} 회차 — ${formatKst(plan.since)} 이후 실행을 묶어 판정`)
 
   const { detectTargetAlerts } = await loadDetector()
   const sections = []

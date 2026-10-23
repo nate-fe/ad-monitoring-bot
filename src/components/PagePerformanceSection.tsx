@@ -241,21 +241,6 @@ function MainThreadBlock({ metrics }: { metrics: MonitorPerformanceMetrics }) {
   )
 }
 
-/** 섹션 맨 위 한 줄 — 지표마다 정상·경고·위험을 한눈에 */
-function GradeSummary({ items }: { items: { label: string; tone: Tone }[] }) {
-  if (!items.length) return null
-  const worst: Tone = items.some((i) => i.tone === 'fail') ? 'fail' : items.some((i) => i.tone === 'warn') ? 'warn' : 'ok'
-  return (
-    <div className={`perfSummary perfTone--${worst}`}>
-      {items.map((item) => (
-        <span key={item.label} className="perfSummaryItem">
-          {item.label} <GradePill tone={item.tone} />
-        </span>
-      ))}
-    </div>
-  )
-}
-
 function ScriptSizeBlock({ data }: { data: NonNullable<PagePerformanceDiagnostics['scripts']> }) {
   const total = data.transferBytes || 1
   const hostMax = Math.max(1, ...data.topHosts.map((h) => h.transferBytes))

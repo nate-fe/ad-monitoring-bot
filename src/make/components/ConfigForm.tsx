@@ -118,7 +118,7 @@ function AdTagField({ c, set }: { c: AdConfig; set: Set }) {
   const service = AD_TAG_SERVICES.find((s) => s.id === pick.service)
   const adTag = findAdTag(pick.service, pick.tag)
 
-  // 앞서 고른 태그가 켜 둔 상위 프레임 높이 맞춤은, 다른 태그로 바꾸면 끈다 (직접 켠 설정은 건드리지 않음)
+  // 앞서 고른 태그가 켜 둔 바깥 영역 높이 맞추기는, 다른 태그로 바꾸면 끈다 (직접 켠 설정은 건드리지 않음)
   const autoParentOff = adTag?.parentAreas ? { parentFit: false, parentAreas: [] } : {}
 
   const chooseService = (id: string) => {
@@ -133,7 +133,14 @@ function AdTagField({ c, set }: { c: AdConfig; set: Set }) {
     set({
       areaSelector: next?.selector ?? '',
       ...(next?.parentAreas
-        ? { parentFit: true, parentAreas: next.parentAreas, parentTarget: 'none' as const, parentIframeName: '', parentHeight: '' }
+        ? {
+            parentFit: true,
+            parentAreas: next.parentAreas,
+            parentTarget: 'none' as const,
+            parentIframeName: '',
+            parentClosest: '',
+            parentHeight: '',
+          }
         : autoParentOff),
     })
   }
@@ -205,47 +212,76 @@ function ParentAreasEditor({ areas, onChange }: { areas: ParentArea[]; onChange:
 
 type FitMode = 'window' | 'parent' | 'areas'
 
-/** 맞출 대상을 하나 고르면 그 대상에 필요한 칸만 보인다 */
+const FIT_TABS: { value: FitMode; label: string }[] = [
+  { value: 'window', label: '광고가 든 iframe' },
+  { value: 'parent', label: '한 겹 더 바깥 iframe' },
+  { value: 'areas', label: '선택자로 지정' },
+]
+
+/** 맞출 대상을 탭으로 고른다. 탭마다 다른 칸은 탭 안에, 모든 탭에서 쓰는 칸은 탭 아래에 둔다 */
 function ParentFitPanel({ c, set }: { c: AdConfig; set: Set }) {
   const mode: FitMode = c.parentTarget === 'none' ? 'areas' : c.parentTarget
   const chooseMode = (next: FitMode) =>
     set(
       next === 'areas'
-        ? { parentTarget: 'none', parentIframeName: '', parentAreas: c.parentAreas.length ? c.parentAreas : [{ depth: 1, selector: '' }] }
+        ? {
+            parentTarget: 'none',
+            parentIframeName: '',
+            parentAreas: c.parentAreas.length ? c.parentAreas : [{ depth: 1, selector: '' }],
+          }
         : { parentTarget: next, parentAreas: [] },
     )
   return (
     <div className="mkOptionPanel">
-      <h3 className="mkGroupTitle">상위 프레임 높이 맞춤</h3>
+      <h3 className="mkGroupTitle">바깥 영역 높이 맞추기</h3>
+      <div className="mkField">
+        <span className="mkFieldLabel">맞출 대상</span>
+        <div className="mkTabBox">
+          <div className="mkTabs" role="tablist" aria-label="맞출 대상">
+            {FIT_TABS.map((t) => (
+              <button
+                key={t.value}
+                type="button"
+                role="tab"
+                id={`mkFitTab-${t.value}`}
+                aria-selected={mode === t.value}
+                aria-controls="mkFitPanel"
+                className={`mkTab${mode === t.value ? ' isOn' : ''}`}
+                onClick={() => chooseMode(t.value)}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+          <div className="mkTabPanel" role="tabpanel" id="mkFitPanel" aria-labelledby={`mkFitTab-${mode}`}>
+            {mode === 'areas' ? (
+              <Field label="높이를 맞출 요소" group>
+                <ParentAreasEditor areas={c.parentAreas} onChange={(parentAreas) => set({ parentAreas })} />
+              </Field>
+            ) : (
+              <Field label="iframe name (선택)" group>
+                <Choice
+                  label="iframe name"
+                  mono
+                  value={c.parentIframeName}
+                  options={PARENT_IFRAME_NAME_CHOICES}
+                  onChange={(parentIframeName) => set({ parentIframeName })}
+                  placeholder="ad_mid"
+                />
+              </Field>
+            )}
+          </div>
+        </div>
+      </div>
       <div className="mkGrid">
-        <Field label="맞출 대상" group wide>
-          <Segmented
-            label="맞출 대상"
-            value={mode}
-            onChange={chooseMode}
-            options={[
-              { value: 'window', label: '광고를 감싼 iframe' },
-              { value: 'parent', label: '그 바깥 iframe' },
-              { value: 'areas', label: '지정한 요소' },
-            ]}
+        <Field label="광고를 감싼 요소도 맞추기 (closest, 선택)" wide>
+          <TextInput
+            mono
+            value={c.parentClosest}
+            onChange={(parentClosest) => set({ parentClosest })}
+            placeholder="#ad_wrap 또는 .ad_wrap"
           />
         </Field>
-        {mode === 'areas' ? (
-          <Field label="높이를 맞출 요소" group wide>
-            <ParentAreasEditor areas={c.parentAreas} onChange={(parentAreas) => set({ parentAreas })} />
-          </Field>
-        ) : (
-          <Field label="iframe name (선택)" group wide>
-            <Choice
-              label="iframe name"
-              mono
-              value={c.parentIframeName}
-              options={PARENT_IFRAME_NAME_CHOICES}
-              onChange={(parentIframeName) => set({ parentIframeName })}
-              placeholder="ad_mid"
-            />
-          </Field>
-        )}
         <Field label="맞출 높이" group wide>
           <Choice
             label="맞출 높이"
@@ -270,7 +306,7 @@ function OptionChips({ c, set }: { c: AdConfig; set: Set }) {
       title: c.kind === 'adsense' ? '애드센스가 광고를 주지 않으면(unfilled) 숨깁니다.' : '애드센스에서만 쓸 수 있습니다.',
       disabled: c.kind !== 'adsense',
     },
-    { key: 'parentFit', label: '상위 프레임 높이 맞춤', title: '광고를 감싼 iframe의 높이를 광고 높이로 맞춥니다.' },
+    { key: 'parentFit', label: '바깥 영역 높이 맞추기', title: '광고가 그려진 뒤, 광고를 감싼 iframe이나 영역의 높이를 광고 높이에 맞춥니다.' },
   ]
   const hideOn = c.hideEmpty && c.kind === 'adsense'
   return (

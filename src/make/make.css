@@ -438,6 +438,63 @@ select.mkInput option {
   color: var(--text);
 }
 
+/* 탭 + 탭 내용이 한 상자로 붙어 보이게 한다 */
+.mkTabBox {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.mkTabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+}
+
+.mkTab,
+.mkTab:hover {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 9px 8px;
+  text-align: center;
+  line-height: 1.35;
+  word-break: keep-all;
+  margin: 0 0 -1px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: none;
+  transform: none;
+  cursor: pointer;
+}
+
+.mkTab:hover {
+  color: var(--text);
+}
+
+.mkTab.isOn {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+/* 마우스로 누를 때는 테두리를 그리지 않고, 키보드로 옮길 때만 그린다 */
+.mkTab:focus {
+  outline: none;
+}
+
+.mkTab:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent);
+  outline-offset: -2px;
+}
+
+.mkTabPanel {
+  padding: 14px;
+}
+
 .mkAreaPick {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
@@ -463,9 +520,13 @@ select.mkInput option {
 
 .mkParentArea {
   display: grid;
-  grid-template-columns: minmax(0, 11em) minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 6px;
   width: 100%;
+}
+
+.mkParentArea > select {
+  width: auto;
 }
 
 @media (max-width: 520px) {
@@ -474,5 +535,6 @@ select.mkInput option {
   }
   .mkParentArea > select {
     grid-column: 1 / -1;
+    width: 100%;
   }
 }

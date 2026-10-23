@@ -57,6 +57,8 @@ export interface AdConfig {
   parentAreas: ParentArea[]
   parentIframeName: string
   parentTarget: ParentFrameTarget
+  /** 높이를 맞춘 iframe 에서 closest 로 찾아 같은 높이를 줄 요소 (#id 또는 .class) */
+  parentClosest: string
   parentHeight: string
 
   /** 비우면 document.currentScript 의 부모에 넣는다 */
@@ -113,6 +115,7 @@ export const DEFAULT_CONFIG: AdConfig = {
   parentAreas: [],
   parentIframeName: '',
   parentTarget: 'parent',
+  parentClosest: '',
   parentHeight: '',
 
   areaSelector: '',
@@ -136,9 +139,19 @@ const KIND_KEYS = [
 
 export const KIND_DEFAULTS = Object.fromEntries(KIND_KEYS.map((k) => [k, DEFAULT_CONFIG[k]])) as Partial<AdConfig>
 
+/**
+ * 원본 태그를 격리 iframe 에 넣어야 하는지.
+ * document.write 는 페이지 로드 뒤에 실행되면 페이지를 지우므로 그때만 iframe 에 넣고,
+ * 나머지는 script 를 createElement 로 만들어 그대로 넣는다.
+ */
+export function rawNeedsFrame(c: AdConfig): boolean {
+  return c.kind === 'raw' && /document\.write(ln)?\s*\(/.test(c.rawHtml)
+}
+
 /** 크기(W×H)를 반드시 써야 하는 광고인지 */
 export function needsSize(c: AdConfig): boolean {
-  if (c.kind === 'iframe' || c.kind === 'raw') return true
+  if (c.kind === 'iframe') return true
+  if (c.kind === 'raw') return rawNeedsFrame(c)
   if (c.kind === 'adsense') return c.adFormat === 'fixed'
   return false
 }

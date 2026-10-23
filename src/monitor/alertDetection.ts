@@ -30,6 +30,9 @@ export type SlotAlert = {
   kind: 'down' | 'recovered' | 'bounced'
   /** 연속으로 미노출이었던 실행 시각(오래된 것부터). 다시 나온 경우엔 끊겼던 동안 전부 */
   missedAt: string[]
+  /** 이번 묶음(지난 알림 뒤 ~ 이번 알림) 안에서 이 칸을 잰 횟수와 그중 안 나온 횟수 */
+  windowMeasured: number
+  windowMissed: number
 }
 
 /** 마지막 실행에서 안 나온 광고칸 — 새로 끊긴 것이든 오래 끊긴 것이든 매 회차 전부 싣는다 */
@@ -38,7 +41,7 @@ export type DownSlot = {
   parentAdTag?: string
   /** 마지막 실행까지 연속으로 미노출이었던 실행 시각(오래된 것부터) */
   missedAt: string[]
-  /** 이번 묶음(검사 구간) 안에서 이 칸을 잰 횟수와 그중 안 나온 횟수 */
+  /** 이번 묶음(지난 알림 뒤 ~ 이번 알림) 안에서 이 칸을 잰 횟수와 그중 안 나온 횟수 */
   windowMeasured: number
   windowMissed: number
   /** 기록상 한 번이라도 나온 적이 있는지. 없으면 원래부터 비어 있는 칸일 수 있다 */
@@ -139,18 +142,27 @@ function slotRunOf(entry: MonitorHistoryEntry): SlotRun {
   return { checkedAt: entry.checkedAt, states, parents }
 }
 
+/** 묶음(windowFrom 이후) 안에서 이 칸을 잰 횟수와 안 나온 횟수 — 지난 알림 앞의 기록은 세지 않는다 */
+function windowCounts(runs: SlotRun[], adTag: string, windowFrom: number) {
+  const inWindow = runs.filter((r) => r.states.has(adTag) && Date.parse(r.checkedAt) >= windowFrom)
+  return {
+    windowMeasured: inWindow.length,
+    windowMissed: inWindow.filter((r) => r.states.get(adTag) !== true).length,
+  }
+}
+
 /**
  * 잘 나오던 칸이 SLOT_DOWN_STREAK 회 연속 안 나오기 **시작한** 실행, 그리고 그렇게 끊겼던 칸이
  * 다시 나온 실행에서만 알린다. 원래부터 비어 있던 칸은 「나오던」 실행이 없어 알리지 않는다.
  * 광고칸 기록이 없는 실행(2026-10 이전)은 건너뛰고, 기록이 있는 실행끼리만 연속을 센다.
  */
-function detectSlotAlertsAt(sorted: MonitorHistoryEntry[]): SlotAlert[] {
+function detectSlotAlertsAt(sorted: MonitorHistoryEntry[]): Omit<SlotAlert, 'windowMeasured' | 'windowMissed'>[] {
   const latest = sorted[sorted.length - 1]
   if (!latest.adSlots?.length) return []
   const runs = sorted.filter((it) => it.adSlots?.length).map(slotRunOf)
   const needed = SLOT_DOWN_STREAK + 1
 
-  const alerts: SlotAlert[] = []
+  const alerts: Omit<SlotAlert, 'windowMeasured' | 'windowMissed'>[] = []
   for (const adTag of runs[runs.length - 1].states.keys()) {
     // 이 태그를 잴 수 있었던 실행끼리만 잇는다 — 중간에 한 번 못 잰 것으로 연속이 끊기지 않게
     const measured = runs
@@ -187,7 +199,6 @@ function detectDownSlots(sorted: MonitorHistoryEntry[], startIndex: number): Dow
     const measured = runs
       .filter((r) => r.states.has(adTag))
       .map((r) => ({ checkedAt: r.checkedAt, rendered: r.states.get(adTag) === true }))
-    const inWindow = measured.filter((s) => Date.parse(s.checkedAt) >= windowFrom)
     let from = measured.length - 1
     while (from > 0 && !measured[from - 1].rendered) from -= 1
     const parentAdTag = [...runs].reverse().find((r) => r.parents.has(adTag))?.parents.get(adTag)
@@ -195,8 +206,7 @@ function detectDownSlots(sorted: MonitorHistoryEntry[], startIndex: number): Dow
       adTag,
       ...(parentAdTag ? { parentAdTag } : {}),
       missedAt: measured.slice(from).map((s) => s.checkedAt),
-      windowMeasured: inWindow.length,
-      windowMissed: inWindow.filter((s) => !s.rendered).length,
+      ...windowCounts(runs, adTag, windowFrom),
       everRendered: from > 0,
     })
   }
@@ -205,12 +215,14 @@ function detectDownSlots(sorted: MonitorHistoryEntry[], startIndex: number): Dow
 
 /** 묶음 안의 실행마다 광고칸 전이를 보고, 태그별로 묶음 전체의 결과 하나로 줄인다 */
 function detectSlotAlerts(sorted: MonitorHistoryEntry[], startIndex: number): SlotAlert[] {
+  const runs = sorted.filter((it) => it.adSlots?.length).map(slotRunOf)
+  const windowFrom = Date.parse(sorted[startIndex].checkedAt)
   const byTag = new Map<string, SlotAlert>()
   for (let i = startIndex; i < sorted.length; i++) {
     for (const alert of detectSlotAlertsAt(sorted.slice(0, i + 1))) {
       const prev = byTag.get(alert.adTag)?.kind
       const kind = alert.kind === 'recovered' && (prev === 'down' || prev === 'bounced') ? 'bounced' : alert.kind
-      byTag.set(alert.adTag, { ...alert, kind })
+      byTag.set(alert.adTag, { ...alert, kind, ...windowCounts(runs, alert.adTag, windowFrom) })
     }
   }
   return Array.from(byTag.values()).sort((a, b) => a.adTag.localeCompare(b.adTag))
