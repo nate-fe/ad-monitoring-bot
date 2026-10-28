@@ -4,7 +4,8 @@ import { AD_LAYOUTS } from '../adLayouts'
 import { InlineHelpTooltip } from './InlineHelpTooltip'
 
 const AD_SLOT_HELP_TEXT = [
-  '캡쳐 직전에 광고칸 높이가 0이거나 소재가 하나도 없던 광고태그입니다.',
+  '광고칸 영역은 열려 있는데 소재가 하나도 없던 광고태그입니다.',
+  '광고가 없어 영역이 닫힌 칸(높이 10px 미만)은 빈 자리가 남지 않으므로 넣지 않습니다.',
   '앞 광고사가 비워도 같은 자리를 다음 광고사가 채웠으면(패스백) 넣지 않습니다.',
   '',
   '다른 도메인 iframe 안은 볼 수 없어서, iframe만 뜨고 내용이 백지인 경우는 여기에 잡히지 않습니다.',
@@ -33,8 +34,14 @@ const AD_SLOT_SOURCE_LABEL: Record<AdSlotSource, string> = {
 
 export function AdSlotVisibilitySection({ slots }: { slots: AdSlotVisibility[] }) {
   const labelMap = useMemo(() => buildSlotLabelMap(), [])
-  /** 잰 칸 중 안 나온 것만. 재지 못한 칸은 미노출로 보지 않는다 */
-  const missing = useMemo(() => slots.filter((slot) => slot.measurable && !slot.rendered), [slots])
+  /** 잰 칸 중 영역은 열려 있는데 비어 있는 것만. 재지 못한 칸·닫힌 칸은 미노출로 보지 않는다 */
+  const missing = useMemo(
+    () =>
+      slots.filter(
+        (slot) => slot.measurable && !slot.rendered && !(slot.collapsed ?? slot.rect.height < 10),
+      ),
+    [slots],
+  )
 
   const nameOf = (adTag: string) => labelMap.get(adTag.toLowerCase())
 

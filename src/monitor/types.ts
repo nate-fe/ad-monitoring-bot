@@ -175,6 +175,8 @@ export type AdSlotVisibility =
       measurable: true
       /** 컨테이너 높이가 있고 소재가 1개 이상, 또는 같은 자리를 다른 광고사가 채움(filledBy) */
       rendered: boolean
+      /** 높이 10px 미만 — 광고가 없어 영역이 닫힘(미노출로 보지 않음). 2026-10-26 이전 리포트에는 없다 */
+      collapsed?: boolean
       /** 이 칸은 비었지만 패스백으로 같은 자리를 채운 광고칸의 태그 */
       filledBy?: string
       rect: AdSlotRect
@@ -352,6 +354,7 @@ export type MonitorHistoryEntry = {
 
 export type MonitorHistoryAdSlot = { adTag: string; parentAdTag?: string } & (
   | { measurable: false }
-  | { measurable: true; rendered: boolean }
+  /** collapsed: 안 나온 칸이 닫혔는지. 2026-10-26 이전 기록에는 없다 */
+  | { measurable: true; rendered: boolean; collapsed?: boolean }
 )
 

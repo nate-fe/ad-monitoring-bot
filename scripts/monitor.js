@@ -958,6 +958,8 @@ async function collectAdSlotGeometry(page) {
             _spot: spotOf(box),
             measurable: true,
             rendered: rect.height >= MIN_SLOT_HEIGHT_PX && media.length > 0,
+            /** 광고가 없어 영역이 닫힘 — 빈 자리가 화면에 남지 않으므로 미노출로 보지 않는다 */
+            collapsed: rect.height < MIN_SLOT_HEIGHT_PX,
             rect: toTopRect(rect),
             mediaCount: media.length,
             ...(widest

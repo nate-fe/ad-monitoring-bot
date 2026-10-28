@@ -164,7 +164,6 @@ export type LifecycleKeyInfo = {
   explainLevel: MessageExplainLevel | null
 }
 
-/** 팀룸 알림(alertDetection)도 같은 키로 「처음 잡힌 오류」를 판정한다 */
 export function lifecycleKeyFromMessage(text: string): LifecycleKeyInfo {
   const info = explainMessage(text)
   if (info) return { key: `cause:${info.key}`, label: info.title, explainLevel: info.level }

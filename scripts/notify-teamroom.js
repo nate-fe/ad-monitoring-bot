@@ -1,12 +1,12 @@
 /**
- * 하루 두 번(오전·오후, 한국시간 9시·15시 이후 첫 실행) 광고칸 미노출 현황과 새로 생긴 오류를 네이트온 팀룸(Incoming Webhook)으로 보낸다.
+ * 하루 두 번(오전·오후, 한국시간 9시·15시 이후 첫 실행) 광고칸 미노출 현황을 네이트온 팀룸(Incoming Webhook)으로 보낸다.
+ * 콘솔 오류는 싣지 않는다(대시보드에서 본다).
  *
  * - 각 회차는 그 시각 이후의 첫 실행이 보낸다. GitHub 스케줄은 몇 시간씩 밀리거나 빠지므로 9시 회차가
  *   10시 반 실행에서 나갈 수도 있지만, 다음 회차 시각(15시·다음날 9시) 전까지 실행이 하나라도 있으면 빠지지 않는다.
  * - 미노출 칸이 없어도 「없음」으로 보낸다. 알림이 안 오면 모니터링이 멈춘 것으로 알 수 있게.
- * - 지난번 보낸 실행 이후의 실행을 한 묶음으로 본다. 미노출 횟수도 이 묶음 안에서만 세고, 오류는 처음 잡힌 것만 싣는다.
- * - 판정은 src/monitor/alertDetection.ts 에 있다(생애주기 화면과 같은 「같은 오류」 키를 쓰려고
- *   TS 모듈을 esbuild 로 그 자리에서 번들해 불러온다).
+ * - 지난번 보낸 실행 이후의 실행을 한 묶음으로 본다. 미노출 횟수도 이 묶음 안에서만 센다.
+ * - 판정은 src/monitor/alertDetection.ts 에 있다(TS 모듈을 esbuild 로 그 자리에서 번들해 불러온다).
  * - history:update:all 이후에 돌아야 한다. 이번 실행이 히스토리 마지막 항목이어야 하기 때문이다.
  * - NATEON_TEAMROOM_WEBHOOK_URL 이 없거나 --dry-run 이면 보내지 않고 메시지만 출력한다.
  * - 알림이 실패해도 모니터링 결과 배포는 막지 않는다(워크플로에서 continue-on-error).
@@ -36,9 +36,6 @@ const RUN_SPREAD_MS = 15 * 60 * 1000
 /** 지난번 보낸 실행을 이만큼 거슬러 찾는다 */
 const SEND_LOOKBACK_MS = 14 * 24 * HOUR_MS
 
-const LEVEL_LABEL = { action: '조치 필요', watch: '확인만' }
-/** 한 지면에서 새 오류가 이보다 많으면 나머지는 개수만 적는다(문구 서명이 흔들릴 때 방이 도배되지 않도록) */
-const MAX_ISSUES_PER_TARGET = 5
 const SEND_TIMEOUT_MS = 10_000
 
 function getEnv(name) {
@@ -140,20 +137,12 @@ function formatSlotName(iso) {
   return `${kst.getUTCMonth() + 1}월 ${kst.getUTCDate()}일 ${half}`
 }
 
-/** 다른 광고사 칸은 광고사 쪽 ID(숫자 등)라 알아볼 수 없으므로, 그 칸을 띄운 네이트 광고태그로 적는다 */
-function slotLabel(slot) {
-  return slot.parentAdTag || slot.adTag
+/** 지난 알림 뒤 ~ 이번 알림 사이의 실행만 센다 */
+function formatCount(slot) {
+  return `검사 ${slot.windowMeasured}회 중 ${slot.windowMissed}회 미노출`
 }
 
-/** 「검사 5회 중 3회 미노출」 — 지난 알림 뒤 ~ 이번 알림 사이의 실행만 센다 */
-function formatSlotLine(slot) {
-  return `· ${slotLabel(slot)} — 검사 ${slot.windowMeasured}회 중 ${slot.windowMissed}회 미노출`
-}
-
-function shorten(text, max = 120) {
-  const t = String(text).replace(/\s+/g, ' ').trim()
-  return t.length > max ? `${t.slice(0, max - 1)}…` : t
-}
+const RECOVERED_LABEL = { recovered: '다시 노출', bounced: '끊겼다가 다시 노출' }
 
 function buildMessage(sections, { base, slotStart, firstCheckedAt, latestCheckedAt }) {
   const range =
@@ -162,64 +151,50 @@ function buildMessage(sections, { base, slotStart, firstCheckedAt, latestChecked
       : `${formatKst(firstCheckedAt)} ~ ${formatKst(latestCheckedAt)}`
   const downTotal = sections.reduce((n, { alerts }) => n + (alerts?.downSlots.filter((s) => s.everRendered).length ?? 0), 0)
   const lines = [
-    `[광고 모니터링] ${formatSlotName(slotStart)} 정기 알림 — 미노출 광고칸 ${downTotal ? `${downTotal}개` : '없음'}`,
-    `검사 ${range} (지난 알림 뒤 실행)`,
+    `[광고 모니터링] ${formatSlotName(slotStart)} — 미노출 광고칸 ${downTotal ? `${downTotal}개` : '없음'}`,
+    `${range} 검사 기준 (지난 알림 이후)`,
   ]
 
-  /** 할 말이 없는 지면은 끝에 이름만 모은다 */
+  /** 미노출이 없는 지면은 이름만 모은다 */
   const quiet = []
+  /** 기록상 한 번도 안 나온 칸 — 원래 비어 있는 자리일 수 있어 미노출과 섞지 않고 끝에 따로 적는다 */
+  const neverLines = []
   for (const { target, alerts } of sections) {
     if (!alerts) {
-      quiet.push(`${target.label}(지난 알림 뒤 실행 없음)`)
+      quiet.push(`${target.label}(지난 알림 이후 검사 없음)`)
       continue
     }
     const body = []
+    // 페이지 로딩 실패·수집 오류 등으로 이번 검사 결과에 광고칸 정보가 통째로 없을 때
+    if (!alerts.slotsMeasured) body.push('· 마지막 검사가 광고 정보를 읽지 못해 미노출 여부를 알 수 없음')
 
-    // 지금 안 나오는 칸. 기록상 한 번도 안 나온 칸은 원래 비는 칸일 수 있어 따로 줄인다
-    const wasRendering = alerts.downSlots.filter((s) => s.everRendered)
-    const neverRendered = alerts.downSlots.filter((s) => !s.everRendered)
-    if (!alerts.slotsMeasured) body.push('광고칸을 재지 못함(마지막 실행)')
-    if (wasRendering.length) {
-      body.push(`미노출 ${wasRendering.length}개`)
-      for (const slot of wasRendering) body.push(formatSlotLine(slot))
-    }
-    if (neverRendered.length) {
-      const labels = [...new Set(neverRendered.map(slotLabel))]
-      body.push(`기록상 노출된 적 없는 칸: ${labels.join(', ')}`)
-    }
+    const missing = alerts.downSlots
+      .filter((s) => s.everRendered)
+      .sort((a, b) => b.windowMissed - a.windowMissed || a.adTag.localeCompare(b.adTag))
+    for (const slot of missing) body.push(`· ${slot.adTag} — ${formatCount(slot)}`)
 
     // 묶음 안에서 끊겼다가 다시 나온 칸. 그 뒤 또 안 나와 위에 실린 칸은 뺀다
     const downTags = new Set(alerts.downSlots.map((s) => s.adTag))
-    const slotGroups = [
-      ['recovered', '다시 노출'],
-      ['bounced', '끊겼다가 다시 노출'],
-    ]
-    for (const [kind, title] of slotGroups) {
-      const slots = alerts.slots.filter((s) => s.kind === kind && !downTags.has(s.adTag))
-      if (!slots.length) continue
-      body.push(title)
-      for (const slot of slots) body.push(formatSlotLine(slot))
-    }
-    if (body.length) body.push(`→ ${base}/#${target.id}`)
-
-    const shown = alerts.newIssues.slice(0, MAX_ISSUES_PER_TARGET)
-    if (shown.length) {
-      body.push(`새로 잡힌 오류 ${alerts.newIssues.length}건`)
-      for (const issue of shown) {
-        const level = issue.explainLevel ? `[${LEVEL_LABEL[issue.explainLevel]}] ` : ''
-        // 사전에 없는 메시지는 label 이 원문 앞부분이라 원문을 한 번 더 적지 않는다
-        const detail = issue.explainLevel ? ` — ${shorten(issue.sampleText, 80)}` : ''
-        body.push(`· ${level}${shorten(issue.label, 80)}${detail}`)
-      }
-      const rest = alerts.newIssues.length - shown.length
-      if (rest > 0) body.push(`· 외 ${rest}건`)
-      body.push(`→ ${base}/#${target.id}/lifecycle`)
+    for (const slot of alerts.slots) {
+      if (!RECOVERED_LABEL[slot.kind] || downTags.has(slot.adTag)) continue
+      const count = slot.windowMissed ? ` (${formatCount(slot)})` : ''
+      body.push(`· ${slot.adTag} — ${RECOVERED_LABEL[slot.kind]}${count}`)
     }
 
-    if (body.length) lines.push('', `■ ${target.label}`, ...body)
-    else quiet.push(target.label)
+    const never = alerts.downSlots.filter((s) => !s.everRendered).map((s) => s.adTag)
+    if (never.length) neverLines.push(`· ${target.label}: ${never.join(', ')}`)
+
+    if (body.length) {
+      const title = missing.length ? `■ ${target.label} (미노출 ${missing.length}개)` : `■ ${target.label}`
+      lines.push('', title, ...body, `→ ${base}/#${target.id}`)
+    } else {
+      quiet.push(target.label)
+    }
   }
-  if (quiet.length) lines.push('', `미노출·새 오류 없음: ${quiet.join(', ')}`)
+  if (quiet.length) lines.push('', `이상 없음: ${quiet.join(', ')}`)
+  if (neverLines.length) {
+    lines.push('', '참고 — 모니터링 기록상 한 번도 노출된 적 없는 칸(원래 비어 있는 자리일 수 있음)', ...neverLines)
+  }
 
   return lines.join('\n')
 }
@@ -264,9 +239,7 @@ async function main() {
     }
     if (!firstCheckedAt || alerts.firstCheckedAt < firstCheckedAt) firstCheckedAt = alerts.firstCheckedAt
     if (alerts.latestCheckedAt > latestCheckedAt) latestCheckedAt = alerts.latestCheckedAt
-    console.log(
-      `[teamroom] ${target.id}: 미노출 ${alerts.slotsMeasured ? `${alerts.downSlots.length}개` : '판정 불가'}, 새 오류 ${alerts.newIssuesSkipped ? '판정 보류(이전 기록 부족)' : `${alerts.newIssues.length}건`}`,
-    )
+    console.log(`[teamroom] ${target.id}: 미노출 ${alerts.slotsMeasured ? `${alerts.downSlots.length}개` : '판정 불가'}`)
     sections.push({ target, alerts })
   }
 

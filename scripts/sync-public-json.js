@@ -26,24 +26,11 @@ const PUBLIC_JSON_PATHS = [
   'pann/history.json',
 ]
 
-const YOONZEEN_PAGES_BASE = 'https://yoonzeen.github.io/ad-monitoring-bot'
-
 function normalizeBaseUrl(value) {
   const trimmed = String(value ?? '').trim()
   if (!trimmed) return ''
   const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
   return withProtocol.replace(/\/+$/, '')
-}
-
-export function resolveJsonSyncBaseUrl() {
-  const fromEnv = normalizeBaseUrl(process.env.JSON_SYNC_BASE_URL)
-  if (fromEnv) return fromEnv
-
-  if (process.env.GITHUB_REPOSITORY_OWNER === 'nate-fe') {
-    return YOONZEEN_PAGES_BASE
-  }
-
-  return ''
 }
 
 function resolveGitHubPagesBase() {
@@ -53,16 +40,16 @@ function resolveGitHubPagesBase() {
   return `https://${owner}.github.io/${repo}`
 }
 
-function resolveJsonSyncBaseUrlForPath(relativePath) {
+/**
+ * 직전 배포에 올라간 JSON 을 받아 둔다. 기록은 저장소마다 자기 Pages 것만 이어 쓴다
+ * — 다른 저장소 기록을 받아 오면 캡쳐 이미지(자기 Pages 에만 있음)와 어긋난다.
+ * 이 단계는 워크플로에서 nate-fe 만 돈다.
+ */
+export function resolveJsonSyncBaseUrl() {
   const fromEnv = normalizeBaseUrl(process.env.JSON_SYNC_BASE_URL)
   if (fromEnv) return fromEnv
 
-  if (process.env.GITHUB_REPOSITORY_OWNER === 'nate-fe') {
-    // yoonzeen Pages is the mobile canonical source, but PC JSON lives on
-    // this repo's Pages deployment.
-    if (relativePath.includes('/pc/')) return resolveGitHubPagesBase() || YOONZEEN_PAGES_BASE
-    return YOONZEEN_PAGES_BASE
-  }
+  if (process.env.GITHUB_REPOSITORY_OWNER === 'nate-fe') return resolveGitHubPagesBase()
 
   return ''
 }
@@ -105,21 +92,14 @@ async function main() {
   }
 
   const untilLabel = process.env.JSON_SYNC_UNTIL ? `, until=${process.env.JSON_SYNC_UNTIL}` : ''
-  console.log(`[json-sync] Syncing from configured sources → public/ (overwrite when remote exists${untilLabel})`)
+  console.log(`[json-sync] Syncing from ${baseUrl} → public/ (overwrite when remote exists${untilLabel})`)
 
   let written = 0
   let skipped = 0
 
   for (const relativePath of PUBLIC_JSON_PATHS) {
     try {
-      const sourceBaseUrl = resolveJsonSyncBaseUrlForPath(relativePath)
-      if (!sourceBaseUrl) {
-        skipped += 1
-        console.warn(`[json-sync] skip ${relativePath} (JSON_SYNC_BASE_URL not set)`)
-        continue
-      }
-
-      const result = await downloadJsonOverwrite(sourceBaseUrl, relativePath)
+      const result = await downloadJsonOverwrite(baseUrl, relativePath)
       if (result.status === 'written') {
         written += 1
         console.log(`[json-sync] overwrote ${result.destPath}`)

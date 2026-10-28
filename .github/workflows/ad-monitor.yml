@@ -78,7 +78,7 @@ jobs:
         if: steps.schedule_gate.outputs.should_run != 'false'
         run: npm ci --include=dev
 
-      - name: Seed JSON from yoonzeen Pages (nate-fe only)
+      - name: Restore JSON from previous Pages deploy (nate-fe only)
         if: steps.schedule_gate.outputs.should_run != 'false' && github.repository_owner == 'nate-fe'
         run: npm run json:sync
 

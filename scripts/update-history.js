@@ -162,9 +162,11 @@ function summarize(report) {
         .filter((s) => s && typeof s.adTag === 'string' && s.adTag)
         .map((s) => {
           const parent = typeof s.parentAdTag === 'string' && s.parentAdTag ? { parentAdTag: s.parentAdTag } : {}
-          return s.measurable
-            ? { adTag: s.adTag, ...parent, measurable: true, rendered: Boolean(s.rendered) }
-            : { adTag: s.adTag, ...parent, measurable: false }
+          if (!s.measurable) return { adTag: s.adTag, ...parent, measurable: false }
+          // 안 나온 칸은 닫혔는지(collapsed)를 늘 적는다 — 이 값이 없는 기록은 닫힘을 구분하기 전 기록이다
+          return s.rendered
+            ? { adTag: s.adTag, ...parent, measurable: true, rendered: true }
+            : { adTag: s.adTag, ...parent, measurable: true, rendered: false, collapsed: Boolean(s.collapsed) }
         })
     : []
 
