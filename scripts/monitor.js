@@ -927,6 +927,28 @@ async function collectAdSlotGeometry(page) {
           return node
         }
 
+        /**
+         * 애드센스 칸 안에 뜬 대체 광고(data-alternate-ad-url)의 이름. 없으면 빈 문자열.
+         * 보이는 소재(media) 중 그 주소로 뜬 iframe 이 있어야 한다.
+         */
+        const alternateAdOf = (el, media) => {
+          const url = el.getAttribute('data-alternate-ad-url')
+          if (!url) return ''
+          let base = ''
+          try {
+            base = new URL(url, el.ownerDocument.baseURI).href.split('?')[0]
+          } catch {
+            return ''
+          }
+          const shown = media.some((m) => m.tagName === 'IFRAME' && (m.src || '').split('?')[0] === base)
+          if (!shown) return ''
+          try {
+            return decodeURIComponent(new URL(base).pathname.split('/').filter(Boolean).pop() ?? '') || base
+          } catch {
+            return base
+          }
+        }
+
         const measure = (box, origin, win) => {
           const rect = box.getBoundingClientRect()
           const sx = win.scrollX || 0
@@ -1031,8 +1053,15 @@ async function collectAdSlotGeometry(page) {
                  * — 채웠는데 소재가 iframe 밖에 있거나, 안 채웠는데 자리를 잡고 있는 경우가 있다.
                  */
                 const status = el.getAttribute('data-ad-status')
-                if (status === 'unfilled') measured.rendered = false
-                else if (status === 'filled') measured.rendered = true
+                if (status === 'unfilled') {
+                  /**
+                   * 구글이 못 채우면 data-alternate-ad-url(네이트 하우스 광고 등)을 같은 칸 안에 띄운다.
+                   * 이때도 unfilled 로 남지만 사용자에게는 광고가 나온 것이라 노출로 본다.
+                   */
+                  const alternate = alternateAdOf(el, measured._media)
+                  measured.rendered = Boolean(alternate)
+                  if (alternate) measured.filledBy = alternate
+                } else if (status === 'filled') measured.rendered = true
 
                 slots.push({ adTag: identity || rule.source, source: rule.source, ...withParentTag(el), ...measured })
               }
