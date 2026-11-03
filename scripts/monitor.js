@@ -834,6 +834,44 @@ const AD_PROVIDER_RULES = [
   { source: 'coupang', kind: 'script-host', hostPattern: 'coupang' },
 ]
 
+/** 애드센스 칸 안 iframe 이 지금 실제로 띄운 주소를 적어 두는 속성 */
+const FRAME_URL_ATTR = 'data-monitor-frame-url'
+
+/**
+ * 애드센스 칸 안 iframe 에 지금 실제로 뜬 주소를 적어 둔다(안에 소재가 보이는 것만).
+ *
+ * 구글은 못 채운 칸에 대체 광고를 띄울 때 자기 iframe(aswift_*)을 그대로 두고 그 안에서
+ * 대체 광고 주소로 넘어가기도 한다. 그러면 src 속성은 구글 주소로 남고, 다른 도메인이라
+ * 페이지 안에서는 실제 주소를 읽을 수 없다. Playwright 는 바깥에서 읽을 수 있어 여기서 적는다.
+ */
+async function markAdFrameUrls(page) {
+  for (const frame of page.frames()) {
+    const url = frame.url()
+    if (!url.startsWith('http')) continue
+    try {
+      // 대체 광고 주소로 넘어가도 안에 소재가 없으면(빈 하우스 광고) 나온 게 아니다
+      const hasContent = await frame.evaluate(() =>
+        [...document.querySelectorAll('img,iframe,video,canvas,object,embed')].some((m) => {
+          const r = m.getBoundingClientRect()
+          const cs = getComputedStyle(m)
+          return r.width >= 20 && r.height >= 20 && cs.visibility !== 'hidden' && cs.display !== 'none' && cs.opacity !== '0'
+        }),
+      )
+      if (!hasContent) continue
+      const el = await frame.frameElement()
+      await el.evaluate(
+        (node, { attr, url }) => {
+          if (node.closest('ins.adsbygoogle')) node.setAttribute(attr, url)
+        },
+        { attr: FRAME_URL_ATTR, url },
+      )
+      await el.dispose()
+    } catch {
+      // 측정 중에 사라진 프레임
+    }
+  }
+}
+
 /**
  * 광고 슬롯이 실제로 그려졌는지 캡쳐 직전 상태에서 잰다.
  *
@@ -846,8 +884,9 @@ const AD_PROVIDER_RULES = [
  */
 async function collectAdSlotGeometry(page) {
   try {
+    await markAdFrameUrls(page)
     return await page.evaluate(
-      ({ scriptSelector, providerRules }) => {
+      ({ scriptSelector, providerRules, FRAME_URL_ATTR }) => {
         /** 광고칸이 아니라 페이지 골격을 잡은 것으로 보는 높이 */
         const SECTION_HEIGHT_PX = 2000
         /** 추적 픽셀·1x1 비콘을 소재로 세지 않기 위한 하한 */
@@ -929,7 +968,8 @@ async function collectAdSlotGeometry(page) {
 
         /**
          * 애드센스 칸 안에 뜬 대체 광고(data-alternate-ad-url)의 이름. 없으면 빈 문자열.
-         * 보이는 소재(media) 중 그 주소로 뜬 iframe 이 있어야 한다.
+         * 보이는 소재(media) 중 그 주소로 뜬 iframe 이 있어야 한다. 구글이 자기 iframe 안에서
+         * 대체 광고로 넘어가면 src 는 구글 주소 그대로라, markAdFrameUrls 가 적어 둔 실제 주소로 본다.
          */
         const alternateAdOf = (el, media) => {
           const url = el.getAttribute('data-alternate-ad-url')
@@ -940,7 +980,9 @@ async function collectAdSlotGeometry(page) {
           } catch {
             return ''
           }
-          const shown = media.some((m) => m.tagName === 'IFRAME' && (m.src || '').split('?')[0] === base)
+          const shown = media.some(
+            (m) => m.tagName === 'IFRAME' && (m.getAttribute(FRAME_URL_ATTR) || '').split('?')[0] === base,
+          )
           if (!shown) return ''
           try {
             return decodeURIComponent(new URL(base).pathname.split('/').filter(Boolean).pop() ?? '') || base
@@ -1167,7 +1209,7 @@ async function collectAdSlotGeometry(page) {
         }
         return [...byTag.values()]
       },
-      { scriptSelector: AD_TAG_SCRIPT_SELECTOR, providerRules: AD_PROVIDER_RULES },
+      { scriptSelector: AD_TAG_SCRIPT_SELECTOR, providerRules: AD_PROVIDER_RULES, FRAME_URL_ATTR },
     )
   } catch (err) {
     console.warn(`[adSlots] 수집 실패: ${err instanceof Error ? err.message : String(err)}`)
