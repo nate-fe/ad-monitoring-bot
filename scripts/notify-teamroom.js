@@ -142,8 +142,6 @@ function formatCount(slot) {
   return `검사 ${slot.windowMeasured}회 중 ${slot.windowMissed}회 미노출`
 }
 
-const RECOVERED_LABEL = { recovered: '다시 노출', bounced: '끊겼다가 다시 노출' }
-
 function buildMessage(sections, { base, slotStart, firstCheckedAt, latestCheckedAt }) {
   const range =
     firstCheckedAt === latestCheckedAt
@@ -172,14 +170,6 @@ function buildMessage(sections, { base, slotStart, firstCheckedAt, latestChecked
       .filter((s) => s.everRendered)
       .sort((a, b) => b.windowMissed - a.windowMissed || a.adTag.localeCompare(b.adTag))
     for (const slot of missing) body.push(`· ${slot.adTag} — ${formatCount(slot)}`)
-
-    // 묶음 안에서 끊겼다가 다시 나온 칸. 그 뒤 또 안 나와 위에 실린 칸은 뺀다
-    const downTags = new Set(alerts.downSlots.map((s) => s.adTag))
-    for (const slot of alerts.slots) {
-      if (!RECOVERED_LABEL[slot.kind] || downTags.has(slot.adTag)) continue
-      const count = slot.windowMissed ? ` (${formatCount(slot)})` : ''
-      body.push(`· ${slot.adTag} — ${RECOVERED_LABEL[slot.kind]}${count}`)
-    }
 
     const never = alerts.downSlots.filter((s) => !s.everRendered).map((s) => s.adTag)
     if (never.length) neverLines.push(`· ${target.label}: ${never.join(', ')}`)
