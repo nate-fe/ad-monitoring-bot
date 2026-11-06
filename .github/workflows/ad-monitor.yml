@@ -88,23 +88,9 @@ jobs:
         continue-on-error: true
         run: npm run screenshots:sync
 
-      # 브라우저 파일은 Playwright 버전별로 캐시해 매번 새로 받지 않는다. 시스템 의존성(apt)은 캐시가 안 되므로 따로 설치한다.
-      - name: Cache Playwright browsers
-        id: playwright_cache
-        if: steps.schedule_gate.outputs.should_run != 'false' && (github.event_name != 'workflow_dispatch' || inputs.backfill_only != true) && (env.MONITOR_TARGET_URL_NEWS_VIEW != '' || env.MONITOR_TARGET_URL_NEWS_HOME != '' || env.MONITOR_TARGET_URL_PANN_VIEW != '' || env.MONITOR_TARGET_URL_PANN_HOME != '' || env.MONITOR_TARGET_URL_NEWS_PC_VIEW != '' || env.MONITOR_TARGET_URL_NEWS_PC_HOME != '' || env.MONITOR_TARGET_URL_PANN_PC_VIEW != '' || env.MONITOR_TARGET_URL_PANN_PC_HOME != '')
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-
       - name: Install Playwright browsers (Chromium)
         if: steps.schedule_gate.outputs.should_run != 'false' && (github.event_name != 'workflow_dispatch' || inputs.backfill_only != true) && (env.MONITOR_TARGET_URL_NEWS_VIEW != '' || env.MONITOR_TARGET_URL_NEWS_HOME != '' || env.MONITOR_TARGET_URL_PANN_VIEW != '' || env.MONITOR_TARGET_URL_PANN_HOME != '' || env.MONITOR_TARGET_URL_NEWS_PC_VIEW != '' || env.MONITOR_TARGET_URL_NEWS_PC_HOME != '' || env.MONITOR_TARGET_URL_PANN_PC_VIEW != '' || env.MONITOR_TARGET_URL_PANN_PC_HOME != '')
-        run: |
-          if [ "${{ steps.playwright_cache.outputs.cache-hit }}" = "true" ]; then
-            npx playwright install-deps chromium
-          else
-            npx playwright install --with-deps chromium
-          fi
+        run: npx playwright install --with-deps chromium
 
       - name: Build site (for GitHub Pages)
         if: steps.schedule_gate.outputs.should_run != 'false'
