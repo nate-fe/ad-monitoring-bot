@@ -70,9 +70,9 @@ function SizeChoice({ c, set, label = '광고 크기 (가로×세로)' }: { c: A
   )
 }
 
-/** 반응형 애드센스는 크기를 쓰지 않아 크기 단계를 보이지 않는다 */
+/** 반응형 애드센스는 크기를 쓰지 않아 크기 단계를 보이지 않는다. 태그별 높이 구문이 있으면 그 높이를 고르게 보인다 */
 function hasSizeStep(c: AdConfig): boolean {
-  return needsSize(c) || c.kind === 'script'
+  return needsSize(c) || c.kind === 'script' || c.tagResize !== null
 }
 
 function SizeField({ c, set }: { c: AdConfig; set: Set }) {
@@ -124,14 +124,16 @@ function AdTagField({ c, set }: { c: AdConfig; set: Set }) {
   const chooseService = (id: string) => {
     setPick({ service: id, tag: '' })
     // 서비스만 바꾸면 위치는 비워 두고(스크립트 자리) 광고 태그를 고르게 한다. 직접 입력은 지금 값을 이어서 고친다
-    if (id !== CUSTOM) set({ areaSelector: '', ...autoParentOff })
-    else set(autoParentOff)
+    if (id !== CUSTOM) set({ areaSelector: '', tagResize: null, tagBoxStyles: [], ...autoParentOff })
+    else set({ tagResize: null, tagBoxStyles: [], ...autoParentOff })
   }
   const chooseTag = (tag: string) => {
     setPick((p) => ({ ...p, tag }))
     const next = findAdTag(pick.service, tag)
     set({
       areaSelector: next?.selector ?? '',
+      tagResize: next?.resize ?? null,
+      tagBoxStyles: next?.boxStyles ?? [],
       ...(next?.parentAreas
         ? {
             parentFit: true,

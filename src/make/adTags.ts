@@ -22,6 +22,8 @@ export interface AdTagArea {
   parentAreas?: ParentArea[]
   /** 고르면 늘 들어가는 상위 문서 높이 조정·postMessage 구문 (src/ads 의 이 태그 최근 스크립트 기준) */
   resize?: TagResize
+  /** 고르면 광고를 담는 div(_box)에 늘 들어가는 스타일 [속성, 값] */
+  boxStyles?: [string, string][]
 }
 
 export interface AdTagService {
@@ -78,8 +80,17 @@ export const AD_TAG_SERVICES: AdTagService[] = [
       },
       {
         ...t('news@bt_Position3', '#ifr_main_banner', 13, 6),
-        // 2025-11 이후 구조 (2026-01 콘텐츠하단배너 기준). 그 전에는 parent.parent 의 #ifr_ad_bottom 만 바꿨다
-        parentAreas: frameChain('#ifr_ad_bottom', '#ifr_main_banner'),
+        // parent 의 #ifr_ad_bottom 과 그 안 iframe. 2025-11 ~ 2026-01 스크립트는 parent.parent 의 #ifr_main_banner 도 바꿨지만,
+        // 하단 광고와 관계없는 배너일 수 있어 뺐다 (2026-11-13)
+        parentAreas: [
+          { depth: 1, selector: '#ifr_ad_bottom' },
+          { depth: 1, selector: '#ifr_ad_bottom iframe' },
+        ],
+        // 광고를 담는 div 를 가운데로
+        boxStyles: [
+          ['margin', '0 auto'],
+          ['display', 'inline-block'],
+        ],
         // #ifr_ad_bottom 은 parent 에 있다 (2026-11 확인). 막히면 ifr_ad_bottom 으로 보낸다
         // 2026-09 하단배너 이디엘 3개는 parent.parent 에서 찾지만, 지금 구조에서는 찾지 못한다
         resize: {

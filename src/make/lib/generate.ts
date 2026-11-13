@@ -1,4 +1,4 @@
-import { type AdConfig, rawNeedsFrame, usesSize } from '../config'
+import { type AdConfig, type TagResize, rawNeedsFrame, usesSize } from '../config'
 
 const ADSENSE_SRC = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client='
 const UNFILLED_CSS = 'ins.adsbygoogle[data-ad-status="unfilled"]{display:none !important;}'
@@ -172,6 +172,8 @@ function renderBody(w: Writer, c: AdConfig) {
   w.line("var _box = document.createElement('div');")
   if (c.boxClass.trim()) w.line(`_box.className = ${q(c.boxClass.trim())};`)
   w.line("_box.style.textAlign = 'center';")
+  // 광고 태그에 정해 둔 _box 스타일 (news@bt_Position3 가운데 정렬 등)
+  for (const [prop, value] of c.tagBoxStyles) w.line(`_box.style.${prop} = ${q(value)};`)
   w.line('_adArea.appendChild(_box);')
   w.blank()
 
@@ -409,6 +411,60 @@ function renderBody(w: Writer, c: AdConfig) {
     if (c.kind === 'adsense' && !hideByObserver) {
       w.line("new MutationObserver(_fitParent).observe(_ins, { attributes: true, attributeFilter: ['data-ad-status'] });")
     }
+    w.blank()
+  }
+
+  // 14. 광고 태그에 정해 둔 높이 구문 (src/ads 의 그 태그 스크립트들이 늘 쓰던 것)
+  if (c.tagResize && usesSize(c)) writeTagResize(w, c.tagResize)
+}
+
+/**
+ * 상위 문서 요소 높이를 _adHeight 로 바꾸고, 다른 도메인이라 막히면 load 뒤 postMessage 로 알린다.
+ * 감싼 iframe 은 이름이 맞을 때만 바꾼다.
+ */
+function writeTagResize(w: Writer, r: TagResize) {
+  const areas = r.areas.filter((a) => a.selector.trim())
+  if (areas.length) {
+    w.open('try {')
+    areas.forEach((a, i) => {
+      const v = areas.length === 1 ? '_parent' : `_parent${i + 1}`
+      w.line(`var ${v} = ${a.depth === 2 ? 'parent.parent' : 'parent'}.document.querySelector(${q(a.selector.trim())});`)
+      w.open(`if (${v}) {`)
+      w.line(`${v}.style.height = _adHeight + 'px';`)
+      w.close('}')
+    })
+    if (r.post) {
+      w.mid('} catch (e) {')
+      w.open('var _post = function () {')
+      w.open("if (location.href.indexOf('news') > -1) {")
+      w.line(
+        `window.parent.postMessage({ method: 'fnct', name: 'callCrossOriginAd', property: { target: ${
+          r.post.news === null ? 'window.name' : q(r.post.news)
+        }, height: _adHeight } }, '*');`,
+      )
+      w.close('}')
+      w.open("if (location.href.indexOf('pann') > -1) {")
+      w.line(`window.parent.postMessage({ target: ${q(r.post.pann)}, params: { height: _adHeight } }, '*');`)
+      w.close('}')
+      w.close('};')
+      w.line("if (document.readyState === 'complete') _post();")
+      w.line("else window.addEventListener('load', _post);")
+      w.close('}')
+    } else {
+      w.close('} catch (e) {}')
+    }
+    w.blank()
+  }
+  for (const f of r.frames ?? []) {
+    const v = f.of === 'parent' ? '_outerFrame' : '_myFrame'
+    w.open('try {')
+    w.line(`var ${v} = ${f.of === 'parent' ? 'parent' : 'window'}.frameElement;`)
+    w.open(f.name ? `if (${v} && ${v}.name === ${q(f.name)}) {` : `if (${v}) {`)
+    w.line(`${v}.height = _adHeight;`)
+    w.line(`${v}.style.height = _adHeight + 'px';`)
+    w.close('}')
+    w.close('} catch (e) {}')
+    w.blank()
   }
 }
 

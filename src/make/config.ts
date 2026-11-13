@@ -13,6 +13,19 @@ export interface ParentArea {
   selector: string
 }
 
+/**
+ * 광고 태그마다 정해 둔, 광고 높이(_adHeight)를 상위 문서에 알리는 구문.
+ * areas 를 바꾸다 다른 도메인이라 막히면 load 뒤 postMessage 로 높이를 보낸다.
+ */
+export interface TagResize {
+  /** style.height 를 _adHeight 로 바꿀 상위 문서 요소 */
+  areas: ParentArea[]
+  /** areas 가 막혔을 때 보낼 postMessage target. news 가 null 이면 이 iframe 의 이름(window.name) */
+  post?: { news: string | null; pann: string }
+  /** 이름이 맞으면 높이를 바꿀 iframe. self = window.frameElement, parent = parent.frameElement. name '' 은 이름을 보지 않음 */
+  frames?: { of: 'self' | 'parent'; name: string }[]
+}
+
 export interface AdConfig {
   /** 광고 업체가 준 마크업·스크립트. 종류와 종류별 값은 여기서 분석해 채운다 */
   source: string
@@ -60,6 +73,10 @@ export interface AdConfig {
   /** 높이를 맞춘 iframe 에서 closest 로 찾아 같은 높이를 줄 요소 (#id 또는 .class) */
   parentClosest: string
   parentHeight: string
+  /** 광고 태그를 고르면 채운다. 그 태그 스크립트들이 늘 쓰던 상위 문서 높이 조정·postMessage */
+  tagResize: TagResize | null
+  /** 광고 태그를 고르면 채운다. 광고를 담는 div(_box)에 넣는 스타일 [속성, 값] */
+  tagBoxStyles: [string, string][]
 
   /** 비우면 document.currentScript 의 부모에 넣는다 */
   areaSelector: string
@@ -117,6 +134,8 @@ export const DEFAULT_CONFIG: AdConfig = {
   parentTarget: 'parent',
   parentClosest: '',
   parentHeight: '',
+  tagResize: null,
+  tagBoxStyles: [],
 
   areaSelector: '',
   boxClass: '',
@@ -156,9 +175,16 @@ export function needsSize(c: AdConfig): boolean {
   return false
 }
 
+function toPositiveInt(value: string): number {
+  const n = parseInt(value, 10)
+  return Number.isFinite(n) && n > 0 ? n : 0
+}
+
 /** 코드에 _adWidth/_adHeight 를 선언하는지 (외부 script 는 입력했거나 {w}{h}를 쓸 때만) */
 export function usesSize(c: AdConfig): boolean {
   if (needsSize(c)) return true
+  // 태그별 높이 구문이 _adHeight 를 쓴다
+  if (c.tagResize && toPositiveInt(c.height) > 0) return true
   if (c.kind === 'script') {
     return /\{[wh]\}/.test(c.scriptTagAttrs) || (c.width.trim() !== '' && c.height.trim() !== '')
   }
