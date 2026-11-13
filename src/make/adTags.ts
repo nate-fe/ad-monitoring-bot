@@ -8,7 +8,7 @@
  * 이 태그의 최근(2025~2026) 스크립트 대부분이 같은 요소들을 바꾸는 경우에만 넣었다.
  */
 
-import type { ParentArea } from './config'
+import type { ParentArea, TagResize } from './config'
 
 export interface AdTagArea {
   /** 광고 태그. select 값이자 화면에 보이는 이름 */
@@ -20,6 +20,8 @@ export interface AdTagArea {
   note?: string
   /** 함께 높이를 맞출 상위 문서 요소 (있으면 바깥 영역 높이 맞추기 자동 켜짐) */
   parentAreas?: ParentArea[]
+  /** 고르면 늘 들어가는 상위 문서 높이 조정·postMessage 구문 (src/ads 의 이 태그 최근 스크립트 기준) */
+  resize?: TagResize
 }
 
 export interface AdTagService {
@@ -41,7 +43,21 @@ function frameChain(parentSelector: string, topSelector: string): ParentArea[] {
   ]
 }
 
-const range = (from: number, to: number) => Array.from({ length: to - from + 1 }, (_, i) => from + i)
+/**
+ * 태그별 높이 구문. 2026-11-13 src/ads 에서 태그 폴더별로 parent 높이 조정·postMessage 줄을 모아,
+ * 최근 스크립트가 같은 구문을 쓰는 태그만 넣었다 (선택자가 매번 다르거나 insertBefore 만 하는 태그는 뺐다).
+ */
+// 뉴스·판 Top3 빅배너: parent #ad_big. 막히면 뉴스는 이 iframe 이름으로, 판은 ad_big 으로 보낸다 (wider·pannback·view_Top3 공통)
+const AD_BIG: TagResize = { areas: [{ depth: 1, selector: '#ad_big' }], post: { news: null, pann: 'ad_big' } }
+// 베플 하단: parent #ad_big2. 막히면 main_banner 로 보낸다 (2025-09·2026-02 이디엘)
+const AD_BIG2: TagResize = { areas: [{ depth: 1, selector: '#ad_big2' }], post: { news: 'main_banner', pann: 'main_banner' } }
+// 무선 서브 중단 쇼핑박스: parent.parent #ifr_ad_shopbox (2024-10 ~ 2025-10)
+const SHOPBOX: TagResize = {
+  areas: [{ depth: 2, selector: '#ifr_ad_shopbox' }],
+  post: { news: 'ifr_ad_shopbox', pann: 'ifr_ad_shopbox' },
+}
+
+const range =(from: number, to: number) => Array.from({ length: to - from + 1 }, (_, i) => from + i)
 
 export const AD_TAG_SERVICES: AdTagService[] = [
   {
@@ -52,27 +68,35 @@ export const AD_TAG_SERVICES: AdTagService[] = [
       t('news@view2_middle3', '#ad_innerView2', 18, 17),
       t('google@house_x13', '#ad_innerView', 4, 4),
       t('google@house_x14', '#ad_innerView2', 2, 2),
-      t('news@view_Top3', '#main_banner', 7, 4, '#ad_big을 쓴 파일도 3개'),
-      t('best@nview_Bottom', '#main_banner', 30, 18, '#ad_big2를 쓴 파일도 3개'),
+      { ...t('news@view_Top3', '#main_banner', 7, 4, '#ad_big을 쓴 파일도 3개'), resize: AD_BIG },
+      { ...t('best@nview_Bottom', '#main_banner', 30, 18, '#ad_big2를 쓴 파일도 3개'), resize: AD_BIG2 },
       {
         ...t('mob@news_Middle1', '#ifr_main_banner', 29, 11, '나머지는 대부분 위치를 찾지 않는 원본 태그'),
         // 2025~2026 15개 중 13개가 parent.parent 의 #ifr_ad_shopbox 를, 9개가 parent 의 #ifr_main_banner 도 바꾼다
         parentAreas: frameChain('#ifr_main_banner', '#ifr_ad_shopbox'),
+        resize: SHOPBOX,
       },
       {
         ...t('news@bt_Position3', '#ifr_main_banner', 13, 6),
         // 2025-11 이후 구조 (2026-01 콘텐츠하단배너 기준). 그 전에는 parent.parent 의 #ifr_ad_bottom 만 바꿨다
         parentAreas: frameChain('#ifr_ad_bottom', '#ifr_main_banner'),
+        // #ifr_ad_bottom 은 parent 에 있다 (2026-11 확인). 막히면 ifr_ad_bottom 으로 보낸다
+        // 2026-09 하단배너 이디엘 3개는 parent.parent 에서 찾지만, 지금 구조에서는 찾지 못한다
+        resize: {
+          areas: [{ depth: 1, selector: '#ifr_ad_bottom' }],
+          post: { news: 'ifr_ad_bottom', pann: 'ifr_ad_bottom' },
+        },
       },
       t('news_rtb@rpbt_Bottom1', '#main_banner', 3, 3),
-      t('wider@nlist_Top3', '#main_banner', 6, 5),
+      { ...t('wider@nlist_Top3', '#main_banner', 6, 5), resize: AD_BIG },
       t('hotissue@list_Top2', '#main_banner', 2, 2),
       t('issuepk@list_Top2', '#main_banner', 2, 2),
       t('news@rplist_Bottom3', '', 1, 1),
       t('cbc@vmidrec_Middle3', '#ad_innerView', 3, 3),
       t('cbc@lspr2_x24', '', 4, 4),
       t('mcbc@listsp1_Top1', '', 4, 4),
-      t('mcbc@listrec_Position3', '', 3, 3),
+      // 3개 모두 자기를 감싼 iframe(이름 확인 없음) 높이를 광고 높이로 바꾼다
+      { ...t('mcbc@listrec_Position3', '', 3, 3), resize: { areas: [], frames: [{ of: 'self', name: '' }] } },
       t('news@mid_rec_Middle3', '#ad_innerView', 7, 7),
       t('olympic@mid_rec_Middle3', '#ad_innerView', 3, 3),
       t('vote@mid_rec_Middle3', '#ad_innerView', 3, 3),
@@ -88,6 +112,7 @@ export const AD_TAG_SERVICES: AdTagService[] = [
         ...t('mob@pann_Middle1', '#ifr_main_banner', 28, 9, '나머지는 대부분 위치를 찾지 않는 원본 태그'),
         // 2025~2026 13개 모두 parent.parent 의 #ifr_ad_shopbox 를, 10개가 parent 의 #ifr_main_banner 도 바꾼다
         parentAreas: frameChain('#ifr_main_banner', '#ifr_ad_shopbox'),
+        resize: SHOPBOX,
       },
       t('pann@bt_Position3', '', 7, 3, '#ifr_ad_bottom을 쓴 파일도 2개'),
       t('pann@rpbt_Bottom1', '#main_banner', 3, 3),
@@ -97,7 +122,7 @@ export const AD_TAG_SERVICES: AdTagService[] = [
       t('pann@shopbx_Frame1', '#shopitemMall', 2, 2),
       t('psub@shopbx_Frame1', '#shopitemMall', 3, 3),
       // 작업 폴더 이름은 뉴스·판·메인이 섞여 있지만, newsback/pannback 이름 규칙상 판 지면으로 본다
-      t('mob@pannback_Top3', '#main_banner', 11, 8, '#ad_big을 쓴 파일도 2개'),
+      { ...t('mob@pannback_Top3', '#main_banner', 11, 8, '#ad_big을 쓴 파일도 2개'), resize: AD_BIG },
     ],
   },
   {
@@ -106,9 +131,20 @@ export const AD_TAG_SERVICES: AdTagService[] = [
     tags: [
       t('main@nb_Top3', '', 8, 2, '나머지는 대부분 위치를 찾지 않는 원본 태그'),
       t('appmain@nb_Top3', '', 13, 7),
-      t('cri@mainmid_Top3', '#top_main_banner', 11, 10),
-      t('main@nbbt_Top3', '#top_main_banner', 13, 10),
-      t('appmain@nbbt_Top3', '#top_main_banner', 9, 7),
+      {
+        ...t('cri@mainmid_Top3', '#top_main_banner', 11, 10),
+        // 2026 스크립트: parent #top_main_banner 와, 이름이 ad_mid 인 감싼 iframe (자기 또는 한 단계 위)
+        resize: {
+          areas: [{ depth: 1, selector: '#top_main_banner' }],
+          frames: [
+            { of: 'self', name: 'ad_mid' },
+            { of: 'parent', name: 'ad_mid' },
+          ],
+        },
+      },
+      // 2026 스크립트 모두 자기를 감싼 iframe 이름이 ad_small 이면 그 높이를 바꾼다
+      { ...t('main@nbbt_Top3', '#top_main_banner', 13, 10), resize: { areas: [], frames: [{ of: 'self', name: 'ad_small' }] } },
+      { ...t('appmain@nbbt_Top3', '#top_main_banner', 9, 7), resize: { areas: [], frames: [{ of: 'self', name: 'ad_small' }] } },
       ...range(0, 5).map((n) => t(`issue@fd${n}_item`, '#top_main_banner', 1, 1)),
       ...range(0, 5).map((n) => t(`appissue@fd${n}_item`, '#top_main_banner', 1, 1)),
       ...range(1, 10).map((n) => t(`appmain@fd${n}_x23`, '', n === 1 ? 3 : 2, n === 1 ? 3 : 2)),
