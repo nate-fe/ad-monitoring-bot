@@ -1,8 +1,8 @@
 (function () {
     try {
-        var _imgUrl = '%#img_path%#';
-        var _title = 'news area ad lorem ipsum dolor sit amet sdlfk sdlkfjlk sdjl kfsdljkf jlsdkf jlsdkjf lskdj lksdjfl ksdjl kdsjlf kjsldkjflskdjfl ksdjlkfjl sdkjf';
-        var _description = 'news area ad lorem ipsum dolor sit amet sdlfk sdlkfjlk sdjl kfsdljkf jlsdkf jlsdkjf lskdj lksdjfl ksdjl kdsjlf kjsldkjflskdjfl ksdjlkfjl sdkjf';
+        var _imgUrl = 'https://adimg.nate.com/img/2026/11/pc/pc_newspr_1105_970x420.png';
+        var _title = '일이삼사오육칠팔구십일이삼사오육칠팔구십일이삼사오육칠팔구십일이삼사오육칠팔구십';
+        var _description = '일이삼사오육칠팔구십일이삼사오육칠팔구십일이삼사오육칠팔구십일이삼사오육칠팔구십일이삼사오육칠팔구십일이삼사오육칠팔구십일이삼사오육칠팔구십일이삼사오육칠팔구십일이삼사오육칠팔구십일이삼사오육칠팔구십일이삼사오육칠팔구십일이삼사오육칠팔구십';
         var _linkUrl = '//cyad1.nate.com/click.kti/%#publisher%#/%#section%#@%#location%#?ads_no=%#ads_no%#&cmp_no=%#cmp_no%#&img_no=%#img_no%#';
 
         var _imgWidth = 970;
@@ -31,6 +31,21 @@
                 border-radius:4px;
                 position:relative;
                 overflow:hidden;
+            }
+            .pr-type-ad-wrapper .ad-link:hover .ad-gradient::after {
+                content:'';
+                display:block;
+                width:${_imgWidth}px;
+                height:${_imgHeight}px;
+                background-color:#286dea;
+                opacity:0.25;
+                position:absolute;
+                top:0;
+                left:0;
+                border-radius:4px;
+            }
+            .pr-type-ad-wrapper .ad-link:hover .ad-title, .pr-type-ad-wrapper .ad-link:hover .ad-description {
+                text-decoration:underline;
             }
             .pr-type-ad-wrapper .ad-link .ad-gradient {
                 width:${_imgWidth}px;
